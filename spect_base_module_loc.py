@@ -97,8 +97,31 @@ class PixelSet(np.ndarray):
         for name in obj[0].__dict__.keys():
             setattr(self,name,np.array([getattr(pix,name) for pix in obj]))
 
+    def read_res(self, cart=''):
+        """
+        Leggi i risultati da cart e appiccicali ai pixel. Crea nuovi attributi anche per PixelSet.
+        :param cart:
+        :return:
+        """
+        fit_results = ['h3p_col','h3p_temp','err_col','err_temp','ch4_col','err_ch4','chisq','offset','wl_shift']
+        for attr in fit_results:
+            print(attr)
+            #leggi
+            for pix in self.pixels:
+                pix.add_res(attr,res)
+            #appiccica ai pixel
+            #vettorizza
+        print('da scrivere')
+        return
+
     def ciao(self):
         print('ciao')
+        return
+
+    def ortomap(self, attr):
+        print('da scrivere')
+        attr_to_plot = getattr(self,attr)
+        jirfu.ortomap(self.lat,self.lon,attr_to_plot)
         return
 
     # def __init__(self, descr='', pixels=None):
@@ -132,18 +155,16 @@ class PixelSet(np.ndarray):
 
 #### Funzioni
 
-def trova_spip(file):
+def trova_spip(file, hasha = '#'):
     """
     Trova il '#' nei file .dat
     """
-    hasha = '#'
     gigi = 'a'
     while gigi != hasha :
         linea = file.readline()
         gigi = linea[0]
     else:
         return
-
 
 def read_obs(filename):
     """
@@ -286,18 +307,7 @@ def read_input_prof_gbb(filename, type, n_alt = 151, alt_step = 10.0, n_gas = 86
         proftot = np.array(proftot)
 
 
-    if(type == 'temp'):
-        print(type)
-        trova_spip(infile)
-        trova_spip(infile)
-        prof = []
-        while len(prof) < n_alt:
-            line = infile.readline()
-            prof += list(map(float, line.split()))
-        proftot = np.array(prof[::-1])
-
-
-    if(type == 'pres'):
+    if(type == 'temp' or type == 'pres'):
         print(type)
         trova_spip(infile)
         trova_spip(infile)
@@ -335,9 +345,42 @@ def write_input_prof_gbb(filename, prof, type, n_alt = 151, alt_step = 10.0):
     return
 
 
+def read_input_atm_man(filename):
+    """
+    Reads input atmosphere in manuel standard.
+    :param filename:
+    :return:
+    """
+    infile = open(filename,'r')
+    trova_spip(infile,hasha='$')
+    n_alt = int(infile.readline())
+    trova_spip(infile,hasha='$')
+    prof = []
+    while len(prof) < n_alt:
+        line = infile.readline()
+        prof += list(map(float, line.split()))
+    alts = np.array(prof)
+
+    trova_spip(infile,hasha='$')
+    prof = []
+    while len(prof) < n_alt:
+        line = infile.readline()
+        prof += list(map(float, line.split()))
+    pres = np.array(prof)
+
+    trova_spip(infile,hasha='$')
+    prof = []
+    while len(prof) < n_alt:
+        line = infile.readline()
+        prof += list(map(float, line.split()))
+    temp = np.array(prof)
+
+    return alts, temp, pres
+
+
 def write_input_atm_man(filename, z, T, P, n_alt = 301, alt_step = 5.0):
     """
-    Writes input profiles in gbb standard formatted files (in_temp.dat, in_pres.dat, in_vmr_prof.dat)
+    Writes input profiles in manuel standard formatted files
     :return:
     """
     alts = np.linspace(0,(n_alt-1)*alt_step,n_alt)
@@ -736,6 +779,8 @@ def hydro_P(z,T,MM,P_0=None,R=Rtit,M=Mtit):
     MM = MM*1e-3 # from amu to kg/mol
 
     g = c_G*M/(R+z)**2
+    print(g[0])
+    #g=g*1.352/g[0]
 
     HH = MM*g/(c_R*T)
 
