@@ -16,35 +16,32 @@ import scipy.stats as stats
 import time
 
 
-def integr(wl,spe,Range,sol_lim):
-    cond = (wl > Range[0]) & (wl < Range[1]) & (~np.isnan(spe))
-    p1_cond = (wl > sol_lim[0][0]) & (wl < sol_lim[0][1])
-    p2_cond = (wl > sol_lim[1][0]) & (wl < sol_lim[1][1])
-    sol = lambda x: np.nanmean(spe[p1_cond])+(x-np.nanmean(wl[p1_cond]))/(np.nanmean(wl[p2_cond])-np.nanmean(wl[p1_cond]))*(np.nanmean(spe[p2_cond])-np.nanmean(spe[p1_cond]))
-
-    fondo = np.array([sol(wlu) for wlu in wl[cond]])
-    fondo[np.isnan(fondo)] = 0.0
-    intt = np.trapz(spe[cond]-fondo,x=wl[cond])
-    return intt
-
-
-def cbar_things(levels):
-    log2 = int(mt.ceil(mt.log10(np.max(levels)))-1)
-    log1 = int(mt.ceil(mt.log10(np.min(levels)))-1)
-
-    expo = log2
-    if(log1 < log2-1): print('from cbar_things -> Maybe better in log scale?\n')
-
-    if expo == 0 or expo == 1 or expo == -1 or expo == 2:
-        lab = ''
-        expo = 0
-    else:
-        lab = r'$\times 10^{{{}}}$ '.format(expo)
-
-    return expo, lab
-
-
-
+# def integr(wl,spe,Range,sol_lim):
+#     cond = (wl > Range[0]) & (wl < Range[1]) & (~np.isnan(spe))
+#     p1_cond = (wl > sol_lim[0][0]) & (wl < sol_lim[0][1])
+#     p2_cond = (wl > sol_lim[1][0]) & (wl < sol_lim[1][1])
+#     sol = lambda x: np.nanmean(spe[p1_cond])+(x-np.nanmean(wl[p1_cond]))/(np.nanmean(wl[p2_cond])-np.nanmean(wl[p1_cond]))*(np.nanmean(spe[p2_cond])-np.nanmean(spe[p1_cond]))
+#
+#     fondo = np.array([sol(wlu) for wlu in wl[cond]])
+#     fondo[np.isnan(fondo)] = 0.0
+#     intt = np.trapz(spe[cond]-fondo,x=wl[cond])
+#     return intt
+#
+#
+# def cbar_things(levels):
+#     log2 = int(mt.ceil(mt.log10(np.max(levels)))-1)
+#     log1 = int(mt.ceil(mt.log10(np.min(levels)))-1)
+#
+#     expo = log2
+#     if(log1 < log2-1): print('from cbar_things -> Maybe better in log scale?\n')
+#
+#     if expo == 0 or expo == 1 or expo == -1 or expo == 2:
+#         lab = ''
+#         expo = 0
+#     else:
+#         lab = r'$\times 10^{{{}}}$ '.format(expo)
+#
+#     return expo, lab
 
 ########################### MAIN #######################################################
 
@@ -181,10 +178,10 @@ int_Q = []
 int_P = []
 
 for wl,spe in zip(pixs.wl,pixs.spet):
-    int_hcn.append(integr(wl,spe,limits[0],sol_limits[:-1]))
-    int_R.append(integr(wl,spe,limits[1],sol_limits[1:]))
-    int_Q.append(integr(wl,spe,limits[2],sol_limits[1:]))
-    int_P.append(integr(wl,spe,limits[3],sol_limits[1:]))
+    int_hcn.append(sbm.integr_sol(wl,spe,wl_range=limits[0],sol_lim=sol_limits[:-1]))
+    int_R.append(sbm.integr_sol(wl,spe,wl_range=limits[1],sol_lim=sol_limits[1:]))
+    int_Q.append(sbm.integr_sol(wl,spe,wl_range=limits[2],sol_lim=sol_limits[1:]))
+    int_P.append(sbm.integr_sol(wl,spe,wl_range=limits[3],sol_lim=sol_limits[1:]))
 
 int_hcn = np.array(int_hcn)
 int_R = np.array(int_R)
@@ -219,108 +216,120 @@ int_cont = np.ma.MaskedArray(int_cont,conan)
 #pl.show()
 
 nome = cart + 'HCN_int_cont.pdf'
-fig = pl.figure(figsize=(8, 6), dpi=150)
-pl.grid()
-pl.xlabel('Latitude')
-pl.ylabel('Altitude (km)')
-pl.ylim(400,1100)
 quant = int_cont[0,]
-ncont = 12
-levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
-print(levels)
-expo, clab = cbar_things(levels)
-quant = quant/10**expo
-levels = levels/10**expo
-pl.contourf(lat_g,alt_g,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
-cb = pl.colorbar(format=cbarform, pad = 0.1)
-cb.set_label(cbarlabel.format(clab))
-fig.savefig(nome, format='pdf', dpi=150)
-pl.close(fig)
-#pl.show()
-#pl.hist(int_R,bins=20)
-#pl.show()
+sbm.map_contour(nome, lat_g, alt_g, quant, cbarlabel=cbarlabel, xlabel='Latitude', ylabel='Altitude (km)', ylim = [400,1100])
+
 nome = cart + 'R_int_cont.pdf'
-fig = pl.figure(figsize=(8, 6), dpi=150)
-pl.grid()
-pl.xlabel('Latitude')
-pl.ylabel('Altitude (km)')
-pl.ylim(400,1100)
 quant = int_cont[1,]
-ncont = 12
-levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
-print(levels)
-expo, clab = cbar_things(levels)
-quant = quant/10**expo
-levels = levels/10**expo
-pl.contourf(lat_g,alt_g,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
-cb = pl.colorbar(format=cbarform, pad = 0.1)
-cb.set_label(cbarlabel.format(clab))
-fig.savefig(nome, format='pdf', dpi=150)
-pl.close(fig)
-#pl.show()
-#pl.hist(int_Q,bins=20)
-#pl.show()
+sbm.map_contour(nome, lat_g, alt_g, quant, cbarlabel=cbarlabel, xlabel='Latitude', ylabel='Altitude (km)', ylim = [400,1100])
+
 nome = cart + 'Q_int_cont.pdf'
-fig = pl.figure(figsize=(8, 6), dpi=150)
-pl.grid()
-pl.xlabel('Latitude')
-pl.ylabel('Altitude (km)')
-pl.ylim(400,1100)
 quant = int_cont[2,]
-ncont = 12
-levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
-print(levels)
-expo, clab = cbar_things(levels)
-quant = quant/10**expo
-levels = levels/10**expo
-pl.contourf(lat_g,alt_g,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
-cb = pl.colorbar(format=cbarform, pad = 0.1)
-cb.set_label(cbarlabel.format(clab))
-fig.savefig(nome, format='pdf', dpi=150)
-pl.close(fig)
-# pl.show()
-# pl.hist(int_P,bins=20)
-# pl.show()
+sbm.map_contour(nome, lat_g, alt_g, quant, cbarlabel=cbarlabel, xlabel='Latitude', ylabel='Altitude (km)', ylim = [400,1100])
+
 nome = cart + 'P_int_cont.pdf'
-fig = pl.figure(figsize=(8, 6), dpi=150)
-pl.grid()
-pl.xlabel('Latitude')
-pl.ylabel('Altitude (km)')
-pl.ylim(400,1100)
 quant = int_cont[3,]
-ncont = 12
-levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
-print(levels)
-expo, clab = cbar_things(levels)
-quant = quant/10**expo
-levels = levels/10**expo
-pl.contourf(lat_g,alt_g,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
-cb = pl.colorbar(format=cbarform, pad = 0.1)
-cb.set_label(cbarlabel.format(clab))
-fig.savefig(nome, format='pdf', dpi=150)
-pl.close(fig)
-#pl.show()
+sbm.map_contour(nome, lat_g, alt_g, quant, cbarlabel=cbarlabel, xlabel='Latitude', ylabel='Altitude (km)', ylim = [400,1100])
 
 nome = cart + 'RvsP_int_cont.pdf'
-fig = pl.figure(figsize=(8, 6), dpi=150)
-pl.grid()
-pl.xlabel('Latitude')
-pl.ylabel('Altitude (km)')
-pl.ylim(400,1100)
 quant = int_cont[1,]/int_cont[3,]
-ncont = 12
-levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
-print(levels)
-expo, clab = cbar_things(levels)
-quant = quant/10**expo
-levels = levels/10**expo
-pl.contourf(lat_g,alt_g,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
-cb = pl.colorbar(format=cbarform, pad = 0.1)
-cb.set_label(cbarlabel2)
-#pl.scatter(pixs.lat,pixs.alt,c=int_P,vmin=0,vmax=5e-5,s=4)
-fig.savefig(nome, format='pdf', dpi=150)
-pl.close(fig)
-#pl.show()
+sbm.map_contour(nome, lat_g, alt_g, quant, cbarlabel=cbarlabel2, xlabel='Latitude', ylabel='Altitude (km)', ylim = [400,1100])
+
+
+# nome = cart + 'HCN_int_cont.pdf'
+# fig = pl.figure(figsize=(8, 6), dpi=150)
+# pl.grid()
+# pl.xlabel('Latitude')
+# pl.ylabel('Altitude (km)')
+# pl.ylim(400,1100)
+# quant = int_cont[0,]
+# ncont = 12
+# levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
+# print(levels)
+# expo, clab = cbar_things(levels)
+# quant = quant/10**expo
+# levels = levels/10**expo
+# pl.contourf(lat_g,alt_g,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
+# cb = pl.colorbar(format=cbarform, pad = 0.1)
+# cb.set_label(cbarlabel.format(clab))
+# fig.savefig(nome, format='pdf', dpi=150)
+# pl.close(fig)
+#
+# nome = cart + 'R_int_cont.pdf'
+# fig = pl.figure(figsize=(8, 6), dpi=150)
+# pl.grid()
+# pl.xlabel('Latitude')
+# pl.ylabel('Altitude (km)')
+# pl.ylim(400,1100)
+# quant = int_cont[1,]
+# ncont = 12
+# levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
+# print(levels)
+# expo, clab = cbar_things(levels)
+# quant = quant/10**expo
+# levels = levels/10**expo
+# pl.contourf(lat_g,alt_g,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
+# cb = pl.colorbar(format=cbarform, pad = 0.1)
+# cb.set_label(cbarlabel.format(clab))
+# fig.savefig(nome, format='pdf', dpi=150)
+# pl.close(fig)
+#
+# nome = cart + 'Q_int_cont.pdf'
+# fig = pl.figure(figsize=(8, 6), dpi=150)
+# pl.grid()
+# pl.xlabel('Latitude')
+# pl.ylabel('Altitude (km)')
+# pl.ylim(400,1100)
+# quant = int_cont[2,]
+# ncont = 12
+# levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
+# print(levels)
+# expo, clab = cbar_things(levels)
+# quant = quant/10**expo
+# levels = levels/10**expo
+# pl.contourf(lat_g,alt_g,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
+# cb = pl.colorbar(format=cbarform, pad = 0.1)
+# cb.set_label(cbarlabel.format(clab))
+# fig.savefig(nome, format='pdf', dpi=150)
+# pl.close(fig)
+#
+# nome = cart + 'P_int_cont.pdf'
+# fig = pl.figure(figsize=(8, 6), dpi=150)
+# pl.grid()
+# pl.xlabel('Latitude')
+# pl.ylabel('Altitude (km)')
+# pl.ylim(400,1100)
+# quant = int_cont[3,]
+# ncont = 12
+# levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
+# print(levels)
+# expo, clab = cbar_things(levels)
+# quant = quant/10**expo
+# levels = levels/10**expo
+# pl.contourf(lat_g,alt_g,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
+# cb = pl.colorbar(format=cbarform, pad = 0.1)
+# cb.set_label(cbarlabel.format(clab))
+# fig.savefig(nome, format='pdf', dpi=150)
+# pl.close(fig)
+#
+# nome = cart + 'RvsP_int_cont.pdf'
+# fig = pl.figure(figsize=(8, 6), dpi=150)
+# pl.grid()
+# pl.xlabel('Latitude')
+# pl.ylabel('Altitude (km)')
+# pl.ylim(400,1100)
+# quant = int_cont[1,]/int_cont[3,]
+# ncont = 12
+# levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
+# print(levels)
+# expo, clab = cbar_things(levels)
+# quant = quant/10**expo
+# levels = levels/10**expo
+# pl.contourf(lat_g,alt_g,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
+# cb = pl.colorbar(format=cbarform, pad = 0.1)
+# cb.set_label(cbarlabel2)
+# fig.savefig(nome, format='pdf', dpi=150)
+# pl.close(fig)
 
 climat = np.zeros([len(seas),n_lats,n_sza,len(alts)])
 
@@ -347,113 +356,127 @@ for lat,il in zip(lat_g[:,0],range(n_lat_pix)):
 conan = (int_cont == -1) | (int_cont < 0) | (np.isnan(int_cont))
 int_cont = np.ma.MaskedArray(int_cont,conan)
 
-#pl.hist(int_hcn,bins=20)
-#pl.show()
+
 nome = cart + 'HCN_int_cont_time.pdf'
-fig = pl.figure(figsize=(8, 6), dpi=150)
-pl.grid()
-pl.xlabel('Latitude')
-pl.ylabel('Time (years from 2000)')
-pl.ylim(5,13)
-pl.title('Alt = 400+/-50 km')
 quant = int_cont[0,]
-ncont = 12
-levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
-print(levels)
-expo, clab = cbar_things(levels)
-quant = quant/10**expo
-levels = levels/10**expo
-pl.contourf(lat_g,time_g-2000,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
-cb = pl.colorbar(format=cbarform, pad = 0.1)
-cb.set_label(cbarlabel.format(clab))
-fig.savefig(nome, format='pdf', dpi=150)
-pl.close(fig)
-#pl.show()
-#pl.hist(int_R,bins=20)
-#pl.show()
+sbm.map_contour(nome, lat_g, time_g-2000., quant, cbarlabel=cbarlabel, xlabel='Latitude', ylabel='Time (years from 2000)', ylim = [5,13])
+
 nome = cart + 'R_int_cont_time.pdf'
-fig = pl.figure(figsize=(8, 6), dpi=150)
-pl.grid()
-pl.xlabel('Latitude')
-pl.ylabel('Time (years from 2000))')
-pl.title('Alt = 1000+/-50 km')
-pl.ylim(5,13)
 quant = int_cont[1,]
-ncont = 12
-levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
-print(levels)
-expo, clab = cbar_things(levels)
-quant = quant/10**expo
-levels = levels/10**expo
-pl.contourf(lat_g,time_g-2000,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
-cb = pl.colorbar(format=cbarform, pad = 0.1)
-cb.set_label(cbarlabel.format(clab))
-fig.savefig(nome, format='pdf', dpi=150)
-pl.close(fig)
-#pl.show()
-#pl.hist(int_Q,bins=20)
-#pl.show()
+sbm.map_contour(nome, lat_g, time_g-2000., quant, cbarlabel=cbarlabel, xlabel='Latitude', ylabel='Time (years from 2000)', ylim = [5,13])
+
 nome = cart + 'Q_int_cont_time.pdf'
-fig = pl.figure(figsize=(8, 6), dpi=150)
-pl.grid()
-pl.xlabel('Latitude')
-pl.ylabel('Time (years from 2000))')
-pl.title('Alt = 400+/-50 km')
-pl.ylim(5,13)
 quant = int_cont[2,]
-ncont = 12
-levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
-print(levels)
-expo, clab = cbar_things(levels)
-quant = quant/10**expo
-levels = levels/10**expo
-pl.contourf(lat_g,time_g-2000,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
-cb = pl.colorbar(format=cbarform, pad = 0.1)
-cb.set_label(cbarlabel.format(clab))
-fig.savefig(nome, format='pdf', dpi=150)
-pl.close(fig)
-# pl.show()
-# pl.hist(int_P,bins=20)
-# pl.show()
+sbm.map_contour(nome, lat_g, time_g-2000., quant, cbarlabel=cbarlabel, xlabel='Latitude', ylabel='Time (years from 2000)', ylim = [5,13])
+
 nome = cart + 'P_int_cont_time.pdf'
-fig = pl.figure(figsize=(8, 6), dpi=150)
-pl.grid()
-pl.xlabel('Latitude')
-pl.ylabel('Time (years from 2000))')
-pl.title('Alt = 1000+/-50 km')
-pl.ylim(5,13)
 quant = int_cont[3,]
-ncont = 12
-levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
-print(levels)
-expo, clab = cbar_things(levels)
-quant = quant/10**expo
-levels = levels/10**expo
-pl.contourf(lat_g,time_g-2000,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
-cb = pl.colorbar(format=cbarform, pad = 0.1)
-cb.set_label(cbarlabel.format(clab))
-fig.savefig(nome, format='pdf', dpi=150)
-pl.close(fig)
+sbm.map_contour(nome, lat_g, time_g-2000., quant, cbarlabel=cbarlabel, xlabel='Latitude', ylabel='Time (years from 2000)', ylim = [5,13])
 
 nome = cart + 'RvsP_int_cont_time.pdf'
-fig = pl.figure(figsize=(8, 6), dpi=150)
-pl.grid()
-pl.xlabel('Latitude')
-pl.ylabel('Time (years from 2000))')
-pl.title('Alt = 1000+/-50 km')
-pl.ylim(5,13)
 quant = int_cont[1,]/int_cont[3,]
-ncont = 12
-levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
-print(levels)
-expo, clab = cbar_things(levels)
-quant = quant/10**expo
-levels = levels/10**expo
-pl.contourf(lat_g,time_g-2000,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
-cb = pl.colorbar(format=cbarform, pad = 0.1)
-cb.set_label(cbarlabel2)
-fig.savefig(nome, format='pdf', dpi=150)
-pl.close(fig)
+sbm.map_contour(nome, lat_g, time_g-2000., quant, cbarlabel=cbarlabel2, xlabel='Latitude', ylabel='Time (years from 2000)', ylim = [5,13])
+
+
+# nome = cart + 'HCN_int_cont_time.pdf'
+# fig = pl.figure(figsize=(8, 6), dpi=150)
+# pl.grid()
+# pl.xlabel('Latitude')
+# pl.ylabel('Time (years from 2000)')
+# pl.ylim(5,13)
+# pl.title('Alt = 400+/-50 km')
+# quant = int_cont[0,]
+# ncont = 12
+# levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
+# print(levels)
+# expo, clab = cbar_things(levels)
+# quant = quant/10**expo
+# levels = levels/10**expo
+# pl.contourf(lat_g,time_g-2000,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
+# cb = pl.colorbar(format=cbarform, pad = 0.1)
+# cb.set_label(cbarlabel.format(clab))
+# fig.savefig(nome, format='pdf', dpi=150)
+# pl.close(fig)
+#
+# nome = cart + 'R_int_cont_time.pdf'
+# fig = pl.figure(figsize=(8, 6), dpi=150)
+# pl.grid()
+# pl.xlabel('Latitude')
+# pl.ylabel('Time (years from 2000))')
+# pl.title('Alt = 1000+/-50 km')
+# pl.ylim(5,13)
+# quant = int_cont[1,]
+# ncont = 12
+# levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
+# print(levels)
+# expo, clab = cbar_things(levels)
+# quant = quant/10**expo
+# levels = levels/10**expo
+# pl.contourf(lat_g,time_g-2000,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
+# cb = pl.colorbar(format=cbarform, pad = 0.1)
+# cb.set_label(cbarlabel.format(clab))
+# fig.savefig(nome, format='pdf', dpi=150)
+# pl.close(fig)
+#
+# nome = cart + 'Q_int_cont_time.pdf'
+# fig = pl.figure(figsize=(8, 6), dpi=150)
+# pl.grid()
+# pl.xlabel('Latitude')
+# pl.ylabel('Time (years from 2000))')
+# pl.title('Alt = 400+/-50 km')
+# pl.ylim(5,13)
+# quant = int_cont[2,]
+# ncont = 12
+# levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
+# print(levels)
+# expo, clab = cbar_things(levels)
+# quant = quant/10**expo
+# levels = levels/10**expo
+# pl.contourf(lat_g,time_g-2000,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
+# cb = pl.colorbar(format=cbarform, pad = 0.1)
+# cb.set_label(cbarlabel.format(clab))
+# fig.savefig(nome, format='pdf', dpi=150)
+# pl.close(fig)
+#
+# nome = cart + 'P_int_cont_time.pdf'
+# fig = pl.figure(figsize=(8, 6), dpi=150)
+# pl.grid()
+# pl.xlabel('Latitude')
+# pl.ylabel('Time (years from 2000))')
+# pl.title('Alt = 1000+/-50 km')
+# pl.ylim(5,13)
+# quant = int_cont[3,]
+# ncont = 12
+# levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
+# print(levels)
+# expo, clab = cbar_things(levels)
+# quant = quant/10**expo
+# levels = levels/10**expo
+# pl.contourf(lat_g,time_g-2000,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
+# cb = pl.colorbar(format=cbarform, pad = 0.1)
+# cb.set_label(cbarlabel.format(clab))
+# fig.savefig(nome, format='pdf', dpi=150)
+# pl.close(fig)
+#
+# nome = cart + 'RvsP_int_cont_time.pdf'
+# fig = pl.figure(figsize=(8, 6), dpi=150)
+# pl.grid()
+# pl.xlabel('Latitude')
+# pl.ylabel('Time (years from 2000))')
+# pl.title('Alt = 1000+/-50 km')
+# pl.ylim(5,13)
+# quant = int_cont[1,]/int_cont[3,]
+# ncont = 12
+# levels = np.linspace(np.percentile(quant.compressed(),5),np.percentile(quant.compressed(),95),ncont)
+# print(levels)
+# expo, clab = cbar_things(levels)
+# quant = quant/10**expo
+# levels = levels/10**expo
+# pl.contourf(lat_g,time_g-2000,quant,ncont=ncont,corner_mask = True,levels = levels, extend = 'both')
+# cb = pl.colorbar(format=cbarform, pad = 0.1)
+# cb.set_label(cbarlabel2)
+# fig.savefig(nome, format='pdf', dpi=150)
+# pl.close(fig)
 
 
 t2 = time.time()
