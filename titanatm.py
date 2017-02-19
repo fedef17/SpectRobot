@@ -8,6 +8,7 @@ import matplotlib.pyplot as pl
 import math as mt
 import spect_base_module as sbm
 import pickle
+import dill
 import scipy.io as io
 
 cart = '/home/fede/Scrivania/Dotto/AbstrArt/CH4_HCN_climatology/Tit_atm/'
@@ -143,19 +144,26 @@ sbm.write_input_prof_gbb(cart2+'in_pres_nom.dat',np.exp(np.interp(z,z2,np.log(PP
 sbm.write_input_prof_gbb(cart2+'in_pres_wave2.dat',np.exp(np.interp(z,z2,np.log(P2))),'pres',descr='Perturbed atm. for band 05s, 2006, Gravity wave 2',script=__file__)
 
 
-temp_wave2 = sbm.AtmProfile(T2,z2,gridname=['Alt (km)'],profname='temp')
-pres_wave2 = sbm.AtmProfile(P2,z2,gridname=['Alt (km)'],profname='pres')
+Atm_wave2 = sbm.AtmProfile(T2,z2,gridname=['Alt (km)'],profname='temp')
+Atm_wave2.add_profile(P2, 'pres')
 
-temp_nom = sbm.AtmProfile(T,z2,gridname=['Alt (km)'],profname='temp')
-pres_nom = sbm.AtmProfile(PP,z2,gridname=['Alt (km)'],profname='pres')
+Atm_nom = sbm.AtmProfile(T,z2,gridname=['Alt (km)'],profname='temp')
+Atm_nom.add_profile(PP, 'pres')
+
+# temp_wave2 = sbm.AtmProfile(T2,z2,gridname=['Alt (km)'],profname='temp')
+# pres_wave2 = sbm.AtmProfile(P2,z2,gridname=['Alt (km)'],profname='pres')
+#
+# temp_nom = sbm.AtmProfile(T,z2,gridname=['Alt (km)'],profname='temp')
+# pres_nom = sbm.AtmProfile(PP,z2,gridname=['Alt (km)'],profname='pres')
 
 ## ADESSO mi leggo le vibtemp di Maya
 cmaya = '/home/fede/Scrivania/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/Wave2_maya/'
 
 file1 = 'vt_ch4_2006-07_09_05s_twave2_sza14_vmr3_v01.00_0061'
 file2 = 'vt_ch4_2006-07_09_05s_sza14_vmr3_v01.00_0061'
-nome = 'in_vibtemp_maya_nom.dat'
-temp_kin = temp_nom
+
+
+#### Starting with the NOMINAL atmosphere
 
 alts_vib, molecs, levels, energies, vibtemps = sbm.read_tvib_manuel(cmaya + file2)
 
@@ -183,24 +191,81 @@ for tempu in vibtemps:
     tempu_ok = sbm.AtmProfile(np.array(tempu),np.array(alts_vib))
     vib_ok.append(tempu_ok)
 
-ch4 = sbm.Molec(6, 'CH4', MM=12)
-ch4.add_iso(1, MM = 12, ratio = 0.999)
+ch4_nom = sbm.Molec(6, 'CH4', MM=12)
+ch4_nom.add_iso(1, MM = 12, ratio = 0.999)
 # Aggiungo lo stato fondamentale
 lev_0 = '     0 0 0 0   '
 energies.insert(0,0.0)
 levels.insert(0, lev_0)
 simmetries.insert(0,[])
-vib_ok.insert(0, temp_wave2)
-ch4.iso_1.add_levels(levels,energies,vibtemps=vib_ok,simmetries=simmetries)
+tempu_ok = sbm.AtmProfile(np.array(Atm_nom.temp),np.array(alts_vib))
+vib_ok.insert(0, tempu_ok)
+ch4_nom.iso_1.add_levels(levels,energies,vibtemps=vib_ok,simmetries=simmetries)
+
+ch4_nom.link_to_atmos(Atm_nom)
+
+#### The WAVE 2 atmosphere
+
+alts_vib, molecs, levels, energies, vibtemps = sbm.read_tvib_manuel(cmaya + file1)
+
+for lev in levels:
+    print('{:15.15s}{:1s}'.format(lev,'/'))
+
+levstrip = [lev.strip() for lev in levels]
+with open(cmaya+'/../CH4_levels2.dat','r') as infi:
+    ch4_levs = [line.rstrip() for line in infi]
+
+simmetries = []
+for levi in levstrip:
+    print(levi)
+    simm = []
+    for leve in ch4_levs:
+        if levi in leve[:-3]:
+            print('--->',leve)
+            simm.append(leve)
+    simmetries.append(simm)
+
+#print(molecs,levels,energies,vibtemps)
+vib_ok = []
+for tempu in vibtemps:
+    #print(np.shape(np.array(tempu)),np.shape(np.array(alts_vib)))
+    tempu_ok = sbm.AtmProfile(np.array(tempu),np.array(alts_vib))
+    vib_ok.append(tempu_ok)
+
+ch4_wave2 = sbm.Molec(6, 'CH4', MM=12)
+ch4_wave2.add_iso(1, MM = 12, ratio = 0.999)
+# Aggiungo lo stato fondamentale
+lev_0 = '     0 0 0 0   '
+energies.insert(0,0.0)
+levels.insert(0, lev_0)
+simmetries.insert(0,[])
+tempu_ok = sbm.AtmProfile(np.array(Atm_wave2.temp),np.array(alts_vib))
+vib_ok.insert(0, tempu_ok)
+ch4_wave2.iso_1.add_levels(levels,energies,vibtemps=vib_ok,simmetries=simmetries)
+
+ch4_wave2.link_to_atmos(Atm_wave2)
 
 
-print(ch4.iso_1.lev_01.vibtemp.calc(650))
-print(ch4.iso_1.lev_05.vibtemp.calc(645))
-print(ch4.iso_1.lev_11.vibtemp.calc(647))
-print(type(ch4.iso_1.lev_11.degen))
-print(len(ch4.iso_1.lev_11.vibtemp),len(temp_wave2))
+pickle.dump([ch4_nom, ch4_wave2], open(cart2+'ch4_Molec_testMaya.pic','w'))
 
-sbm.write_tvib_gbb(cart2+nome+'.vibtemp', ch4, temp_wave2, descr='Vib temp for wave2 test atmosphere',l_ratio=False,script=__file__)
-sbm.write_tvib_gbb(cart2+nome, ch4, temp_kin, descr='Vib temp for wave2 test atmosphere',script=__file__)
+# print(ch4.iso_1.lev_01.vibtemp.grid)
+# print(ch4.iso_1.lev_00.vibtemp.calc(650))
+# print(ch4.iso_1.lev_01.vibtemp.calc(650))
+# print(ch4.iso_1.lev_05.vibtemp.calc(645))
+# print(ch4.iso_1.lev_11.vibtemp.calc(647))
+# print(type(ch4.iso_1.lev_11.degen))
+# print(len(ch4.iso_1.lev_11.vibtemp.prof),len(temp_wave2.temp))
+
+
+nome = 'in_vibtemp_maya_nom.dat'
+
+sbm.write_tvib_gbb(cart2+nome+'.vibtemp', ch4_nom, ch4_nom.atmosphere, descr='Vib temp for NOM test atmosphere',l_ratio=False,script=__file__)
+sbm.write_tvib_gbb(cart2+nome, ch4_nom, ch4_nom.atmosphere, descr='Vib temp for NOM test atmosphere',script=__file__)
+
+
+nome = 'in_vibtemp_maya_wave2.dat'
+
+sbm.write_tvib_gbb(cart2+nome+'.vibtemp', ch4_wave2, ch4_wave2.atmosphere, descr='Vib temp for NOM test atmosphere',l_ratio=False,script=__file__)
+sbm.write_tvib_gbb(cart2+nome, ch4_wave2, ch4_wave2.atmosphere, descr='Vib temp for NOM test atmosphere',script=__file__)
 
 #tvib2 = sbm.read_tvib_manuel(cmaya + 'vt_ch4_2006-07_09_05s_sza14_vmr3_v01.00_0061', mol = 'CH4')
