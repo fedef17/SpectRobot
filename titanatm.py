@@ -8,10 +8,9 @@ import matplotlib.pyplot as pl
 import math as mt
 import spect_base_module as sbm
 import pickle
-import dill
 import scipy.io as io
 
-cart = '/home/fede/Scrivania/Dotto/AbstrArt/CH4_HCN_climatology/Tit_atm/'
+cart = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/Tit_atm/'
 
 z = np.linspace(0,1500,151)
 
@@ -135,7 +134,7 @@ print(ciao)
 
 alts = np.linspace(0.,1500.,151)
 
-cart2 = '/home/fede/Scrivania/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/Test_wave2/'
+cart2 = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/Test_wave2/'
 
 sbm.write_input_prof_gbb(cart2+'in_temp_nom.dat',np.interp(z,z2,T),'temp',descr='Nominal atm. for band 05s, 2006',script=__file__)
 sbm.write_input_prof_gbb(cart2+'in_temp_wave2.dat',np.interp(z,z2,T2),'temp',descr='Perturbed atm. for band 05s, 2006, Gravity wave 2',script=__file__)
@@ -157,7 +156,7 @@ Atm_nom.add_profile(PP, 'pres')
 # pres_nom = sbm.AtmProfile(PP,z2,gridname=['Alt (km)'],profname='pres')
 
 ## ADESSO mi leggo le vibtemp di Maya
-cmaya = '/home/fede/Scrivania/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/Wave2_maya/'
+cmaya = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/Wave2_maya/'
 
 file1 = 'vt_ch4_2006-07_09_05s_twave2_sza14_vmr3_v01.00_0061'
 file2 = 'vt_ch4_2006-07_09_05s_sza14_vmr3_v01.00_0061'
@@ -171,17 +170,21 @@ for lev in levels:
     print('{:15.15s}{:1s}'.format(lev,'/'))
 
 levstrip = [lev.strip() for lev in levels]
-with open(cmaya+'/../CH4_levels2.dat','r') as infi:
-    ch4_levs = [line.rstrip() for line in infi]
+lev_quanta = [sbm.extract_quanta_ch4(lev)[0] for lev in levels]
+#with open(cmaya+'/../CH4_levels2.dat','r') as infi:
+#    ch4_levs = [line.rstrip() for line in infi]
+
+livelli = sbm.read_mol_levels_HITRAN(molec = 'CH4')
 
 simmetries = []
-for levi in levstrip:
+for levi in lev_quanta:
     print(levi)
     simm = []
-    for leve in ch4_levs:
-        if levi in leve[:-3]:
+    for leve,levsim in zip(livelli['quanta'],livelli['lev_strings']):
+        if leve == levi:
             print('--->',leve)
-            simm.append(leve)
+            simm += levsim
+    print(simm)
     simmetries.append(simm)
 
 #print(molecs,levels,energies,vibtemps)
@@ -197,7 +200,12 @@ ch4_nom.add_iso(1, MM = 12, ratio = 0.999)
 lev_0 = '     0 0 0 0   '
 energies.insert(0,0.0)
 levels.insert(0, lev_0)
-simmetries.insert(0,[])
+quanta = sbm.extract_quanta_ch4(lev_0)[0]
+for leve,levsim in zip(livelli['quanta'],livelli['lev_strings']):
+    if leve == quanta:
+        print('--->',leve)
+        simmetries.insert(0,levsim)
+
 tempu_ok = sbm.AtmProfile(np.array(Atm_nom.temp),np.array(alts_vib))
 vib_ok.insert(0, tempu_ok)
 ch4_nom.iso_1.add_levels(levels,energies,vibtemps=vib_ok,simmetries=simmetries)
@@ -212,17 +220,21 @@ for lev in levels:
     print('{:15.15s}{:1s}'.format(lev,'/'))
 
 levstrip = [lev.strip() for lev in levels]
-with open(cmaya+'/../CH4_levels2.dat','r') as infi:
-    ch4_levs = [line.rstrip() for line in infi]
+lev_quanta = [sbm.extract_quanta_ch4(lev)[0] for lev in levels]
+#with open(cmaya+'/../CH4_levels2.dat','r') as infi:
+#    ch4_levs = [line.rstrip() for line in infi]
+
+livelli = sbm.read_mol_levels_HITRAN(molec = 'CH4')
 
 simmetries = []
-for levi in levstrip:
+for levi in lev_quanta:
     print(levi)
     simm = []
-    for leve in ch4_levs:
-        if levi in leve[:-3]:
+    for leve,levsim in zip(livelli['quanta'],livelli['lev_strings']):
+        if leve == levi:
             print('--->',leve)
-            simm.append(leve)
+            simm += levsim
+    print(simm)
     simmetries.append(simm)
 
 #print(molecs,levels,energies,vibtemps)
@@ -238,10 +250,20 @@ ch4_wave2.add_iso(1, MM = 12, ratio = 0.999)
 lev_0 = '     0 0 0 0   '
 energies.insert(0,0.0)
 levels.insert(0, lev_0)
-simmetries.insert(0,[])
+quanta = sbm.extract_quanta_ch4(lev_0)[0]
+for leve,levsim in zip(livelli['quanta'],livelli['lev_strings']):
+    if leve == quanta:
+        print('--->',leve)
+        simmetries.insert(0,levsim)
+
 tempu_ok = sbm.AtmProfile(np.array(Atm_wave2.temp),np.array(alts_vib))
 vib_ok.insert(0, tempu_ok)
 ch4_wave2.iso_1.add_levels(levels,energies,vibtemps=vib_ok,simmetries=simmetries)
+
+
+for __lev__ in ch4_wave2.iso_1.levels:
+    _lev_ = getattr(ch4_wave2.iso_1, __lev__)
+    print(_lev_.lev_string, sbm.extract_quanta_ch4(_lev_.simmetry[0])[0],_lev_.simmetry)
 
 ch4_wave2.link_to_atmos(Atm_wave2)
 

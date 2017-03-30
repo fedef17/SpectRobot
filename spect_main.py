@@ -15,10 +15,9 @@ import spect_base_module as sbm
 import spect_classes as spcl
 import time
 import pickle
-import dill
 
 
-db_cart = '/home/fede/Scrivania/Dotto/AbstrArt/CH4_HCN_climatology/Spect_data/MW_VIMS_CH4_bianca/'
+db_cart = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/Spect_data/MW_VIMS_CH4_bianca/'
 
 n_mws, mw_tags, mw_ranges = spcl.read_mw_list(db_cart)
 
@@ -32,12 +31,11 @@ for i, tag, mw_rng in zip(range(n_mws), mw_tags, mw_ranges):
 
 print(type(linee), len(linee))
 
-cart2 = '/home/fede/Scrivania/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/Test_wave2/'
+cart2 = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/Test_wave2/'
 
 ch4_nom, ch4_wave2 = pickle.load(open(cart2+'ch4_Molec_testMaya.pic','r'))
-#ch4 = dill.load(open(cart2+'ch4_Molec.dil','r'))
 
-cart_old = '/home/fede/Scrivania/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/Old_vts/INP_TEST_OLDs/'
+cart_old = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/Old_vts/INP_TEST_OLDs/'
 
 ch4_old = pickle.load(open(cart_old+'TestOld_ch4_Molec.pic','r'))
 
@@ -51,23 +49,49 @@ print(type(ch4_wave2), type(ch4_wave2.iso_1), type(ch4_wave2.iso_1.lev_05), type
 for cose in zip(ch4_nom.iso_1.lev_05.vibtemp.grid[0], ch4_nom.iso_1.lev_05.vibtemp.prof, ch4_wave2.iso_1.lev_05.vibtemp.prof, ch4_old.iso_1.lev_05.vibtemp.prof):
     print(cose)
 
+
+altee = ch4_wave2.atmosphere.grid[0]
+temp_old = ch4_old.atmosphere.interp_copy('temp',altee)
+temp_nom = ch4_nom.atmosphere.interp_copy('temp',altee)
+temp_wave2 = ch4_wave2.atmosphere.interp_copy('temp',altee)
+
+pl.title('TEMP PROFILE')
+pl.plot(temp_nom,altee,label='nom')
+pl.plot(temp_wave2,altee,label='wave2',linestyle=':')
+pl.plot(temp_old,altee,label='old',linestyle='--')
+pl.legend()
+pl.grid()
+pl.show()
+
+
 for lev in ch4_nom.iso_1.levels:
     print(lev)
     altee = getattr(ch4_old.iso_1,lev).vibtemp.grid[0]
     nom_pr = getattr(ch4_nom.iso_1,lev).vibtemp.interp_copy('prof',altee)
     wave2_pr = getattr(ch4_wave2.iso_1,lev).vibtemp.interp_copy('prof',altee)
-    old_pr = getattr(ch4_old.iso_1,lev).vibtemp.prof
+    old_pr = getattr(ch4_old.iso_1,lev).vibtemp.interp_copy('prof',altee)
+    nom_ratio = sbm.vibtemp_to_ratio(getattr(ch4_nom.iso_1,lev).energy, nom_pr, ch4_nom.atmosphere.interp_copy('temp',altee))
+    wave2_ratio = sbm.vibtemp_to_ratio(getattr(ch4_wave2.iso_1,lev).energy, wave2_pr, ch4_wave2.atmosphere.interp_copy('temp',altee))
+    old_ratio = sbm.vibtemp_to_ratio(getattr(ch4_old.iso_1,lev).energy, old_pr, ch4_old.atmosphere.interp_copy('temp',altee))
 
     # pl.plot(nom_pr,altee,label='nom')
     # pl.plot(wave2_pr,altee,label='wave2')
     # pl.plot(old_pr,altee,label='old')
-    pl.title(lev)
+    pl.title(lev+' -- VIBTEMP_diff')
     pl.plot(nom_pr-old_pr,altee,label='nom-old')
     pl.plot(nom_pr-wave2_pr,altee,label='nom-wave2')
     pl.legend()
     pl.grid()
     pl.show()
 
+    pl.title(lev+' -- NLTE RATIO')
+    aoo = altee > 200
+    pl.plot(nom_ratio[aoo],altee[aoo],label='nom')
+    #pl.plot(wave2_ratio[aoo],altee[aoo],label='wave2')
+    pl.plot(old_ratio[aoo],altee[aoo],label='old')
+    pl.legend()
+    pl.grid()
+    pl.show()
 
 # sys.exit()
 # print(ch4.iso_1.lev_11.vibtemp.calc(647))
