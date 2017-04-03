@@ -59,6 +59,7 @@ class SpectLine(object):
 
         return
 
+
     def _Print_(self, ofile = None):
         if ofile is None:
             print('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.Energy_low,self.Up_lev_str,self.Lo_lev_str))
@@ -66,14 +67,17 @@ class SpectLine(object):
             ofile.write('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.Energy_low,self.Up_lev_str,self.Lo_lev_str))
         return
 
+
     def _ShowCalc_(self, T, P = 1, nlte_ratio = 1):
         pass
+
 
     def _CalcStrength_(self, T):
         """
         Calcs Line Strength at temperature T.
         """
         return CalcStrength_at_T(self.Mol, self.Iso, self.Strength, self.Freq, self.Energy_low, T)
+
 
     def _LinkToMolec_(self,IsoMolec):
         """
@@ -93,9 +97,16 @@ class SpectLine(object):
             else:
                 continue
 
+        return
 
 
 #############################################################################
+
+# def group_for_level(lines,levels,level_names):
+#     """
+#     Returns a dictionary. Each entry is the list for the selected level. All other lines are put in 'other'.
+#     """
+
 
 def read_mw_list(db_cart, nome = 'mw_list.dat'):
     """
@@ -117,7 +128,7 @@ def read_mw_list(db_cart, nome = 'mw_list.dat'):
     return n_mws, mw_tags, mw_ranges
 
 
-def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev = None, db_format = 'gbb', n_skip = 3):
+def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev = None, db_format = 'gbb', n_skip = 3, link_to_isomolecs = None):
     """
     Reads line spectral data.
     :param nome_sp: spectral data file
@@ -154,6 +165,11 @@ def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev 
     for linea in linee:
         if (linea['Mol'] == mol or mol is None) and (linea['Iso'] == iso or iso is None) and (linea['Up_lev_str'] == up_lev or up_lev is None) and (linea['Lo_lev_str'] == down_lev or down_lev is None):
             line = SpectLine(linea)
+            if link_to_isomolecs is not None:
+                IsoMolec = [molecolo in link_to_isomolecs if (molecolo.mol == mol and molecolo.iso == iso)]
+                if len(IsoMolec) > 1:
+                    raise ValueError('Multiple levels corresponding to line! WTF?')
+                line._LinkToMolec_(IsoMolec)
             linee_ok.append(line)
     #print('Ho creato lista di oggetti linea??\n')
 
