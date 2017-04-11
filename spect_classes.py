@@ -166,10 +166,10 @@ def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev 
         if (linea['Mol'] == mol or mol is None) and (linea['Iso'] == iso or iso is None) and (linea['Up_lev_str'] == up_lev or up_lev is None) and (linea['Lo_lev_str'] == down_lev or down_lev is None):
             line = SpectLine(linea)
             if link_to_isomolecs is not None:
-                IsoMolec = [molecolo in link_to_isomolecs if (molecolo.mol == mol and molecolo.iso == iso)]
-                if len(IsoMolec) > 1:
+                IsoMolecol = [molecolo for molecolo in link_to_isomolecs if (molecolo.mol == mol and molecolo.iso == iso)]
+                if len(IsoMolecol) > 1:
                     raise ValueError('Multiple levels corresponding to line! WTF?')
-                line._LinkToMolec_(IsoMolec)
+                line._LinkToMolec_(IsoMolecol)
             linee_ok.append(line)
     #print('Ho creato lista di oggetti linea??\n')
 

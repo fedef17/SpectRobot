@@ -30,25 +30,6 @@ linea1 = sbm.LineOfSight(spacecraft, second)
 linea2 = sbm.LineOfSight(spacecraft, third)
 linea1.details()
 linea2.details()
-#
-# print('TANGENT',linea1.get_tangent_point().Cartesian())
-# print('TANGENT',linea2.get_tangent_point().Cartesian())
-#
-# TOA_R = planet.radius+planet.atm_extension
-# p,_ = linea1.intersect_shell(planet, spacecraft.Cartesian(), TOA_R)
-# print(p,LA.norm(p))
-# p,_ = linea1.intersect_shell(planet, np.array([4000.,1000.,0.]), TOA_R)
-# print(p,LA.norm(p))
-# p,_ = linea2.intersect_shell(planet, spacecraft.Cartesian(), TOA_R)
-# print(p,LA.norm(p))
-# p,_ = linea2.intersect_shell(planet, np.array([4000.,1000.,0.]), TOA_R)
-# print(p,LA.norm(p))
-# p,_ = linea2.intersect_shell(planet, puntosfera.Cartesian(), TOA_R)
-# print(p,LA.norm(p))
-# p,_ = linea1.intersect_shell(planet, puntosfera.Cartesian(), TOA_R)
-# print(p,LA.norm(p))
-#
-# sys.exit()
 
 ssp = sbm.Coords(np.array([5,80,0]),s_ref='Spherical')
 
@@ -65,16 +46,27 @@ pp2 = linea2.calc_along_LOS(planet.atmosphere, 'pres', set_attr = True)
 alts1 = [point.Spherical()[2] for point in point1]
 alts2 = [point.Spherical()[2] for point in point2]
 
+carta = '/home/fedefab/Scrivania/Research/Dotto/Reports/Rep_040417/imgs/'
+
+fig = pl.figure(figsize=(8, 6), dpi=150)
+pl.grid()
+pl.ylabel('Vib Temp (K)')
+pl.xlabel('LOS point (km)')
+pl.title('Vibrational temp. along LOS 2')
+
+enne = len(alts2)-1
 for lev in planet.gases['CH4'].iso_1.levels:
     levv = getattr(planet.gases['CH4'].iso_1, lev)
     proff = levv.vibtemp
     pvi1 = linea1.calc_along_LOS(proff, 'temp', set_attr = True, set_attr_name = lev+'_vt')
     pvi2 = linea2.calc_along_LOS(proff, 'temp', set_attr = True, set_attr_name = lev+'_vt')
+    #pl.plot(pvi1,alts1[:-1])
+    pl.plot(np.linspace(0,5*enne,enne),pvi2,label=lev)
 
-    # pl.title('LEVEL: {}'.format(lev))
-    # pl.plot(pvi1,alts1[:-1])
-    # pl.plot(pvi2,alts2[:-1])
-    # pl.show()
+pl.plot(np.linspace(0,5*enne,enne),pt2,label='Kin Temp')
+pl.legend(loc=4)
+fig.savefig(carta+'Vib_temps_LOS1.pdf', format='pdf', dpi=150)
+pl.close()
 
 
 for i,p1,ps1,t,p in zip(range(len(point1)), point1, psza1, pt1, pp1):
@@ -84,9 +76,55 @@ for i,p1,ps1,t,p in zip(range(len(point2)), point2, psza2, pt2, pp2):
     print('Punto {}, coordinate cart: {}, sferiche: {}. SZA: {}. T,p: {} K, {} hPa\n'.format(i,p1.Cartesian(),p1.Spherical(),ps1,t,p))
 
 
+fig = pl.figure(figsize=(8, 6), dpi=150)
+pl.grid()
+pl.ylabel('SZA (deg)')
+pl.xlabel('LOS point (km)')
+pl.title('SZA along LOS')
 # pl.plot(pt1,alts1[:-1])
 # pl.plot(pt2,alts2[:-1])
 # pl.show()
+pl.plot(np.linspace(0,5*enne,enne+1),psza2)
+#pl.legend(loc=4)
+fig.savefig(carta+'SZA_LOS2.pdf', format='pdf', dpi=150)
+pl.close()
+
+
+enne = len(alts1)-1
+
+fig = pl.figure(figsize=(8, 6), dpi=150)
+pl.grid()
+pl.ylabel('Vib Temp (K)')
+pl.xlabel('LOS point (km)')
+pl.title('Vibrational temp. along LOS 1')
+
+for lev in planet.gases['CH4'].iso_1.levels:
+    levv = getattr(planet.gases['CH4'].iso_1, lev)
+    proff = levv.vibtemp
+    pvi1 = linea1.calc_along_LOS(proff, 'temp', set_attr = True, set_attr_name = lev+'_vt')
+    pvi2 = linea2.calc_along_LOS(proff, 'temp', set_attr = True, set_attr_name = lev+'_vt')
+    #pl.plot(pvi1,alts1[:-1])
+    pl.plot(pvi1,alts1[:-1],label=lev)
+
+pl.plot(pt1,alts1[:-1],label='Kin Temp')
+pl.legend(loc=4)
+fig.savefig(carta+'Vib_temps_LOS1_alt.pdf', format='pdf', dpi=150)
+pl.close()
+
+fig = pl.figure(figsize=(8, 6), dpi=150)
+pl.grid()
+pl.ylabel('SZA (deg)')
+pl.xlabel('LOS point (km)')
+pl.title('SZA along LOS')
+# pl.plot(pt1,alts1[:-1])
+# pl.plot(pt2,alts2[:-1])
+# pl.show()
+#pl.plot(psza1,alts1)
+pl.plot(np.linspace(0,5*enne,enne+1),psza1)
+#pl.legend(loc=4)
+fig.savefig(carta+'SZA_LOS1.pdf', format='pdf', dpi=150)
+pl.close()
+
 #
 # pl.plot(pp1,alts1[:-1])
 # pl.plot(pp2,alts2[:-1])
