@@ -21,17 +21,19 @@ import pickle
 planet = sbm.Titan()
 planet.add_default_atm()
 
-spacecraft = sbm.Coords([1e5,0,0])
-second = sbm.Coords([3000,0,0])
+spacecraft = sbm.Coords([0,0,1e5],s_ref='Spherical')
+spacecraft2 = sbm.Coords([0,90,1e5],s_ref='Spherical')
+second = sbm.Coords([90,0,600],s_ref='Spherical')
 third = sbm.Coords([0,90,500],s_ref='Spherical')
-puntosfera = sbm.Coords([30,0,2000],s_ref='Spherical')
+#puntosfera = sbm.Coords([30,0,2000],s_ref='Spherical')
 
 linea1 = sbm.LineOfSight(spacecraft, second)
-linea2 = sbm.LineOfSight(spacecraft, third)
+linea2 = sbm.LineOfSight(spacecraft2, second)
 linea1.details()
 linea2.details()
 
-ssp = sbm.Coords(np.array([5,80,0]),s_ref='Spherical')
+# Winter Solstice NORTH
+ssp = sbm.Coords(np.array([-26.,90,0]),s_ref='Spherical')
 
 point1 = linea1.calc_atm_intersections(planet)
 point2 = linea2.calc_atm_intersections(planet)
@@ -46,7 +48,7 @@ pp2 = linea2.calc_along_LOS(planet.atmosphere, 'pres', set_attr = True)
 alts1 = [point.Spherical()[2] for point in point1]
 alts2 = [point.Spherical()[2] for point in point2]
 
-carta = '/home/fedefab/Scrivania/Research/Dotto/Reports/Rep_040417/imgs/'
+carta = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/'
 
 fig = pl.figure(figsize=(8, 6), dpi=150)
 pl.grid()
@@ -89,6 +91,14 @@ pl.plot(np.linspace(0,5*enne,enne+1),psza2)
 fig.savefig(carta+'SZA_LOS2.pdf', format='pdf', dpi=150)
 pl.close()
 
+fig = pl.figure(figsize=(8, 6), dpi=150)
+pl.grid()
+pl.xlabel('SZA (deg)')
+pl.ylabel('Altitude (km)')
+pl.title('SZA along LOS')
+pl.plot(psza2,alts2)
+fig.savefig(carta+'SZA_LOS2_alt.pdf', format='pdf', dpi=150)
+pl.close()
 
 enne = len(alts1)-1
 
@@ -123,6 +133,15 @@ pl.title('SZA along LOS')
 pl.plot(np.linspace(0,5*enne,enne+1),psza1)
 #pl.legend(loc=4)
 fig.savefig(carta+'SZA_LOS1.pdf', format='pdf', dpi=150)
+pl.close()
+
+fig = pl.figure(figsize=(8, 6), dpi=150)
+pl.grid()
+pl.xlabel('SZA (deg)')
+pl.ylabel('Altitude (km)')
+pl.title('SZA along LOS')
+pl.plot(psza1,alts1)
+fig.savefig(carta+'SZA_LOS1_alt.pdf', format='pdf', dpi=150)
 pl.close()
 
 #

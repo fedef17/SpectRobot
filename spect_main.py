@@ -15,21 +15,75 @@ import spect_base_module as sbm
 import spect_classes as spcl
 import time
 import pickle
+#import fparts
+
+print(spcl.CalcPartitionSum(6, 1))
+sys.exit()
 
 
-db_cart = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/Spect_data/MW_VIMS_CH4_bianca/'
+t=296.0
+Qlev = fparts.qt_ch4(t,1)
+print(Qlev)
 
-n_mws, mw_tags, mw_ranges = spcl.read_mw_list(db_cart)
+
+#db_cart = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/Spect_data/MW_VIMS_CH4_bianca/'
+
+db_file = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/HITRAN/HITRAN08_2-5mu.par'
+
+#n_mws, mw_tags, mw_ranges = spcl.read_mw_list(db_cart)
 
 linee = []
-for i, tag, mw_rng in zip(range(n_mws), mw_tags, mw_ranges):
-    db_file = db_cart+'sp_'+tag+'.dat'
-    new_linee = spcl.read_line_database(db_file)
-    linee += new_linee
+#for i, tag, mw_rng in zip(range(n_mws), mw_tags, mw_ranges):
+#    db_file = db_cart+'sp_'+tag+'.dat'
+#    new_linee = spcl.read_line_database(db_file, verbose = True)
+#    linee += new_linee
+#    if i > 4: break
 
-    if i > 4: break
+linee = spcl.read_line_database(db_file, freq_range = [2800.,3500.])
 
-print(type(linee), len(linee))
+#line_wls = np.array([lin.freq for lin in linee])
+Q_hit = 5.9045e2
+#linee_ch4 = [lin for lin in linee if lin.Mol == 6]
+linee_ch4 = [lin for lin in linee if lin.Mol == 6]
+
+linea = linee_ch4[117]
+print(linea.Q_num_lo, linea.Q_num_up)
+Bi = spcl.Einstein_A_to_B(linea.A_coef,linea.Freq)
+esse = spcl.Einstein_A_to_LineStrength(linea.A_coef,linea.Freq,296.0,Q_hit,linea.g_lo,linea.Energy_low)
+esse2 = spcl.Einstein_A_to_LineStrength_vardavas(linea.A_coef,linea.Freq,296.0,Q_hit,linea.g_lo,linea.Energy_low,linea.g_up)
+
+esse3 = spcl.Einstein_A_to_LineStrength_hitran(linea.A_coef,linea.Freq,296.0,Q_hit,linea.g_up,linea.Energy_low, iso_ab = 0.98827)
+
+
+print(linea.Strength,esse,esse2,esse3)
+
+sys.exit()
+
+sp_step = 5.e-4
+min_wl = 2800.0
+max_wl = 3500.0
+sp_grid = np.arange(min_wl,max_wl+sp_step/2,sp_step)
+spect_grid = spcl.SpectralGrid(sp_grid, units = 'cm_1')
+#spe = np.zeros(len(sp_grid))
+spe = np.linspace(0.9,0.3,len(sp_grid))
+spectrum = spcl.SpectralIntensity(spe, spect_grid, units = 'nWcm2')
+
+pl.ion()
+
+pl.figure(1)
+pl.plot(spectrum.spectral_grid.grid,spectrum.intensity)
+
+spectrum.convertto_Wm2()
+spectrum.convertto_nm()
+
+pl.figure(2)
+pl.plot(spectrum.spectral_grid.grid,spectrum.intensity)
+
+pl.show()
+
+print(type(linee), len(linee), len(sp_grid))
+
+sys.exit()
 
 cart2 = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/Test_wave2/'
 
