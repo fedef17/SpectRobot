@@ -12,7 +12,6 @@ from numpy import linalg as LA
 import scipy.constants as const
 import scipy
 import warnings
-from fparts import bd_tips_2003 as Q_calc
 import copy
 import spect_base_module as sbm
 import lineshape
