@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import decimal
 import numpy as np
 import sys
 import os.path
@@ -16,7 +15,48 @@ import spect_classes as spcl
 import time
 import pickle
 import lineshape
-#import fparts
+import copy
+import time
+import spect_main_module as smm
+
+hit08_25 = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/HITRAN/HITRAN08_2-5mu.par'
+# TEST ZONE
+time0 = time.time()
+
+db_file = hit08_25
+wn_range = [2800.,3500.]
+linee = spcl.read_line_database(db_file, freq_range = wn_range)
+
+abs_coeff = smm.prepare_spe_grid(wn_range)
+shapes, lws, dws = smm.spect_calc_LTE(linee, abs_coeff, 6, 1, 16., 296., 1000., max_lines = 10000)
+
+abs_coeff.add_lines_to_spectrum(shapes)
+
+print('Finito tutto in {} s!'.format(time.time()-time0))
+
+pl.ion()
+fig = pl.figure(17)
+#fig = pl.figure(figsize=(8, 6), dpi=150)
+pl.plot(abs_coeff.spectral_grid.grid, abs_coeff.spectrum)
+pl.xlabel('Wavenumber [cm-1]')
+pl.ylabel('Absorption coeff [cm2]')
+pl.grid()
+fig.savefig('Abs_coeff_test.pdf', format='pdf', dpi=150)
+
+# pl.ion()
+# pl.figure(3)
+# pl.title('Lorentz vs Doppler widths')
+# pl.hist2d(lws, dws, bins=[30,30])
+#
+# pl.figure(4)
+# pl.title('Lorentz widths')
+# pl.hist(lws,bins=30)
+#
+# pl.figure(5)
+# pl.title('Doppler widths')
+# pl.hist(dws,bins=30)
+
+sys.exit()
 
 Q_hit = spcl.CalcPartitionSum(6, 1)
 t = 296.0
