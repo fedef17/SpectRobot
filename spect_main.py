@@ -15,16 +15,11 @@ import spect_base_module as sbm
 import spect_classes as spcl
 import time
 import pickle
+import lineshape
 #import fparts
 
-print(spcl.CalcPartitionSum(6, 1))
-sys.exit()
-
-
-t=296.0
-Qlev = fparts.qt_ch4(t,1)
-print(Qlev)
-
+Q_hit = spcl.CalcPartitionSum(6, 1)
+t = 296.0
 
 #db_cart = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/Spect_data/MW_VIMS_CH4_bianca/'
 
@@ -42,29 +37,69 @@ linee = []
 linee = spcl.read_line_database(db_file, freq_range = [2800.,3500.])
 
 #line_wls = np.array([lin.freq for lin in linee])
-Q_hit = 5.9045e2
+#Q_hit = 5.9045e2
 #linee_ch4 = [lin for lin in linee if lin.Mol == 6]
 linee_ch4 = [lin for lin in linee if lin.Mol == 6]
 
+essesss = [lin.Strength for lin in linee_ch4]
+
 linea = linee_ch4[117]
 print(linea.Q_num_lo, linea.Q_num_up)
-Bi = spcl.Einstein_A_to_B(linea.A_coef,linea.Freq)
-esse = spcl.Einstein_A_to_LineStrength(linea.A_coef,linea.Freq,296.0,Q_hit,linea.g_lo,linea.Energy_low)
-esse2 = spcl.Einstein_A_to_LineStrength_vardavas(linea.A_coef,linea.Freq,296.0,Q_hit,linea.g_lo,linea.Energy_low,linea.g_up)
+Bi = spcl.Einstein_A_to_B(linea.A_coeff,linea.Freq)
+esse = spcl.Einstein_A_to_LineStrength_nonLTE(linea.A_coeff,linea.Freq,linea.Energy_low,296.0,296.0,linea.g_lo,linea.g_up,Q_hit,  iso_ab = 0.98827)
 
-esse3 = spcl.Einstein_A_to_LineStrength_hitran(linea.A_coef,linea.Freq,296.0,Q_hit,linea.g_up,linea.Energy_low, iso_ab = 0.98827)
+esse3 = spcl.Einstein_A_to_LineStrength_hitran(linea.A_coeff,linea.Freq,296.0,Q_hit,linea.g_up,linea.Energy_low, iso_ab = 0.98827)
 
 
-print(linea.Strength,esse,esse2,esse3)
-
-sys.exit()
+print(linea.Strength,esse,esse3)
 
 sp_step = 5.e-4
 min_wl = 2800.0
 max_wl = 3500.0
-sp_grid = np.arange(min_wl,max_wl+sp_step/2,sp_step)
-spect_grid = spcl.SpectralGrid(sp_grid, units = 'cm_1')
-#spe = np.zeros(len(sp_grid))
+imxsig = 13010
+
+lin_grid = np.arange(-imxsig*sp_step/2,imxsig*sp_step/2,sp_step, dtype = np.float64)
+
+# begin cycle on mw:
+#sp_grid = np.arange(min_wl,max_wl+sp_step/2,sp_step)
+spoffo = np.arange(min_wl,max_wl+sp_step/2,sp_step,dtype = np.float64)
+spect_grid = spcl.SpectralGrid(spoffo, units = 'cm_1')
+spoffo = np.zeros(len(spect_grid.grid), dtype = np.float64)
+abs_coeff = spcl.SpectralObject(spoffo, spect_grid, units = 'cm2')
+
+Temp = 296.0
+Pres = 1.e-2
+MM = 16
+
+time0 = time.time()
+time_100 = time.time()
+for ii,lin in zip(range(len(linee_ch4)),linee_ch4):
+    print('linea {} at {}'.format(ii,lin.Freq))
+    ind_ok, fr_grid_ok = spcl.closest_grid(spect_grid,lin.Freq)
+    lin_grid_ok = spcl.SpectralGrid(lin_grid+fr_grid_ok, units = 'cm_1')
+
+    S = lin.CalcStrength_nonLTE(296.,296.,Q_hit)
+    shape = lin.MakeShapeLine(lin_grid_ok, Temp, Pres, MM, Strength = S)
+
+    abs_coeff.add_to_spectrum(shape)
+    if ii % 100 == 0:
+        print('Made 100 lines in {} s'.format(time.time()-time_100))
+        time_100 = time.time()
+
+print('Made {} lines in {} s'.format(len(linee_ch4,time.time()-time0)))
+
+pl.ion()
+
+pl.figure(1)
+pl.plot(abs_coeff.spectral_grid.grid,abs_coeff.spectrum)
+
+
+sys.exit()
+
+
+
+
+
 spe = np.linspace(0.9,0.3,len(sp_grid))
 spectrum = spcl.SpectralIntensity(spe, spect_grid, units = 'nWcm2')
 

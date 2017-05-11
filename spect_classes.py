@@ -15,6 +15,13 @@ import warnings
 from fparts import bd_tips_2003 as Q_calc
 import copy
 import spect_base_module as sbm
+import lineshape
+import time
+
+# Fortran code parameters
+imxsig = 13010
+imxlines = 200000
+imxsig_long = 2000000
 
 #parameters
 Rtit = 2575.0 # km
@@ -24,6 +31,9 @@ c_R = 8.31446 # J K-1 mol-1
 c_G = 6.67408e-11 # m3 kg-1 s-2
 kbc = const.k/(const.h*100*const.c) # 0.69503
 
+T_ref = 296.0
+hpa_to_atm = 0.00098692326671601
+
 #####################################
 # Define for the radiative transfer in cgs - DEFINED AS IN HITRAN
 h_cgs = const.physical_constants['Planck constant'][0]*1.e7 # erg s
@@ -32,8 +42,8 @@ k_cgs = const.physical_constants['Boltzmann constant'][0]*1.e7 # erg K-1
 c2 = h_cgs * c_cgs / k_cgs
 
 ### NAMES for SpectLine object
-cose = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coef', 'Air_broad', 'Self_broad', 'Energy_low', 'T_dep_broad', 'P_shift','Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo')
-cose_hit = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coef', 'Air_broad', 'Self_broad', 'Energy_low', 'T_dep_broad', 'P_shift','Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo', 'others', 'g_up', 'g_lo')
+cose = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coeff', 'Air_broad', 'Self_broad', 'Energy_low', 'T_dep_broad', 'P_shift','Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo')
+cose_hit = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coeff', 'Air_broad', 'Self_broad', 'Energy_low', 'T_dep_broad', 'P_shift','Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo', 'others', 'g_up', 'g_lo')
 
 cose_mas = ('Up_lev_id', 'Lo_lev_id', 'Up_lev', 'Lo_lev')
 #############################################################################
@@ -71,7 +81,7 @@ class SpectLine(object):
         return
 
 
-    def _Print_(self, ofile = None):
+    def Print(self, ofile = None):
         if ofile is None:
             print('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.Energy_low,self.Up_lev_str,self.Lo_lev_str))
         else:
@@ -79,18 +89,18 @@ class SpectLine(object):
         return
 
 
-    def _ShowCalc_(self, T, P = 1, nlte_ratio = 1):
+    def ShowCalc(self, T, P = 1, nlte_ratio = 1):
         pass
 
 
-    def _CalcStrength_(self, T):
+    def CalcStrength(self, T):
         """
         Calcs Line Strength at temperature T.
         """
         return CalcStrength_at_T(self.Mol, self.Iso, self.Strength, self.Freq, self.Energy_low, T)
 
 
-    def _LinkToMolec_(self,IsoMolec):
+    def LinkToMolec(self,IsoMolec):
         """
         IsoMolec has to be of the corresponding type in module spect_base_module.
         Sets the values of the two attr. "Up_lev_id" and "Lo_lev_id" with the internal names of the corresponding levels in IsoMolec. So that all level quantities can be accessed via Level = getattr(IsoMolec,Up_lev_id) and using Level..
@@ -110,10 +120,37 @@ class SpectLine(object):
 
         return
 
-    def _Einstein_A_to_B(self):
+    def Einstein_A_to_B(self):
         """
         Calculates the Einstein B
         """
+        pass
+
+    def MakeShapeLine(self, wn_arr, Temp, Pres, MM, Strength = 1.0):
+        """
+        Calls routine makeshape.
+        """
+        Pres_atm = convert_to_atm(Pres, units='hPa')
+        wn_0 = self.Freq + self.P_shift * Pres_atm # Pressure shift
+        print('Shifto da {} a {}'.format(self.Freq, wn_0))
+
+        lw = Lorenz_width(Temp, Pres_atm, self.T_dep_broad, self.Air_broad)
+        dw = Doppler_width(Temp, MM, self.Freq)
+        print('Lorenz width = {}; Doppler width = {}'.format(lw,dw))
+
+        #shape = MakeShape_py(wn_arr, self.Freq, lw, dw, Strength = Strength)
+        shape = MakeShape(wn_arr, self.Freq, lw, dw, Strength = Strength)
+
+        return shape, lw, dw
+
+    def CalcStrength_nonLTE(self, T_vib_lower, T_vib_upper, Q_part):
+        """
+        Calculates the line strength S in nonLTE conditions.
+        """
+        S = Einstein_A_to_LineStrength_nonLTE(self.A_coeff, self.Freq, self.Energy_low, T_vib_lower, T_vib_upper, self.g_lo, self.g_up, Q_part)
+
+        return S
+
 
 
 class SpectralGrid(object):
@@ -124,9 +161,21 @@ class SpectralGrid(object):
     def __init__(self, spectral_grid, units = 'nm'):
         self.grid = copy.deepcopy(spectral_grid)
         self.units = units
-        print('ciao')
-
+        if len(spectral_grid) > imxsig_long:
+            raise ValueError('Grid longer that the max value imxsig_long set to {}'.format(imxsig_long))
         return
+
+    def step(self):
+        return self.grid[1]-self.grid[0]
+
+    def len_wn(self):
+        return len(self.grid)
+
+    def min_wn(self):
+        return min(self.grid)
+
+    def max_wn(self):
+        return max(self.grid)
 
     def convertto_nm(self):
         if self.units == 'nm':
@@ -166,6 +215,192 @@ class SpectralGrid(object):
         self.grid = copy.deepcopy(grid[::-1])
         self.units = 'hz'
         return grid[::-1]
+
+
+class SpectralObject(object):
+    """
+    This is the general class for all spectral quantities, that is for distributions in the frequency/wavelength/wavenumber domani. Some useful methods (conversions, integration, convolution, ..).
+    """
+
+    def __init__(self, spectrum, spectral_grid, direction = None, units = ''):
+        self.spectrum = copy.deepcopy(spectrum)
+        self.direction = copy.deepcopy(direction)
+        self.spectral_grid = copy.deepcopy(spectral_grid)
+        self.units = units
+
+        return
+
+    def n_points(self):
+        return len(self.spectrum)
+
+    def convertto_nm(self):
+        if self.spectral_grid.units == 'nm':
+            return self.spectral_grid.grid, self.spectrum
+        elif self.spectral_grid.units == 'mum':
+            self.spectrum = self.spectrum*1.e-3
+            self.spectral_grid.convertto_nm()
+            return self.spectral_grid.grid, self.spectrum
+        elif self.spectral_grid.units == 'cm_1':
+            self.spectrum = self.spectrum*self.spectral_grid.grid**2*1.e-7
+            self.spectrum = self.spectrum[::-1]
+            self.spectral_grid.convertto_nm()
+            return self.spectral_grid.grid, self.spectrum
+        elif self.spectral_grid.units == 'hz':
+            self.spectrum = self.spectrum*self.spectral_grid.grid**2*1.e-9/const.constants.c
+            self.spectrum = self.spectrum[::-1]
+            self.spectral_grid.convertto_nm()
+            return self.spectral_grid.grid, self.spectrum
+
+    def convertto_mum(self):
+        self.convertto_nm()
+        self.spectrum = self.spectrum*1.e3
+        self.spectral_grid.convertto_mum()
+        return self.spectral_grid.grid, self.spectrum
+
+    def convertto_cm_1(self):
+        self.convertto_nm()
+        self.spectrum = self.spectrum*self.spectral_grid.grid**2*1.e-7
+        self.spectrum = self.spectrum[::-1]
+        self.spectral_grid.convertto_cm_1()
+        return self.spectral_grid.grid, self.spectrum
+
+    def convertto_hz(self):
+        self.convertto_nm()
+        self.spectrum = self.spectrum*self.spectral_grid.grid**2*1.e-9/const.constants.c
+        self.spectrum = self.spectrum[::-1]
+        self.spectral_grid.convertto_hz()
+        return self.spectral_grid.grid, self.spectrum
+
+
+    def integrate(self, w1 = None, w2 = None, offset = None):
+        """
+        Integrates the spectrum from w1 to w2, subtracting the offset if set.
+        """
+        if w1 is None and w2 is None:
+            cond = ~np.isnan(self.spectrum)
+        elif w1 is not None and w2 is None:
+            cond = (~np.isnan(self.spectrum)) & (self.spectral_grid.grid >= w1)
+        elif w1 is None and w2 is not None:
+            cond = (~np.isnan(self.spectrum)) & (self.spectral_grid.grid <= w2)
+        else:
+            cond = (~np.isnan(self.spectrum)) & (self.spectral_grid.grid <= w2) & (self.spectral_grid.grid >= w1)
+
+        if offset is not None:
+            spect = self.spectrum - offset
+        else:
+            spect = self.spectrum
+
+        intt = np.trapz(spect[cond],x=self.spectral_grid.grid[cond])
+
+        return intt
+
+
+    def convolve_to_grid(self, new_spectral_grid, spectral_widths = None, conv_type = 'gaussian'):
+        """
+        Convolution of the spectrum to a different grid.
+        """
+        pass
+
+    def add_to_spectrum(self, spectrum2, sumcheck = 10.):
+        """
+        Spectrum2 is a SpectralObject with a spectral_grid which is entirely or partially included in the self.spectral_grid, with the SAME STEP.
+        """
+        if self.spectral_grid.step() != spectrum2.spectral_grid.step():
+            raise ValueError("Different steps {} and {}, can't add the two spectra, convolve first".format(self.spectral_grid.step(),spectrum2.spectral_grid.step()))
+
+        len2 = len(spectrum2.spectrum)
+        grid_intersect = np.intersect1d(self.spectral_grid.grid, spectrum2.spectral_grid.grid)
+        spino = self.spectral_grid.step()/10.
+
+        if len(grid_intersect) == 0:
+            print('No intersection between the two spectra, doing nothing')
+            return
+        else:
+            ok = (self.spectral_grid.grid > spectrum2.spectral_grid.grid[0]-spino) & (self.spectral_grid.grid < spectrum2.spectral_grid.grid[-1]+spino)
+            ok2 = (spectrum2.spectral_grid.grid > self.spectral_grid.grid[0]-spino) & (spectrum2.spectral_grid.grid < self.spectral_grid.grid[-1]+spino)
+
+            self.spectrum[ok] += spectrum2.spectrum[ok2]
+
+            check_grid_diff = self.spectral_grid.grid[ok]-spectrum2.spectral_grid.grid[ok2]
+            griddifsum = np.sum(np.abs(check_grid_diff))
+            if griddifsum > self.spectral_grid.step()/sumcheck:
+                raise ValueError("Problem with the spectral grids! Check or lower the threshold for sumcheck")
+
+            return griddifsum
+
+
+    def add_lines_to_spectrum(self, lines, fix_length = imxsig):
+        """
+        Sums a set of lines to the spectrum, using a fast routine in fortran. All shapes are filled with zeros till fix_length dimension.
+        """
+        print('Inside add_lines_to_spectrum.. summing up all the lines!')
+
+        n_lines = len(lines)
+
+        if n_lines > imxlines:
+            raise ValueError('Too many lines!! Increase the thresold imxlines or decrease num of lines..')
+        if self.n_points() > imxsig_long:
+            raise ValueError('The input spectrum is too long!! Increase the thresold imxsig_long or decrease num of wn..')
+
+        matrix = np.zeros((imxlines,imxsig), dtype = np.float64, order='F')
+        init = []
+        fin = []
+
+        spino = self.spectral_grid.step()/10.
+        time0 = time.time()
+        time_100 = time.time()
+
+        for line, iii in zip(lines,range(len(lines))):
+            ok = np.where(((self.spectral_grid.grid > line.spectral_grid.grid[0]-spino) & (self.spectral_grid.grid < line.spectral_grid.grid[-1]+spino)))
+            ok2 = np.where(((line.spectral_grid.grid > self.spectral_grid.grid[0]-spino) & (line.spectral_grid.grid < self.spectral_grid.grid[-1]+spino)))
+
+            ok = np.ravel(ok)
+            ok2 = np.ravel(ok2)
+
+            ok_ini = ok[0]+1 # FORTRAN VECTORS START FROM 1!!!!!
+            ok_fin = ok[-1]+1
+
+            n_zeri = fix_length - (ok_fin - ok_ini +1)
+
+            if n_zeri > 0:
+                zeros = np.zeros(n_zeri, dtype=np.float64)
+
+                if ok_fin + n_zeri < self.n_points():
+                    # appiccico zeri a dx
+                    lineaa = np.append(line.spectrum[ok2], zeros)
+                    ok_fin += n_zeri
+                else:
+                    # appiccico zeri a sx e sposto ok_ini
+                    lineaa = np.append(zeros, line.spectrum[ok2])
+                    ok_ini -= n_zeri
+            else:
+                lineaa = line.spectrum
+
+            matrix[iii,:] = lineaa
+            init.append(ok_ini)
+            fin.append(ok_fin)
+
+            if iii % 100 == 0:
+                print('Prepared for calculation 100 lines in {} s'.format(time.time()-time_100))
+                time_100 = time.time()
+
+        initarr = np.zeros(imxlines, dtype=int)
+        finarr = np.zeros(imxlines, dtype=int)
+        initarr[:n_lines] = np.array(init)
+        finarr[:n_lines] = np.array(fin)
+        spettro = np.zeros(imxsig_long, dtype=np.float64)
+        spettro[:self.n_points()] = self.spectrum
+
+
+        time_fort = time.time()
+        print('The python pre-routine took {} s to prepare {} lines for the sum'.format(time.time()-time0,n_lines))
+
+        somma = lineshape.sum_all_lines(spettro, matrix, initarr, finarr, n_lines, self.n_points())
+        print('The fortran routine took {} s to sum {} lines'.format(time.time()-time_fort,n_lines))
+
+        self.spectrum = somma[:self.n_points()]
+
+        return self.spectrum
 
 
 
@@ -318,11 +553,11 @@ def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev 
 
     if db_format == 'gbb':
         delim = (2, 1, 12, 10, 10, 6, 6, 10, 4, 8, 15, 15, 15, 15)
-        cose = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coef', 'Air_broad', 'Self_broad', 'Energy_low', 'T_dep_broad', 'P_shift', 'Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo')
+        cose = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coeff', 'Air_broad', 'Self_broad', 'Energy_low', 'T_dep_broad', 'P_shift', 'Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo')
         cose2 = 2 * 'i4,' + 8 * 'f8,' + 3 * '|S15,' + '|S15'
     elif db_format == 'HITRAN':
         delim = (2, 1, 12, 10, 10, 5, 5, 10, 4, 8, 15, 15, 15, 15, 19, 7, 7)
-        cose = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coef', 'Air_broad', 'Self_broad', 'Energy_low', 'T_dep_broad', 'P_shift', 'Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo', 'others', 'g_up', 'g_lo')
+        cose = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coeff', 'Air_broad', 'Self_broad', 'Energy_low', 'T_dep_broad', 'P_shift', 'Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo', 'others', 'g_up', 'g_lo')
         cose2 = 'i4,i4' + 8 * ',f8' + 4 * ',|S15' + ',|S19' + 2 * ',f8'
     else:
         raise ValueError('Allowed values for db_format: {}, {}'.format('gbb','HITRAN'))
@@ -419,51 +654,50 @@ def CalcStrength_at_T(mol, iso, S_ref, w, E_low, T, T_ref=296.):
     return S
 
 
-def Einstein_A_to_B(A_coeff, wavenumber, units = 'cm3ergs'):
+def Einstein_A_to_B(A_coeff, wavenumber, units = 'cm3ergcm2'):
     """
     Calculates the Eintein B coeff for induced absorption. B is expressed in m^3/J*s and is defined so that in the expression for the light absorption it appears with the radiation density rho (not with the number of photons, other possible definition for B).
     """
     nu = convertto_hz(wavenumber, 'cm_1')
 
     fact = 8*np.pi*const.constants.h*nu**3/const.constants.c**3
-    B_coeff = A_coeff/fact
+    fact_2 = 2*h_cgs*c_cgs**2*wavenumber**3
+    fact_3 = 2*h_cgs*nu**3/c_cgs**2
+    #print(h_cgs,wavenumber,fact_2,c_cgs)
 
-    if units == 'm3Js':
-        pass
-    elif units == 'cm3ergs':
-        B_coeff = B_coeff * 1.e6 * 1.e-7
+    if units == 'm3Js': # SI units
+        B_coeff = A_coeff/fact
+    elif units == 'cm3ergcm2': # my units (freq in cm-1)
+        B_coeff = A_coeff/fact_2
+    elif units == 'cm3ergs': # Vardavas units (freq in Hz)
+        B_coeff = A_coeff/fact_3
 
     return B_coeff
 
 
-def Einstein_A_to_LineStrength_vardavas(A_coeff, wavenumber, temp, Q_part, g_lower, E_lower, g_upper):
+def Einstein_B21_to_B12(B_21, g_1, g_2):
     """
-    Calculates the line strength in units cm-1/cm-2 (HITRAN units).
+    Calculates the inverse Eintein B coeff for induced absorption.
+    """
+    B_12 = B_21*g_2/g_1
+
+    return B_12
+
+
+def Einstein_A_to_LineStrength_nonLTE(A_coeff, wavenumber, E_lower, T_vib_lower, T_vib_upper, g_lower, g_upper, Q_part, iso_ab = 1.0):
+    """
+    Calculates the line strength in non-LTE.
     """
 
-    B_coeff = Einstein_A_to_B(A_coeff, wavenumber, units = 'cm3ergs')
+    B_21 = Einstein_A_to_B(A_coeff, wavenumber, units = 'cm3ergcm2')
+    B_12 = Einstein_B21_to_B12(B_21, g_lower, g_upper)
     E_upper = E_lower + wavenumber
-    print(E_lower,wavenumber,E_upper)
-    print(Boltz_pop_at_T(E_lower, temp, g_lower, Q_part))
-    print(1 - g_lower*Boltz_ratio_nodeg(E_upper,temp)/(g_upper*Boltz_ratio_nodeg(E_lower,temp)))
-    print(B_coeff)
 
-    S = h_cgs*wavenumber/c_cgs * Boltz_pop_at_T(E_lower, temp, g_lower, Q_part) * (1 - g_lower*Boltz_ratio_nodeg(E_upper,temp)/(g_upper*Boltz_ratio_nodeg(E_lower,temp))) * B_coeff
+    fact = g_lower/g_upper * Boltz_pop_at_T(E_upper, T_vib_upper, g_upper, Q_part) / Boltz_pop_at_T(E_lower, T_vib_lower, g_lower, Q_part)
 
-    return S
+    pop_low = Boltz_pop_at_T(E_lower, T_vib_lower, g_lower, Q_part)
 
-
-def Einstein_A_to_LineStrength(A_coeff, wavenumber, temp, Q_part, g_lower, E_lower):
-    """
-    Calculates the line strength at LTE in units cm-1/s-1.
-    """
-    B_coeff = Einstein_A_to_B(A_coeff, wavenumber, units = 'm3Js')
-    print(E_lower,wavenumber)
-    print(Boltz_pop_at_T(E_lower, temp, g_lower, Q_part))
-    print(unomenoexp(-const.constants.h*const.constants.c*1.e2*wavenumber/(const.constants.Boltzmann*temp)))
-    print(B_coeff)
-
-    S = B_coeff * const.constants.h * wavenumber * 1.e2 * Boltz_pop_at_T(E_lower, temp, g_lower, Q_part) * unomenoexp(-const.constants.h*const.constants.c*1.e2*wavenumber/(const.constants.Boltzmann*temp))
+    S = iso_ab * h_cgs*wavenumber*c_cgs * pop_low * (1 - fact) * B_12 / (4*np.pi)
 
     return S
 
@@ -472,22 +706,11 @@ def Einstein_A_to_LineStrength_hitran(A_coeff, wavenumber, temp, Q_part, g_upper
     """
     Calculates the line strength at LTE in units cm-1/(mol cm-2).
     """
-    B_coeff = Einstein_A_to_B(A_coeff, wavenumber, units = 'cm3ergs')
-    # print(E_lower,wavenumber)
-    # print(Boltz_pop_at_T(E_lower, temp, g_lower, Q_part))
-    # print(unomenoexp(-const.constants.h*const.constants.c*1.e2*wavenumber/(const.constants.Boltzmann*temp)))
-    print('eja',h_cgs,c_cgs,k_cgs,c2)
-    print(B_coeff)
 
     S = iso_ab * A_coeff * g_upper * np.exp(-c2*E_lower/temp)*(1-np.exp(-c2*wavenumber/temp)) / (8 * np.pi * c_cgs * wavenumber**2 * Q_part)
-    #S = B_coeff * const.constants.h * wavenumber * 1.e2 * Boltz_pop_at_T(E_lower, temp, g_lower, Q_part) * unomenoexp(-const.constants.h*const.constants.c*1.e2*wavenumber/(const.constants.Boltzmann*temp))
 
     return S
 
-
-
-def unomenoexp(x):
-    return (1-np.exp(x))
 
 def Boltz_pop_at_T(wavenumber, temp, g_level, Q_part):
     """
@@ -499,8 +722,111 @@ def Boltz_pop_at_T(wavenumber, temp, g_level, Q_part):
     return enne
 
 def Boltz_ratio_nodeg(wavenumber, temp):
-    ratio = np.exp(-wavenumber/(k_cgs*temp))
+    ratio = np.exp(-c2*wavenumber/temp)
     return ratio
+
+
+def Lorentz_shape(wn,wn_0,lw):
+    """
+    Returns a lorentzian shape on the np.array of wavenumbers wn, with central wavenumber wn_0 and width lw.
+    """
+
+    ls = 1/np.pi * lw/(lw**2 + (wn-wn_0)**2)
+
+    return ls
+
+
+def Doppler_shape(wn,wn_0,dw):
+    """
+    Returns a gaussian shape on the np.array of wavenumbers wn, with central wavenumber wn_0 and width dw.
+    """
+
+    ds = mt.sqrt(mt.log(2.0)/(np.pi*dw**2)) * np.exp(-(wn-wn_0)**2*mt.log(2.0)/dw**2)
+
+    return ds
+
+
+def closest_grid(wn_arr,wn_0):
+    """
+    Returns the value and the index of the grid point closest to wn_0.
+    """
+    ind = np.argmin(np.abs(wn_arr.grid-wn_0))
+
+    return ind, wn_arr.grid[ind]
+
+
+def Lorenz_width(Temp, Pres_atm, T_dep_broad, Air_broad, Self_broad = 0.0, Self_pres_atm=0.0):
+    """
+    Pressure in atmospheres.
+    rlhalf=rhw0(mline,imw) * (rp1/rp0h) * (rt0h/rt1)**rexph(mline,imw)
+    """
+    lw = (T_ref/Temp)**T_dep_broad * (Air_broad*(Pres_atm-Self_pres_atm) + Self_broad*Self_pres_atm)
+
+    return lw
+
+def Doppler_width(Temp,MM,wn_0):
+    """
+    MM is the molecular mass in atomic units.
+    !!! ATTENZIONE !!!
+    As input for the original humliv_bb dw/sqrt(ln2) is taken, not dw!
+    *  rdsqln = rdhalf / sqrt(ln 2)
+    """
+
+    dw = wn_0/c_cgs * mt.sqrt(2*const.Avogadro*k_cgs*Temp*mt.log(2.0)/MM)
+
+    return dw
+
+
+
+def MakeShape(wn_arr, wn_0, lw, dw, Strength = 1.0):
+    """
+    Returns the line shape array as a SpectralObject class.
+    --------------------------------------------------------------------------------------------
+    PAY ATTENTION: while the inputs for MakeShape are lw and dw, the humliv_bb routine takes lw and dw/sqrt(ln2). Moreover, the lineshape is multiplied by a factor (fac below) which is maybe useful for optimization.
+    However, the shape returned by MakeShape is normalized -> integral(shape) = 1.
+    """
+    fac = np.float64(dw*mt.sqrt(np.pi/mt.log(2.0)))
+
+    y = lineshape.humliv_bb(wn_arr.grid,1,len(wn_arr.grid),wn_0,lw,dw/mt.sqrt(mt.log(2.0)))
+    #### PUT 1 HERE!! FORTRAN ARRAYS START FROM ONEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE -> 1
+
+    y = Strength*y/fac
+
+    shape = SpectralObject(y, wn_arr)
+
+    return shape
+
+
+def MakeShape_py(wn_arr, wn_0, lw, dw, Strength = 1.0):
+    """
+    Returns the line shape array as a SpectralObject class.
+    """
+    fac = np.float64(dw*mt.sqrt(np.pi/mt.log(2.0)))
+
+    Lorentz = Lorentz_shape(wn_arr.grid-wn_0, 0.0, lw)
+    Doppler = Doppler_shape(wn_arr.grid-wn_0, 0.0, dw)
+
+    step = wn_arr.step()
+
+    y2 = np.convolve(Doppler, Lorentz, mode = 'same')*step*Strength
+
+    shape = SpectralObject(y2, wn_arr)
+
+    return shape
+
+
+def MakeAbsorptionCoeff(wn_arr,lines,Temp,Pres):
+    pass
+
+
+def convert_to_atm(Pres, units = 'hPa'):
+    """
+    Converts pressure to atmospheres.
+    """
+    if units == 'hPa':
+        Pres_atm = Pres * hpa_to_atm
+
+    return Pres_atm
 
 
 def convert_cm_1_to_J(w):
