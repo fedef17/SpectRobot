@@ -18,30 +18,92 @@ import lineshape
 import copy
 import time
 import spect_main_module as smm
+from multiprocessing import Process, Queue
+
+
+def wn_range_th(wn_range_tot, i, n_threads = 4):
+    wnstep = (wn_range_tot[1]-wn_range_tot[0])/n_threads
+
+    wn1 = wn_range_tot[0] - 5.0
+    wn2 = wn_range_tot[0] + wnstep + 5.0
+
+    for j in range(i):
+        wn2old = wn2
+        wn2 = wn2old + wnstep + 5.0
+        wn1 = wn2old - 5.0
+
+    return [wn1,wn2]
+
+
+def do_for_th(wn_range, linee_tot, abs_coeff, i, coda):
+    step_nlin = len(linee_tot)/n_threads
+    linee = linee_tot[step_nlin*i:step_nlin*(i+1)]
+    if i == n_threads-1:
+        linee = linee_tot[step_nlin*i:]
+
+    print('Hey! Questo è il ciclo {} con {} linee su {}!'.format(i,len(linee),len(linee_tot)))
+
+    shapes, lws, dws = smm.spect_calc_LTE(linee, abs_coeff, 6, 1, 16., 296., 1000.)
+
+    print('Ciclo {} concluso in {} s!'.format(i,time.time()-time0))
+
+    coda.put(shapes)
+
+    return
+
+#### MAIN #####
 
 hit08_25 = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/HITRAN/HITRAN08_2-5mu.par'
 # TEST ZONE
+# pl.ion()
 time0 = time.time()
 
 db_file = hit08_25
-wn_range = [2800.,3500.]
-linee = spcl.read_line_database(db_file, freq_range = wn_range)
 
-abs_coeff = smm.prepare_spe_grid(wn_range)
-shapes, lws, dws = smm.spect_calc_LTE(linee, abs_coeff, 6, 1, 16., 296., 1000., max_lines = 10000)
+n_threads = 8
+wn_range_tot = [2800.,3000.]
 
-abs_coeff.add_lines_to_spectrum(shapes)
+linee_tot = spcl.read_line_database(db_file, mol = 6, freq_range = wn_range_tot)
 
-print('Finito tutto in {} s!'.format(time.time()-time0))
+#molec_ok = [6, 23, 26]
+# però a select gli devo passare le molec vere perchè devo fare due conti con il non LTE e mi servono le temperature dei livelli
+#spcl.select_lines(molecs = molec_ok, take_top_lines = 0.3)
 
-pl.ion()
-fig = pl.figure(17)
-#fig = pl.figure(figsize=(8, 6), dpi=150)
+abs_coeff = smm.prepare_spe_grid(wn_range_tot)
+
+processi = []
+coda = []
+outputs = []
+
+for i in range(n_threads):
+    coda.append(Queue())
+    processi.append(Process(target=do_for_th,args=(wn_range_tot, linee_tot, abs_coeff, i, coda[i])))
+    processi[i].start()
+
+for i in range(n_threads):
+    outputs.append(coda[i].get())
+
+for i in range(n_threads):
+    processi[i].join()
+
+
+shapes_tot = []
+
+for output in outputs:
+    shapes_tot += output
+
+abs_coeff.add_lines_to_spectrum(shapes_tot)
+
+print('Finito spettro con {} linee in {} s!'.format(len(linee_tot), time.time()-time0))
+
+#fig = pl.figure(17+n_threads+1)
+fig = pl.figure(figsize=(8, 6), dpi=150)
 pl.plot(abs_coeff.spectral_grid.grid, abs_coeff.spectrum)
 pl.xlabel('Wavenumber [cm-1]')
 pl.ylabel('Absorption coeff [cm2]')
 pl.grid()
-fig.savefig('Abs_coeff_test.pdf', format='pdf', dpi=150)
+pl.show()
+fig.savefig('funzionaaaaaaaaaaaaaa.pdf', format='pdf', dpi=150)
 
 # pl.ion()
 # pl.figure(3)

@@ -16,6 +16,7 @@ import spect_classes as spcl
 import time
 import pickle
 import lineshape
+from multiprocessing import Process, Queue
 
 hit08_25 = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/HITRAN/HITRAN08_2-5mu.par'
 
@@ -72,7 +73,7 @@ def spect_calc_LTE(linee, abs_coeff, mol, iso, MM, Temp, Pres, sp_step = 5.e-4, 
 
         #abs_coeff.add_to_spectrum(shape)
         if ii % 100 == 0:
-            print('Made 100 lines in {} s'.format(time.time()-time_100))
+            #print('Made 100 lines in {} s'.format(time.time()-time_100))
             time_100 = time.time()
 
     print('Made {} lines in {} s'.format(len(linee_mol),time.time()-time0))

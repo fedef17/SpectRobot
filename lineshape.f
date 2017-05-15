@@ -27,6 +27,83 @@ Cf2py intent(out) spe_fin
 ************************************************************************
 
 ************************************************************************
+! Questa non va con f2py....
+!
+!      subroutine sum_all_lines(spe_ini, matrix, init, fin,
+!     &                        n_lines, n_spe, spe_fin)
+!
+!Cf2py intent(in) spe_ini, matrix, init, fin, n_lines, n_spe
+!Cf2py intent(out) spe_fin
+!
+!      implicit none
+!      include 'parameters.inc'
+!
+!      integer*4 alloc_stat
+!      real*8, allocatable, dimension (:,:) :: matrix
+!      real*8, allocatable, dimension (:) :: spe_fin, spe_ini
+!      integer*4, allocatable, dimension (:) :: init, fin
+!
+!!      real*8 spe_ini(imxsig_long), matrix(imxlines,imxsig)
+!!      real*8 spe_fin(imxsig_long)
+!!      integer*4 init(imxlines), fin(imxlines)
+!      integer*4 n_spe, ilin, i, j, n_lines
+!
+!
+!      IF (ALLOCATED(spe_ini) .EQV. .FALSE.) THEN
+!         ALLOCATE (spe_ini(n_spe), STAT=alloc_stat)
+!         if (alloc_stat .ne. 0) then
+!            write(*,*) '----Size of spe_ini:  ', SIZE(spe_ini)*8
+!            write (*,*) 'spe_ini can''t be allocated'; stop
+!         endif
+!      ENDIF
+!      IF (ALLOCATED(spe_fin) .EQV. .FALSE.) THEN
+!         ALLOCATE (spe_fin(n_spe), STAT=alloc_stat)
+!         if (alloc_stat .ne. 0) then
+!            write(*,*) '----Size of spe_fin:  ', SIZE(spe_fin)*8
+!            write (*,*) 'spe_fin can''t be allocated'; stop
+!         endif
+!      ENDIF
+!      IF (ALLOCATED(matrix) .EQV. .FALSE.) THEN
+!         ALLOCATE (matrix(n_lines,imxsig), STAT=alloc_stat)
+!         if (alloc_stat .ne. 0) then
+!            write(*,*) '----Size of matrix:  ', SIZE(matrix)*8
+!            write (*,*) 'matrix can''t be allocated'; stop
+!         endif
+!      ENDIF
+!      IF (ALLOCATED(init) .EQV. .FALSE.) THEN
+!         ALLOCATE (init(n_lines), STAT=alloc_stat)
+!         if (alloc_stat .ne. 0) then
+!            write(*,*) '----Size of init:  ', SIZE(init)*4
+!            write (*,*) 'init can''t be allocated'; stop
+!         endif
+!      ENDIF
+!      IF (ALLOCATED(fin) .EQV. .FALSE.) THEN
+!         ALLOCATE (fin(n_lines), STAT=alloc_stat)
+!         if (alloc_stat .ne. 0) then
+!            write(*,*) '----Size of fin:  ', SIZE(fin)*4
+!            write (*,*) 'fin can''t be allocated'; stop
+!         endif
+!      ENDIF
+!
+!      spe_fin = spe_ini
+!
+!      do ilin=1,n_lines
+!        i=1
+!        do j=init(ilin),fin(ilin)
+!          spe_fin(j) = spe_fin(j) + matrix(ilin,i)
+!          i = i+1
+!        enddo
+!      enddo
+!
+!      IF (ALLOCATED(matrix)) DEALLOCATE (matrix)
+!      IF (ALLOCATED(init)) DEALLOCATE (init)
+!      IF (ALLOCATED(fin)) DEALLOCATE (fin)
+!
+!      end
+!
+************************************************************************
+
+************************************************************************
       subroutine sum_shapes(y1,y2,summ)
 Cf2py intent(in) y1, y2
 Cf2py intent(out) summ

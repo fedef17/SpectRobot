@@ -11,11 +11,13 @@ import math as mt
 from numpy import linalg as LA
 import scipy.constants as const
 import scipy
+from scipy.interpolate import lagrange
 import warnings
 import copy
 import spect_base_module as sbm
 import lineshape
 import time
+from multiprocessing import Process, Queue
 
 # Fortran code parameters
 imxsig = 13010
@@ -125,17 +127,17 @@ class SpectLine(object):
         """
         pass
 
-    def MakeShapeLine(self, wn_arr, Temp, Pres, MM, Strength = 1.0):
+    def MakeShapeLine(self, wn_arr, Temp, Pres, MM, Strength = 1.0, verbose = False):
         """
         Calls routine makeshape.
         """
         Pres_atm = convert_to_atm(Pres, units='hPa')
         wn_0 = self.Freq + self.P_shift * Pres_atm # Pressure shift
-        print('Shifto da {} a {}'.format(self.Freq, wn_0))
+        if(verbose): print('Shifto da {} a {}'.format(self.Freq, wn_0))
 
         lw = Lorenz_width(Temp, Pres_atm, self.T_dep_broad, self.Air_broad)
         dw = Doppler_width(Temp, MM, self.Freq)
-        print('Lorenz width = {}; Doppler width = {}'.format(lw,dw))
+        if(verbose): print('Lorenz width = {}; Doppler width = {}'.format(lw,dw))
 
         #shape = MakeShape_py(wn_arr, self.Freq, lw, dw, Strength = Strength)
         shape = MakeShape(wn_arr, self.Freq, lw, dw, Strength = Strength)
@@ -328,7 +330,7 @@ class SpectralObject(object):
             return griddifsum
 
 
-    def add_lines_to_spectrum(self, lines, fix_length = imxsig):
+    def add_lines_to_spectrum(self, lines, fix_length = imxsig, n_threads = 3):
         """
         Sums a set of lines to the spectrum, using a fast routine in fortran. All shapes are filled with zeros till fix_length dimension.
         """
@@ -341,15 +343,138 @@ class SpectralObject(object):
         if self.n_points() > imxsig_long:
             raise ValueError('The input spectrum is too long!! Increase the thresold imxsig_long or decrease num of wn..')
 
-        matrix = np.zeros((imxlines,imxsig), dtype = np.float64, order='F')
+        time0 = time.time()
+
+        processi = []
+        coda = []
+        outputs = []
+
+        nlinst = n_lines/n_threads
+
+        for i in range(n_threads):
+            print('Lancio proc: {}'.format(i))
+            linee = lines[nlinst*i:nlinst*(i+1)]
+            if i == n_threads-1:
+                linee = lines[nlinst*i:]
+            coda.append(Queue())
+            processi.append(Process(target=self.prepare_fortran_sum,args=(linee, i, coda[i])))
+            processi[i].start()
+
+        for i in range(n_threads):
+            outputs.append(coda[i].get())
+
+        for i in range(n_threads):
+            processi[i].join()
+
+
+        print('Fatto tutto! Ora devo solo montare la matrice')
+        # matrix = np.zeros((imxlines,imxsig), dtype = np.float64, order='F')
+        # initarr = np.zeros(imxlines, dtype=int)
+        # finarr = np.zeros(imxlines, dtype=int)
+
+        # print('Creato la matrice vuota, ora devo riempirla')
+        print('Monto, ciclo {}, n_lines = {}'.format(0,len(outputs[0][1])))
+        initarr = np.array(outputs[0][1])
+        finarr = np.array(outputs[0][2])
+        matrix = outputs[0][0]
+
+        for output, i in zip(outputs,range(1,n_threads)):
+            print('Monto, ciclo {}, n_lines = {}'.format(i,len(output[1])))
+            initarr = np.append(initarr, np.array(output[1]))
+            finarr = np.append(finarr, np.array(output[2]))
+            matrix = np.vstack([matrix, output[0]])
+
+        print("Libero un po' di memoria")
+        # libero un po' di memoria
+        del outputs
+        del lines
+
+        print('Fatto. ora devo fillare la matrice con gli zeri')
+        print(n_lines)
+        print(len(finarr))
+        mancano = imxlines-len(finarr)
+        print('Mancano {} lines, aggiungo zeri'.format(mancano))
+        #matrzero = np.zeros((mancano,imxsig), dtype=np.float64, order='F')
+        matrzero = np.zeros((mancano,imxsig), order='F')
+        matrix = np.vstack([matrix, matrzero])
+
+        initarr = np.append(initarr, np.zeros(mancano, dtype=int))
+        finarr = np.append(finarr, np.zeros(mancano, dtype=int))
+
+
+        # spino = self.spectral_grid.step()/10.
+
+        # time_100 = time.time()
+        #
+        # for line, iii in zip(lines,range(n_lines)):
+        #     ok = np.where(((self.spectral_grid.grid > line.spectral_grid.grid[0]-spino) & (self.spectral_grid.grid < line.spectral_grid.grid[-1]+spino)))
+        #     ok2 = np.where(((line.spectral_grid.grid > self.spectral_grid.grid[0]-spino) & (line.spectral_grid.grid < self.spectral_grid.grid[-1]+spino)))
+        #
+        #     ok = np.ravel(ok)
+        #     ok2 = np.ravel(ok2)
+        #
+        #     ok_ini = ok[0]+1 # FORTRAN VECTORS START FROM 1!!!!!
+        #     ok_fin = ok[-1]+1
+        #
+        #     n_zeri = fix_length - (ok_fin - ok_ini +1)
+        #
+        #     if n_zeri > 0:
+        #         zeros = np.zeros(n_zeri, dtype=np.float64)
+        #
+        #         if ok_fin + n_zeri < self.n_points():
+        #             # appiccico zeri a dx
+        #             lineaa = np.append(line.spectrum[ok2], zeros)
+        #             ok_fin += n_zeri
+        #         else:
+        #             # appiccico zeri a sx e sposto ok_ini
+        #             lineaa = np.append(zeros, line.spectrum[ok2])
+        #             ok_ini -= n_zeri
+        #     else:
+        #         lineaa = line.spectrum
+        #
+        #     matrix[iii,:] = lineaa
+        #     init.append(ok_ini)
+        #     fin.append(ok_fin)
+        #
+        #     if iii % 100 == 0:
+        #         #print('Prepared for calculation 100 lines in {} s'.format(time.time()-time_100))
+        #         time_100 = time.time()
+        #
+                # initarr = np.zeros(imxlines, dtype=int)
+                # finarr = np.zeros(imxlines, dtype=int)
+        # initarr[:n_lines] = np.array(init)
+        # finarr[:n_lines] = np.array(fin)
+
+
+        spettro = np.zeros(imxsig_long, dtype=np.float64)
+        spettro[:self.n_points()] = self.spectrum
+
+        time_fort = time.time()
+        print('The python pre-routine took {} s to prepare {} lines for the sum'.format(time.time()-time0,n_lines))
+        print(type(initarr),type(finarr),type(matrix),type(spettro))
+        print(np.shape(initarr),np.shape(finarr),np.shape(matrix),np.shape(spettro))
+        somma = lineshape.sum_all_lines(spettro, matrix, initarr, finarr, n_lines, self.n_points())
+        print('The fortran routine took {} s to sum {} lines'.format(time.time()-time_fort,n_lines))
+
+        self.spectrum = somma[:self.n_points()]
+
+        return self.spectrum
+
+
+    def prepare_fortran_sum(self, lines, i, coda, fix_length = imxsig):
+        """
+        Subprocess of the call add_lines_to_spectrum. Each process calls this routine that produces a slice of the final matrix.
+        """
+        print('dentro proc: {}'.format(i))
+
+        spino = self.spectral_grid.step()/10.
+        n_lines = len(lines)
+
+        matrix = np.zeros((n_lines,fix_length), dtype = np.float64, order='F')
         init = []
         fin = []
 
-        spino = self.spectral_grid.step()/10.
-        time0 = time.time()
-        time_100 = time.time()
-
-        for line, iii in zip(lines,range(len(lines))):
+        for line, iii in zip(lines,range(n_lines)):
             ok = np.where(((self.spectral_grid.grid > line.spectral_grid.grid[0]-spino) & (self.spectral_grid.grid < line.spectral_grid.grid[-1]+spino)))
             ok2 = np.where(((line.spectral_grid.grid > self.spectral_grid.grid[0]-spino) & (line.spectral_grid.grid < self.spectral_grid.grid[-1]+spino)))
 
@@ -379,27 +504,12 @@ class SpectralObject(object):
             init.append(ok_ini)
             fin.append(ok_fin)
 
-            if iii % 100 == 0:
-                print('Prepared for calculation 100 lines in {} s'.format(time.time()-time_100))
-                time_100 = time.time()
+        initarr = np.array(init)
+        finarr = np.array(fin)
 
-        initarr = np.zeros(imxlines, dtype=int)
-        finarr = np.zeros(imxlines, dtype=int)
-        initarr[:n_lines] = np.array(init)
-        finarr[:n_lines] = np.array(fin)
-        spettro = np.zeros(imxsig_long, dtype=np.float64)
-        spettro[:self.n_points()] = self.spectrum
+        coda.put([matrix,initarr,finarr])
 
-
-        time_fort = time.time()
-        print('The python pre-routine took {} s to prepare {} lines for the sum'.format(time.time()-time0,n_lines))
-
-        somma = lineshape.sum_all_lines(spettro, matrix, initarr, finarr, n_lines, self.n_points())
-        print('The fortran routine took {} s to sum {} lines'.format(time.time()-time_fort,n_lines))
-
-        self.spectrum = somma[:self.n_points()]
-
-        return self.spectrum
+        return
 
 
 
@@ -624,7 +734,7 @@ def CalcPartitionSum(mol,iso,temp=296.0):
     qg2 = Q_grid[T_grid > temp][:2]
     qg = np.hstack([qg1,qg2])
 
-    poli = scipy.interpolate.lagrange(x,qg)
+    poli = lagrange(x,qg)
 
     q = poli(temp)
 
