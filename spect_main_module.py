@@ -34,22 +34,71 @@ def prepare_spe_grid(wn_range, sp_step = 5.e-4, units = 'cm_1'):
     return abs_coeff
 
 
-def spect_calc_LTE(linee, abs_coeff, mol, iso, MM, Temp, Pres, sp_step = 5.e-4, max_lines = 0, imxsig = 13010):
+def parallel_scs_LTE(wn_range_tot, n_threads = 8, db_file = hit08_25, mol = None):
     """
-    This routine calculates the spectral quantities (absorption and emission coefficient in non-LTE) needed in RadTransfer.py. All quantities are in the wavenumber space [cm^{-1}].
-    To be added:
-    - non-LTE correction of the partition function Q.
-    - calculation of LUTs.
-    - optimization of the lineshape calculation.
-    - switch for scattering.
+    Drives the calculation of the Absorption coefficient.
+    """
+
+    time0 = time.time()
+
+    linee_tot = spcl.read_line_database(db_file, mol = mol, freq_range = wn_range_tot)
+
+    #molec_ok = [6, 23, 26]
+    # però a select gli devo passare le molec vere perchè devo fare due conti con il non LTE e mi servono le temperature dei livelli
+    #spcl.select_lines(molecs = molec_ok, take_top_lines = 0.3)
+
+    abs_coeff = smm.prepare_spe_grid(wn_range_tot)
+
+    processi = []
+    coda = []
+    outputs = []
+
+    for i in range(n_threads):
+        coda.append(Queue())
+        processi.append(Process(target=do_for_th,args=(wn_range_tot, linee_tot, abs_coeff, i, coda[i])))
+        processi[i].start()
+
+    for i in range(n_threads):
+        outputs.append(coda[i].get())
+
+    for i in range(n_threads):
+        processi[i].join()
+
+
+    shapes_tot = []
+
+    for output in outputs:
+        shapes_tot += output
+
+    abs_coeff.add_lines_to_spectrum(shapes_tot)
+
+    print('Finito spettro con {} linee in {} s!'.format(len(linee_tot), time.time()-time0))
+
+    return abs_coeff
+
+
+def do_for_th(wn_range, linee_tot, abs_coeff, i, coda):
+    step_nlin = len(linee_tot)/n_threads
+    linee = linee_tot[step_nlin*i:step_nlin*(i+1)]
+    if i == n_threads-1:
+        linee = linee_tot[step_nlin*i:]
+
+    print('Hey! Questo è il ciclo {} con {} linee su {}!'.format(i,len(linee),len(linee_tot)))
+
+    shapes, lws, dws = smm.spect_calc_LTE(linee, abs_coeff, 6, 1, 16., 296., 1000.)
+
+    print('Ciclo {} concluso in {} s!'.format(i,time.time()-time0))
+
+    coda.put(shapes)
+
+    return
+
+
+def spect_calc_LTE(linee_mol, abs_coeff, mol, iso, MM, Temp, Pres, LTE = True, sp_step = 5.e-4, max_lines = 0, imxsig = 13010, fraction_to_keep = None):
+    """
+    This routine calculates the spectral shapes of all lines at the given temperature and pressure. All quantities are in the wavenumber space [cm^{-1}].
     """
     print('Inside spect_calc.. reading lines and calculating linshapes')
-
-    linee_mol = [lin for lin in linee if lin.Mol == mol and lin.Iso == iso]
-    essesss = [lin.Strength for lin in linee_mol]
-    essort = np.sort(np.array(essesss))[-max_lines]
-
-    linee_mol = [lin for lin in linee_mol if lin.Strength > essort]
 
     lin_grid = np.arange(-imxsig*sp_step/2,imxsig*sp_step/2,sp_step, dtype = np.float64)
 

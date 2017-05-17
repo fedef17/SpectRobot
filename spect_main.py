@@ -61,9 +61,9 @@ time0 = time.time()
 db_file = hit08_25
 
 n_threads = 8
-wn_range_tot = [2800.,3000.]
+wn_range_tot = [2800.,3500.]
 
-linee_tot = spcl.read_line_database(db_file, mol = 6, freq_range = wn_range_tot)
+linee_tot = spcl.read_line_database(db_file, mol = 6, iso = 1, freq_range = wn_range_tot, fraction_to_keep = 0.5)
 
 #molec_ok = [6, 23, 26]
 # però a select gli devo passare le molec vere perchè devo fare due conti con il non LTE e mi servono le temperature dei livelli
@@ -92,18 +92,19 @@ shapes_tot = []
 for output in outputs:
     shapes_tot += output
 
-abs_coeff.add_lines_to_spectrum(shapes_tot)
+cosette = abs_coeff.add_lines_to_spectrum(shapes_tot)
 
 print('Finito spettro con {} linee in {} s!'.format(len(linee_tot), time.time()-time0))
 
+pl.ion()
 #fig = pl.figure(17+n_threads+1)
-fig = pl.figure(figsize=(8, 6), dpi=150)
+fig = pl.figure(17, figsize=(8, 6), dpi=150)
 pl.plot(abs_coeff.spectral_grid.grid, abs_coeff.spectrum)
 pl.xlabel('Wavenumber [cm-1]')
 pl.ylabel('Absorption coeff [cm2]')
 pl.grid()
 pl.show()
-fig.savefig('funzionaaaaaaaaaaaaaa.pdf', format='pdf', dpi=150)
+fig.savefig('funzionaaaaaaaaaaaaaa2.pdf', format='pdf', dpi=150)
 
 # pl.ion()
 # pl.figure(3)

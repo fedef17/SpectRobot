@@ -61,7 +61,7 @@
       integer*4 imxparz
       integer*4 imxlines, imxsig_long
 
-      parameter (imxlines = 200000, imxsig_long = 2000000)
+      parameter (imxlines = 40000, imxsig_long = 2000000)
       parameter (imxmw=1,imxsig=13010,imxi=210,imxils=2900,
      &          imxgas=25,imxlin=82000,imxept=1,imxhit=42,imxism=10,
      &          imxgmw=imxgas,imxlmb=40,imxilc=imxils)

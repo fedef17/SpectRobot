@@ -21,7 +21,7 @@ from multiprocessing import Process, Queue
 
 # Fortran code parameters
 imxsig = 13010
-imxlines = 200000
+imxlines = 40000
 imxsig_long = 2000000
 
 #parameters
@@ -333,13 +333,16 @@ class SpectralObject(object):
     def add_lines_to_spectrum(self, lines, fix_length = imxsig, n_threads = 3):
         """
         Sums a set of lines to the spectrum, using a fast routine in fortran. All shapes are filled with zeros till fix_length dimension.
+
+        To be added:
+            - adaptation to large set of lines (for now max = 20000)
         """
         print('Inside add_lines_to_spectrum.. summing up all the lines!')
 
         n_lines = len(lines)
 
         if n_lines > imxlines:
-            raise ValueError('Too many lines!! Increase the thresold imxlines or decrease num of lines..')
+            raise ValueError('{} are too many lines!! Increase the thresold imxlines (now {}) or decrease num of lines..'.format(n_lines,imxlines))
         if self.n_points() > imxsig_long:
             raise ValueError('The input spectrum is too long!! Increase the thresold imxsig_long or decrease num of wn..')
 
@@ -378,30 +381,45 @@ class SpectralObject(object):
         finarr = np.array(outputs[0][2])
         matrix = outputs[0][0]
 
-        for output, i in zip(outputs,range(1,n_threads)):
+        for output, i in zip(outputs[1:],range(1,n_threads)):
             print('Monto, ciclo {}, n_lines = {}'.format(i,len(output[1])))
             initarr = np.append(initarr, np.array(output[1]))
             finarr = np.append(finarr, np.array(output[2]))
             matrix = np.vstack([matrix, output[0]])
 
         print("Libero un po' di memoria")
-        # libero un po' di memoria
         del outputs
         del lines
 
         print('Fatto. ora devo fillare la matrice con gli zeri')
         print(n_lines)
         print(len(finarr))
+
         mancano = imxlines-len(finarr)
         print('Mancano {} lines, aggiungo zeri'.format(mancano))
-        #matrzero = np.zeros((mancano,imxsig), dtype=np.float64, order='F')
-        matrzero = np.zeros((mancano,imxsig), order='F')
+        matrzero = np.zeros((mancano,imxsig), dtype=np.float64, order='F')
+        #matrzero = np.zeros((mancano,imxsig), order='F')
         matrix = np.vstack([matrix, matrzero])
 
         initarr = np.append(initarr, np.zeros(mancano, dtype=int))
         finarr = np.append(finarr, np.zeros(mancano, dtype=int))
 
 
+        spettro = np.zeros(imxsig_long, dtype=np.float64)
+        spettro[:self.n_points()] = self.spectrum
+
+        time_fort = time.time()
+        print('The python pre-routine took {} s to prepare {} lines for the sum'.format(time.time()-time0,n_lines))
+        print(type(initarr),type(finarr),type(matrix),type(spettro))
+        print(np.shape(initarr),np.shape(finarr),np.shape(matrix),np.shape(spettro))
+        somma = lineshape.sum_all_lines(spettro, matrix, initarr, finarr, n_lines, self.n_points())
+        print('The fortran routine took {} s to sum {} lines'.format(time.time()-time_fort,n_lines))
+
+        self.spectrum = somma[:self.n_points()]
+
+        return self.spectrum#, matrix, initarr, finarr, outputs
+
+####### PEZZO DELLA VECCHIA VERSIONE NON PARALLELIZZATA
         # spino = self.spectral_grid.step()/10.
 
         # time_100 = time.time()
@@ -444,22 +462,6 @@ class SpectralObject(object):
                 # finarr = np.zeros(imxlines, dtype=int)
         # initarr[:n_lines] = np.array(init)
         # finarr[:n_lines] = np.array(fin)
-
-
-        spettro = np.zeros(imxsig_long, dtype=np.float64)
-        spettro[:self.n_points()] = self.spectrum
-
-        time_fort = time.time()
-        print('The python pre-routine took {} s to prepare {} lines for the sum'.format(time.time()-time0,n_lines))
-        print(type(initarr),type(finarr),type(matrix),type(spettro))
-        print(np.shape(initarr),np.shape(finarr),np.shape(matrix),np.shape(spettro))
-        somma = lineshape.sum_all_lines(spettro, matrix, initarr, finarr, n_lines, self.n_points())
-        print('The fortran routine took {} s to sum {} lines'.format(time.time()-time_fort,n_lines))
-
-        self.spectrum = somma[:self.n_points()]
-
-        return self.spectrum
-
 
     def prepare_fortran_sum(self, lines, i, coda, fix_length = imxsig):
         """
@@ -512,14 +514,13 @@ class SpectralObject(object):
         return
 
 
-
-class SpectralIntensity(object):
+class SpectralIntensity(SpectralObject):
     """
     This is the spectral intensity. Some useful methods (conversions, integration, convolution, ..).
     """
 
     def __init__(self, intensity, spectral_grid, direction = None, units = 'Wm2'):
-        self.intensity = copy.deepcopy(intensity)
+        self.spectrum = copy.deepcopy(intensity)
         self.direction = copy.deepcopy(direction)
         self.spectral_grid = copy.deepcopy(spectral_grid)
         self.units = units
@@ -528,95 +529,154 @@ class SpectralIntensity(object):
 
     def convertto_Wm2(self):
         if self.units == 'Wm2':
-            return self.intensity
+            return self.spectrum
         elif self.units == 'ergscm2':
-            self.intensity = self.intensity*1.e-3
+            self.spectrum = self.spectrum*1.e-3
             self.units = 'Wm2'
-            return self.intensity
+            return self.spectrum
         elif self.units == 'nWcm2':
-            self.intensity = self.intensity*1.e-5
+            self.spectrum = self.spectrum*1.e-5
             self.units = 'Wm2'
-            return self.intensity
+            return self.spectrum
 
     def convertto_ergscm2(self):
-        intensity = self.convertto_Wm2()
-        self.intensity = intensity*1.e3
+        spectrum = self.convertto_Wm2()
+        self.spectrum = spectrum*1.e3
         self.units = 'ergscm2'
-        return self.intensity
+        return self.spectrum
 
     def convertto_nWcm2(self):
-        intensity = self.convertto_Wm2()
-        self.intensity = intensity*1.e5
+        spectrum = self.convertto_Wm2()
+        self.spectrum = spectrum*1.e5
         self.units = 'nWcm2'
-        return self.intensity
-
-    def convertto_nm(self):
-        if self.spectral_grid.units == 'nm':
-            return self.spectral_grid.grid, self.intensity
-        elif self.spectral_grid.units == 'mum':
-            self.intensity = self.intensity*1.e-3
-            self.spectral_grid.convertto_nm()
-            return self.spectral_grid.grid, self.intensity
-        elif self.spectral_grid.units == 'cm_1':
-            self.intensity = self.intensity*self.spectral_grid.grid**2*1.e-7
-            self.intensity = self.intensity[::-1]
-            self.spectral_grid.convertto_nm()
-            return self.spectral_grid.grid, self.intensity
-        elif self.spectral_grid.units == 'hz':
-            self.intensity = self.intensity*self.spectral_grid.grid**2*1.e-9/const.constants.c
-            self.intensity = self.intensity[::-1]
-            self.spectral_grid.convertto_nm()
-            return self.spectral_grid.grid, self.intensity
-
-    def convertto_mum(self):
-        self.convertto_nm()
-        self.intensity = self.intensity*1.e3
-        self.spectral_grid.convertto_mum()
-        return self.spectral_grid.grid, self.intensity
-
-    def convertto_cm_1(self):
-        self.convertto_nm()
-        self.intensity = self.intensity*self.spectral_grid.grid**2*1.e-7
-        self.intensity = self.intensity[::-1]
-        self.spectral_grid.convertto_cm_1()
-        return self.spectral_grid.grid, self.intensity
-
-    def convertto_hz(self):
-        self.convertto_nm()
-        self.intensity = self.intensity*self.spectral_grid.grid**2*1.e-9/const.constants.c
-        self.intensity = self.intensity[::-1]
-        self.spectral_grid.convertto_hz()
-        return self.spectral_grid.grid, self.intensity
+        return self.spectrum
 
 
-    def integrate(self, w1 = None, w2 = None, offset = None):
-        """
-        Integrates the spectrum from w1 to w2, subtracting the offset if set.
-        """
-        if w1 is None and w2 is None:
-            cond = ~np.isnan(self.intensity)
-        elif w1 is not None and w2 is None:
-            cond = (~np.isnan(self.intensity)) & (self.spectral_grid.grid >= w1)
-        elif w1 is None and w2 is not None:
-            cond = (~np.isnan(self.intensity)) & (self.spectral_grid.grid <= w2)
-        else:
-            cond = (~np.isnan(self.intensity)) & (self.spectral_grid.grid <= w2) & (self.spectral_grid.grid >= w1)
 
-        if offset is not None:
-            spect = self.intensity - offset
-        else:
-            spect = self.intensity
+class SpectralGcoeff(SpectralObject):
+    """
+    This is the class to represent the G_up and G_lo level-specific coeffs that build up the absorption coefficient in non-LTE. These are needed to build the LUTs in non-LTE.
+    """
 
-        intt = np.trapz(spect[cond],x=self.spectral_grid.grid[cond])
+    def __init__(self, molec, iso, level_string, direction = 'up'):
+        self.molec = molec
+        self.iso = iso
+        self.level_string = level_string
+        self.direction = direction
 
-        return intt
+        return
+
+    def BuildCoeff(spectral_grid, lines, Temp, Pres):
+        self.spectral_grid = spectral_grid
 
 
-    def convolve_to_grid(self, new_spectral_grid, spectral_widths = None, conv_type = 'gaussian'):
-        """
-        Convolution of the spectrum to a different grid.
-        """
-        pass
+
+
+
+# class SpectralIntensity(object):
+#     """
+#     This is the spectral intensity. Some useful methods (conversions, integration, convolution, ..).
+#     """
+#
+#     def __init__(self, intensity, spectral_grid, direction = None, units = 'Wm2'):
+#         self.intensity = copy.deepcopy(intensity)
+#         self.direction = copy.deepcopy(direction)
+#         self.spectral_grid = copy.deepcopy(spectral_grid)
+#         self.units = units
+#
+#         return
+#
+#     def convertto_Wm2(self):
+#         if self.units == 'Wm2':
+#             return self.intensity
+#         elif self.units == 'ergscm2':
+#             self.intensity = self.intensity*1.e-3
+#             self.units = 'Wm2'
+#             return self.intensity
+#         elif self.units == 'nWcm2':
+#             self.intensity = self.intensity*1.e-5
+#             self.units = 'Wm2'
+#             return self.intensity
+#
+#     def convertto_ergscm2(self):
+#         intensity = self.convertto_Wm2()
+#         self.intensity = intensity*1.e3
+#         self.units = 'ergscm2'
+#         return self.intensity
+#
+#     def convertto_nWcm2(self):
+#         intensity = self.convertto_Wm2()
+#         self.intensity = intensity*1.e5
+#         self.units = 'nWcm2'
+#         return self.intensity
+#
+#     def convertto_nm(self):
+#         if self.spectral_grid.units == 'nm':
+#             return self.spectral_grid.grid, self.intensity
+#         elif self.spectral_grid.units == 'mum':
+#             self.intensity = self.intensity*1.e-3
+#             self.spectral_grid.convertto_nm()
+#             return self.spectral_grid.grid, self.intensity
+#         elif self.spectral_grid.units == 'cm_1':
+#             self.intensity = self.intensity*self.spectral_grid.grid**2*1.e-7
+#             self.intensity = self.intensity[::-1]
+#             self.spectral_grid.convertto_nm()
+#             return self.spectral_grid.grid, self.intensity
+#         elif self.spectral_grid.units == 'hz':
+#             self.intensity = self.intensity*self.spectral_grid.grid**2*1.e-9/const.constants.c
+#             self.intensity = self.intensity[::-1]
+#             self.spectral_grid.convertto_nm()
+#             return self.spectral_grid.grid, self.intensity
+#
+#     def convertto_mum(self):
+#         self.convertto_nm()
+#         self.intensity = self.intensity*1.e3
+#         self.spectral_grid.convertto_mum()
+#         return self.spectral_grid.grid, self.intensity
+#
+#     def convertto_cm_1(self):
+#         self.convertto_nm()
+#         self.intensity = self.intensity*self.spectral_grid.grid**2*1.e-7
+#         self.intensity = self.intensity[::-1]
+#         self.spectral_grid.convertto_cm_1()
+#         return self.spectral_grid.grid, self.intensity
+#
+#     def convertto_hz(self):
+#         self.convertto_nm()
+#         self.intensity = self.intensity*self.spectral_grid.grid**2*1.e-9/const.constants.c
+#         self.intensity = self.intensity[::-1]
+#         self.spectral_grid.convertto_hz()
+#         return self.spectral_grid.grid, self.intensity
+#
+#
+#     def integrate(self, w1 = None, w2 = None, offset = None):
+#         """
+#         Integrates the spectrum from w1 to w2, subtracting the offset if set.
+#         """
+#         if w1 is None and w2 is None:
+#             cond = ~np.isnan(self.intensity)
+#         elif w1 is not None and w2 is None:
+#             cond = (~np.isnan(self.intensity)) & (self.spectral_grid.grid >= w1)
+#         elif w1 is None and w2 is not None:
+#             cond = (~np.isnan(self.intensity)) & (self.spectral_grid.grid <= w2)
+#         else:
+#             cond = (~np.isnan(self.intensity)) & (self.spectral_grid.grid <= w2) & (self.spectral_grid.grid >= w1)
+#
+#         if offset is not None:
+#             spect = self.intensity - offset
+#         else:
+#             spect = self.intensity
+#
+#         intt = np.trapz(spect[cond],x=self.spectral_grid.grid[cond])
+#
+#         return intt
+#
+#
+#     def convolve_to_grid(self, new_spectral_grid, spectral_widths = None, conv_type = 'gaussian'):
+#         """
+#         Convolution of the spectrum to a different grid.
+#         """
+#         pass
 
 
 #############################################################################
@@ -647,7 +707,7 @@ def read_mw_list(db_cart, nome = 'mw_list.dat'):
     return n_mws, mw_tags, mw_ranges
 
 
-def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev = None, db_format = 'HITRAN', freq_range = None, n_skip = 0, link_to_isomolecs = None, verbose = False):
+def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev = None, fraction_to_keep = None, db_format = 'HITRAN', freq_range = None, n_skip = 0, link_to_isomolecs = None, verbose = False):
     """
     Reads line spectral data.
     :param nome_sp: spectral data file
@@ -656,6 +716,7 @@ def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev 
     :param up_lev: Upper level HITRAN string
     :param down_lev: Lower level HITRAN string
     :param format: If 'gbb' the format of MAKE_MW is used in reading, if 'HITRAN' the HITRAN2012 format.
+    :param fraction_to_keep: default is 1.0. If lower keeps just that fraction of the lines, selected for line_strength. Could be problematic in non-LTE studies.
     returns:
     list of SpectLine objects.
     """
@@ -703,8 +764,17 @@ def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev 
             linee_ok.append(line)
     #print('Ho creato lista di oggetti linea??\n')
 
+    if fraction_to_keep is not None:
+        essesss = [lin.Strength for lin in linee_ok]
+        essort = np.sort(np.array(essesss))[int(fraction_to_keep*(len(linee_ok)-1))]
+
+        linee_sel = [lin for lin in linee_ok if lin.Strength >= essort]
+        print('The threshold for line Strength is {}. Selected {} out of {} lines.'.format(essort,len(linee_sel),len(linee_ok)))
+    else:
+        linee_sel = linee_ok
+
     infi.close()
-    return linee_ok
+    return linee_sel
 
 
 def ImportPartitionSumTable(mol,iso):
