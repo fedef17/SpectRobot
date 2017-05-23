@@ -11,6 +11,7 @@ import pickle
 import scipy.io as io
 
 cart = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/Tit_atm/'
+gases = sbm.read_input_prof_gbb(cart + 'in_vmr_prof.dat', 'vmr')
 
 z = np.linspace(0,1500,151)
 

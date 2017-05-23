@@ -19,6 +19,8 @@ import lineshape
 import time
 from multiprocessing import Process, Queue
 
+n_threads = 8
+
 # Fortran code parameters
 imxsig = 13010
 imxlines = 40000
@@ -125,7 +127,9 @@ class SpectLine(object):
         """
         Calculates the Einstein B
         """
-        pass
+        B = Einstein_A_to_B(self.A_coeff, self.Freq, units = 'cm3ergcm2')
+
+        return B
 
     def MakeShapeLine(self, wn_arr, Temp, Pres, MM, Strength = 1.0, verbose = False):
         """
@@ -142,7 +146,7 @@ class SpectLine(object):
         #shape = MakeShape_py(wn_arr, self.Freq, lw, dw, Strength = Strength)
         shape = MakeShape(wn_arr, self.Freq, lw, dw, Strength = Strength)
 
-        return shape, lw, dw
+        return shape #, lw, dw
 
     def CalcStrength_nonLTE(self, T_vib_lower, T_vib_upper, Q_part):
         """
@@ -151,6 +155,18 @@ class SpectLine(object):
         S = Einstein_A_to_LineStrength_nonLTE(self.A_coeff, self.Freq, self.Energy_low, T_vib_lower, T_vib_upper, self.g_lo, self.g_up, Q_part)
 
         return S
+
+    def Calc_Gcoeff_abs(self, wn_arr, Temp, Pres, MM):
+        G_co = Einstein_A_to_Gcoeff_abs(wn_arr, self, Temp, Pres, MM)
+        return G_co
+
+    def Calc_Gcoeff_indem(self, wn_arr, Temp, Pres, MM):
+        G_co = Einstein_A_to_Gcoeff_indem(wn_arr, self, Temp, Pres, MM)
+        return G_co
+
+    def Calc_Gcoeff_spem(self, wn_arr, Temp, Pres, MM):
+        G_co = Einstein_A_to_Gcoeff_spem(wn_arr, self, Temp, Pres, MM)
+        return G_co
 
 
 
@@ -330,7 +346,7 @@ class SpectralObject(object):
             return griddifsum
 
 
-    def add_lines_to_spectrum(self, lines, fix_length = imxsig, n_threads = 3):
+    def add_lines_to_spectrum(self, lines, fix_length = imxsig, n_threads = n_threads):
         """
         Sums a set of lines to the spectrum, using a fast routine in fortran. All shapes are filled with zeros till fix_length dimension.
 
@@ -355,7 +371,7 @@ class SpectralObject(object):
         nlinst = n_lines/n_threads
 
         for i in range(n_threads):
-            print('Lancio proc: {}'.format(i))
+        #    print('Lancio proc: {}'.format(i))
             linee = lines[nlinst*i:nlinst*(i+1)]
             if i == n_threads-1:
                 linee = lines[nlinst*i:]
@@ -370,33 +386,33 @@ class SpectralObject(object):
             processi[i].join()
 
 
-        print('Fatto tutto! Ora devo solo montare la matrice')
+        #print('Fatto tutto! Ora devo solo montare la matrice')
         # matrix = np.zeros((imxlines,imxsig), dtype = np.float64, order='F')
         # initarr = np.zeros(imxlines, dtype=int)
         # finarr = np.zeros(imxlines, dtype=int)
 
         # print('Creato la matrice vuota, ora devo riempirla')
-        print('Monto, ciclo {}, n_lines = {}'.format(0,len(outputs[0][1])))
+        #print('Monto, ciclo {}, n_lines = {}'.format(0,len(outputs[0][1])))
         initarr = np.array(outputs[0][1])
         finarr = np.array(outputs[0][2])
         matrix = outputs[0][0]
 
         for output, i in zip(outputs[1:],range(1,n_threads)):
-            print('Monto, ciclo {}, n_lines = {}'.format(i,len(output[1])))
+        #    print('Monto, ciclo {}, n_lines = {}'.format(i,len(output[1])))
             initarr = np.append(initarr, np.array(output[1]))
             finarr = np.append(finarr, np.array(output[2]))
             matrix = np.vstack([matrix, output[0]])
 
-        print("Libero un po' di memoria")
+        #print("Libero un po' di memoria")
         del outputs
         del lines
 
-        print('Fatto. ora devo fillare la matrice con gli zeri')
+        #print('Fatto. ora devo fillare la matrice con gli zeri')
         print(n_lines)
         print(len(finarr))
 
         mancano = imxlines-len(finarr)
-        print('Mancano {} lines, aggiungo zeri'.format(mancano))
+        #print('Mancano {} lines, aggiungo zeri'.format(mancano))
         matrzero = np.zeros((mancano,imxsig), dtype=np.float64, order='F')
         #matrzero = np.zeros((mancano,imxsig), order='F')
         matrix = np.vstack([matrix, matrzero])
@@ -410,8 +426,7 @@ class SpectralObject(object):
 
         time_fort = time.time()
         print('The python pre-routine took {} s to prepare {} lines for the sum'.format(time.time()-time0,n_lines))
-        print(type(initarr),type(finarr),type(matrix),type(spettro))
-        print(np.shape(initarr),np.shape(finarr),np.shape(matrix),np.shape(spettro))
+
         somma = lineshape.sum_all_lines(spettro, matrix, initarr, finarr, n_lines, self.n_points())
         print('The fortran routine took {} s to sum {} lines'.format(time.time()-time_fort,n_lines))
 
@@ -419,55 +434,12 @@ class SpectralObject(object):
 
         return self.spectrum#, matrix, initarr, finarr, outputs
 
-####### PEZZO DELLA VECCHIA VERSIONE NON PARALLELIZZATA
-        # spino = self.spectral_grid.step()/10.
-
-        # time_100 = time.time()
-        #
-        # for line, iii in zip(lines,range(n_lines)):
-        #     ok = np.where(((self.spectral_grid.grid > line.spectral_grid.grid[0]-spino) & (self.spectral_grid.grid < line.spectral_grid.grid[-1]+spino)))
-        #     ok2 = np.where(((line.spectral_grid.grid > self.spectral_grid.grid[0]-spino) & (line.spectral_grid.grid < self.spectral_grid.grid[-1]+spino)))
-        #
-        #     ok = np.ravel(ok)
-        #     ok2 = np.ravel(ok2)
-        #
-        #     ok_ini = ok[0]+1 # FORTRAN VECTORS START FROM 1!!!!!
-        #     ok_fin = ok[-1]+1
-        #
-        #     n_zeri = fix_length - (ok_fin - ok_ini +1)
-        #
-        #     if n_zeri > 0:
-        #         zeros = np.zeros(n_zeri, dtype=np.float64)
-        #
-        #         if ok_fin + n_zeri < self.n_points():
-        #             # appiccico zeri a dx
-        #             lineaa = np.append(line.spectrum[ok2], zeros)
-        #             ok_fin += n_zeri
-        #         else:
-        #             # appiccico zeri a sx e sposto ok_ini
-        #             lineaa = np.append(zeros, line.spectrum[ok2])
-        #             ok_ini -= n_zeri
-        #     else:
-        #         lineaa = line.spectrum
-        #
-        #     matrix[iii,:] = lineaa
-        #     init.append(ok_ini)
-        #     fin.append(ok_fin)
-        #
-        #     if iii % 100 == 0:
-        #         #print('Prepared for calculation 100 lines in {} s'.format(time.time()-time_100))
-        #         time_100 = time.time()
-        #
-                # initarr = np.zeros(imxlines, dtype=int)
-                # finarr = np.zeros(imxlines, dtype=int)
-        # initarr[:n_lines] = np.array(init)
-        # finarr[:n_lines] = np.array(fin)
 
     def prepare_fortran_sum(self, lines, i, coda, fix_length = imxsig):
         """
         Subprocess of the call add_lines_to_spectrum. Each process calls this routine that produces a slice of the final matrix.
         """
-        print('dentro proc: {}'.format(i))
+        #print('dentro proc: {}'.format(i))
 
         spino = self.spectral_grid.step()/10.
         n_lines = len(lines)
@@ -527,6 +499,19 @@ class SpectralIntensity(SpectralObject):
 
         return
 
+    def convertto(self, new_units):
+        if new_units == 'Wm2':
+            self.convertto_Wm2()
+        elif new_units == 'ergscm2':
+            self.convertto_ergscm2()
+        elif new_units == 'nWcm2':
+            self.convertto_nWcm2()
+        else:
+            raise ValueError('No method for units '+new_units)
+
+        return self.spectrum
+
+
     def convertto_Wm2(self):
         if self.units == 'Wm2':
             return self.spectrum
@@ -555,136 +540,81 @@ class SpectralIntensity(SpectralObject):
 
 class SpectralGcoeff(SpectralObject):
     """
-    This is the class to represent the G_up and G_lo level-specific coeffs that build up the absorption coefficient in non-LTE. These are needed to build the LUTs in non-LTE.
+    This is the class to represent the G_abs, G_spem and G_indem level-specific coeffs that build up the absorption coefficient in non-LTE. These are needed to build the LUTs in non-LTE.
+
+    <<< IMPORTANT: Set as level string the part of the string containing the quanta, not the simmetry of the levels. Instead it will not recognize levels with same quanta and different symmetry. Example: for level "0 0 1 2 1F2" set minimal_level_string = "0 0 1 2" >>>>>
     """
 
-    def __init__(self, molec, iso, level_string, direction = 'up'):
-        self.molec = molec
+    def __init__(self, ctype, spectral_grid, mol, iso, MM, minimal_level_string):
+        self.mol = mol
         self.iso = iso
-        self.level_string = level_string
-        self.direction = direction
+        self.MM = MM
+        self.lev_string = minimal_level_string
+        self.ctype = ctype
+        self.spectral_grid = copy.deepcopy(spectral_grid)
+        self.spectrum = np.zeros(len(spectral_grid.grid), dtype = np.float64)
 
         return
 
-    def BuildCoeff(spectral_grid, lines, Temp, Pres):
-        self.spectral_grid = spectral_grid
+    def BuildCoeff(self, lines, Temp, Pres):
+        """
+        Calculates the G_coeff for the selected level, using the proper lines among lines.
+        """
+        shapes = self.PrepareCalc_nonLTE_coeff(lines, Temp, Pres)
+        self.add_lines_to_spectrum(shapes)
+
+        self.temp = Temp
+        self.pres = Pres
+
+        return self.spectrum
 
 
+    def PrepareCalc_nonLTE_coeff(self, lines, Temp, Pres):
+        """
+        Calculates the G_coeff for the specific ctype, for all the lines that involve the level considered.
+        """
+        ctypes = ['sp_emission','ind_emission','absorption']
 
+        if self.ctype == 'sp_emission' or self.ctype == 'ind_emission':
+            linee_mol = [lin for lin in lines if (self.lev_string in lin.Up_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
+        elif self.ctype == 'absorption':
+            linee_mol = [lin for lin in lines if (self.lev_string in lin.Lo_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
+        else:
+            raise ValueError('ctype has to be one among {}, {} and {}. {} not recognized'.format(ctypes[0],ctypes[1],ctypes[2],self.ctype))
 
+        print('Calculating {} G_coeff for mol {}, iso {}, level {}. Found {} lines.'.format(self.ctype,self.mol,self.iso,self.lev_string,len(linee_mol)))
 
-# class SpectralIntensity(object):
-#     """
-#     This is the spectral intensity. Some useful methods (conversions, integration, convolution, ..).
-#     """
-#
-#     def __init__(self, intensity, spectral_grid, direction = None, units = 'Wm2'):
-#         self.intensity = copy.deepcopy(intensity)
-#         self.direction = copy.deepcopy(direction)
-#         self.spectral_grid = copy.deepcopy(spectral_grid)
-#         self.units = units
-#
-#         return
-#
-#     def convertto_Wm2(self):
-#         if self.units == 'Wm2':
-#             return self.intensity
-#         elif self.units == 'ergscm2':
-#             self.intensity = self.intensity*1.e-3
-#             self.units = 'Wm2'
-#             return self.intensity
-#         elif self.units == 'nWcm2':
-#             self.intensity = self.intensity*1.e-5
-#             self.units = 'Wm2'
-#             return self.intensity
-#
-#     def convertto_ergscm2(self):
-#         intensity = self.convertto_Wm2()
-#         self.intensity = intensity*1.e3
-#         self.units = 'ergscm2'
-#         return self.intensity
-#
-#     def convertto_nWcm2(self):
-#         intensity = self.convertto_Wm2()
-#         self.intensity = intensity*1.e5
-#         self.units = 'nWcm2'
-#         return self.intensity
-#
-#     def convertto_nm(self):
-#         if self.spectral_grid.units == 'nm':
-#             return self.spectral_grid.grid, self.intensity
-#         elif self.spectral_grid.units == 'mum':
-#             self.intensity = self.intensity*1.e-3
-#             self.spectral_grid.convertto_nm()
-#             return self.spectral_grid.grid, self.intensity
-#         elif self.spectral_grid.units == 'cm_1':
-#             self.intensity = self.intensity*self.spectral_grid.grid**2*1.e-7
-#             self.intensity = self.intensity[::-1]
-#             self.spectral_grid.convertto_nm()
-#             return self.spectral_grid.grid, self.intensity
-#         elif self.spectral_grid.units == 'hz':
-#             self.intensity = self.intensity*self.spectral_grid.grid**2*1.e-9/const.constants.c
-#             self.intensity = self.intensity[::-1]
-#             self.spectral_grid.convertto_nm()
-#             return self.spectral_grid.grid, self.intensity
-#
-#     def convertto_mum(self):
-#         self.convertto_nm()
-#         self.intensity = self.intensity*1.e3
-#         self.spectral_grid.convertto_mum()
-#         return self.spectral_grid.grid, self.intensity
-#
-#     def convertto_cm_1(self):
-#         self.convertto_nm()
-#         self.intensity = self.intensity*self.spectral_grid.grid**2*1.e-7
-#         self.intensity = self.intensity[::-1]
-#         self.spectral_grid.convertto_cm_1()
-#         return self.spectral_grid.grid, self.intensity
-#
-#     def convertto_hz(self):
-#         self.convertto_nm()
-#         self.intensity = self.intensity*self.spectral_grid.grid**2*1.e-9/const.constants.c
-#         self.intensity = self.intensity[::-1]
-#         self.spectral_grid.convertto_hz()
-#         return self.spectral_grid.grid, self.intensity
-#
-#
-#     def integrate(self, w1 = None, w2 = None, offset = None):
-#         """
-#         Integrates the spectrum from w1 to w2, subtracting the offset if set.
-#         """
-#         if w1 is None and w2 is None:
-#             cond = ~np.isnan(self.intensity)
-#         elif w1 is not None and w2 is None:
-#             cond = (~np.isnan(self.intensity)) & (self.spectral_grid.grid >= w1)
-#         elif w1 is None and w2 is not None:
-#             cond = (~np.isnan(self.intensity)) & (self.spectral_grid.grid <= w2)
-#         else:
-#             cond = (~np.isnan(self.intensity)) & (self.spectral_grid.grid <= w2) & (self.spectral_grid.grid >= w1)
-#
-#         if offset is not None:
-#             spect = self.intensity - offset
-#         else:
-#             spect = self.intensity
-#
-#         intt = np.trapz(spect[cond],x=self.spectral_grid.grid[cond])
-#
-#         return intt
-#
-#
-#     def convolve_to_grid(self, new_spectral_grid, spectral_widths = None, conv_type = 'gaussian'):
-#         """
-#         Convolution of the spectrum to a different grid.
-#         """
-#         pass
+        sp_step = self.spectral_grid.step()
+        lin_grid = np.arange(-imxsig*sp_step/2,imxsig*sp_step/2,sp_step, dtype = np.float64)
 
+        time0 = time.time()
+        time_100 = time.time()
+        shapes = []
+        lws = []
+        dws = []
+        for ii,lin in zip(range(len(linee_mol)),linee_mol):
+            #print('linea {} at {}'.format(ii,lin.Freq))
+            ind_ok, fr_grid_ok = closest_grid(self.spectral_grid, lin.Freq)
+            lin_grid_ok = SpectralGrid(lin_grid+fr_grid_ok, units = 'cm_1')
 
-#############################################################################
+            if self.ctype == 'sp_emission':
+                G_co = lin.Calc_Gcoeff_spem(lin_grid_ok, Temp, Pres, self.MM)
+            elif self.ctype == 'ind_emission':
+                G_co = lin.Calc_Gcoeff_indem(lin_grid_ok, Temp, Pres, self.MM)
+            elif self.ctype == 'absorption':
+                G_co = lin.Calc_Gcoeff_abs(lin_grid_ok, Temp, Pres, self.MM)
 
-# def group_for_level(lines,levels,level_names):
-#     """
-#     Returns a dictionary. Each entry is the list for the selected level. All other lines are put in 'other'.
-#     """
+            shapes.append(G_co)
+
+            #abs_coeff.add_to_spectrum(shape)
+            if ii % 100 == 0:
+                #print('Made 100 lines in {} s'.format(time.time()-time_100))
+                time_100 = time.time()
+
+        print('Made {} lines in {} s'.format(len(linee_mol),time.time()-time0))
+
+        return shapes
+
 
 
 def read_mw_list(db_cart, nome = 'mw_list.dat'):
@@ -858,6 +788,7 @@ def Einstein_B21_to_B12(B_21, g_1, g_2):
     """
     Calculates the inverse Eintein B coeff for induced absorption.
     """
+
     B_12 = B_21*g_2/g_1
 
     return B_12
@@ -881,6 +812,50 @@ def Einstein_A_to_LineStrength_nonLTE(A_coeff, wavenumber, E_lower, T_vib_lower,
     return S
 
 
+def Einstein_A_to_Gcoeff_abs(wn_arr, line, Temp, Pres, MM):
+    """
+    Calculates the absorption contribution to the G_coeff for a SINGLE LINE with the level as LOWER level of the transition.
+    G_coeff = hcw/(4pi) * \sum_lines(B_12*Phi(T,P)) --> the sum is on all the lines with LEVEL as LOWER level of the transition.
+    """
+
+    B_21 = line.Einstein_A_to_B()
+
+    B_12 = Einstein_B21_to_B12(B_21, line.g_lo, line.g_up)
+
+    G_co = h_cgs*c_cgs*line.Freq * B_12 / (4*np.pi)
+
+    shape = line.MakeShapeLine(wn_arr, Temp, Pres, MM, Strength = G_co)
+
+    return shape
+
+
+def Einstein_A_to_Gcoeff_indem(wn_arr, line, Temp, Pres, MM):
+    """
+    Calculates the induced emission contribution to the G_coeff for a SINGLE LINE with the level as UPPER level of the transition.
+    G_coeff = hcw/(4pi) * \sum_lines(B_21*Phi(T,P)) --> the sum is on all the lines with LEVEL as UPPER level of the transition.
+    """
+    B_21 = line.Einstein_A_to_B()
+
+    G_co = h_cgs*c_cgs*line.Freq * B_21 / (4*np.pi)
+
+    shape = line.MakeShapeLine(wn_arr, Temp, Pres, MM, Strength = G_co)
+
+    return shape
+
+
+def Einstein_A_to_Gcoeff_spem(wn_arr, line, Temp, Pres, MM):
+    """
+    Calculates the spontaneous emission contribution to the G_coeff for a SINGLE LINE with the level as UPPER level of the transition.
+    G_coeff = hcw/(4pi) * \sum_lines(A_21*Phi(T,P)) --> the sum is on all the lines with LEVEL as UPPER level of the transition.
+    """
+
+    G_co = h_cgs*c_cgs*line.Freq * line.A_coeff / (4*np.pi)
+
+    shape = line.MakeShapeLine(wn_arr, Temp, Pres, MM, Strength = G_co)
+
+    return shape
+
+
 def Einstein_A_to_LineStrength_hitran(A_coeff, wavenumber, temp, Q_part, g_upper, E_lower, iso_ab = 1.0):
     """
     Calculates the line strength at LTE in units cm-1/(mol cm-2).
@@ -900,9 +875,24 @@ def Boltz_pop_at_T(wavenumber, temp, g_level, Q_part):
 
     return enne
 
+
 def Boltz_ratio_nodeg(wavenumber, temp):
     ratio = np.exp(-c2*wavenumber/temp)
     return ratio
+
+
+def Calc_BB(spectral_grid, T, units = 'ergscm2'):
+    """
+    Returns a SpectralIntensity object with a Planck spectrum at temp T in the range considered.
+    """
+
+    spectrum = 2*h_cgs*c_cgs**2 * (spectral_grid.grid)**3 / (np.exp(-c2*spectral_grid.grid/T)-1)
+    BBfu = SpectralIntensity(spectrum, spectral_grid, units = 'ergscm2')
+
+    if units != 'ergscm2':
+        BBfu.convertto(units)
+
+    return BBfu
 
 
 def Lorentz_shape(wn,wn_0,lw):
@@ -992,10 +982,6 @@ def MakeShape_py(wn_arr, wn_0, lw, dw, Strength = 1.0):
     shape = SpectralObject(y2, wn_arr)
 
     return shape
-
-
-def MakeAbsorptionCoeff(wn_arr,lines,Temp,Pres):
-    pass
 
 
 def convert_to_atm(Pres, units = 'hPa'):
