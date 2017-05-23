@@ -556,23 +556,11 @@ class SpectralGcoeff(SpectralObject):
 
         return
 
-    def BuildCoeff(self, lines, Temp, Pres):
+    def BuildCoeff(self, lines, Temp, Pres, n_threads = n_threads):
         """
         Calculates the G_coeff for the selected level, using the proper lines among lines.
         """
-        shapes = self.PrepareCalc_nonLTE_coeff(lines, Temp, Pres)
-        self.add_lines_to_spectrum(shapes)
 
-        self.temp = Temp
-        self.pres = Pres
-
-        return self.spectrum
-
-
-    def PrepareCalc_nonLTE_coeff(self, lines, Temp, Pres):
-        """
-        Calculates the G_coeff for the specific ctype, for all the lines that involve the level considered.
-        """
         ctypes = ['sp_emission','ind_emission','absorption']
 
         if self.ctype == 'sp_emission' or self.ctype == 'ind_emission':
@@ -582,6 +570,59 @@ class SpectralGcoeff(SpectralObject):
         else:
             raise ValueError('ctype has to be one among {}, {} and {}. {} not recognized'.format(ctypes[0],ctypes[1],ctypes[2],self.ctype))
 
+        time0 = time.time()
+
+        processi = []
+        coda = []
+        outputs = []
+
+        for i in range(n_threads):
+            coda.append(Queue())
+            processi.append(Process(target=self.do_for_th,args=(linee_mol, Temp, Pres, i, coda[i])))
+            processi[i].start()
+
+        for i in range(n_threads):
+            outputs.append(coda[i].get())
+
+        for i in range(n_threads):
+            processi[i].join()
+
+        shapes_tot = []
+
+        for output in outputs:
+            shapes_tot += output
+
+        self.add_lines_to_spectrum(shapes_tot)
+
+        self.temp = Temp
+        self.pres = Pres
+
+        return self.spectrum
+
+
+    def do_for_th(self, linee_tot, Temp, Pres, i, coda):
+        time0 = time.time()
+        step_nlin = len(linee_tot)/n_threads
+        linee = linee_tot[step_nlin*i:step_nlin*(i+1)]
+        if i == n_threads-1:
+            linee = linee_tot[step_nlin*i:]
+
+        print('Hey! Questo è il ciclo {} con {} linee su {}!'.format(i,len(linee),len(linee_tot)))
+
+        shapes = self.PrepareCalc_nonLTE_coeff(linee, Temp, Pres)
+
+        print('Ciclo {} concluso in {} s!'.format(i,time.time()-time0))
+
+        coda.put(shapes)
+
+        return
+
+
+    def PrepareCalc_nonLTE_coeff(self, linee_mol, Temp, Pres):
+        """
+        Calculates the G_coeff for the specific ctype, for all the lines that involve the level considered.
+        """
+
         print('Calculating {} G_coeff for mol {}, iso {}, level {}. Found {} lines.'.format(self.ctype,self.mol,self.iso,self.lev_string,len(linee_mol)))
 
         sp_step = self.spectral_grid.step()
@@ -589,9 +630,8 @@ class SpectralGcoeff(SpectralObject):
 
         time0 = time.time()
         time_100 = time.time()
+
         shapes = []
-        lws = []
-        dws = []
         for ii,lin in zip(range(len(linee_mol)),linee_mol):
             #print('linea {} at {}'.format(ii,lin.Freq))
             ind_ok, fr_grid_ok = closest_grid(self.spectral_grid, lin.Freq)
@@ -606,7 +646,6 @@ class SpectralGcoeff(SpectralObject):
 
             shapes.append(G_co)
 
-            #abs_coeff.add_to_spectrum(shape)
             if ii % 100 == 0:
                 #print('Made 100 lines in {} s'.format(time.time()-time_100))
                 time_100 = time.time()

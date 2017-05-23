@@ -185,7 +185,7 @@ def parallel_scs_LTE(wn_range_tot, n_threads = n_threads, db_file = hit08_25, mo
     return abs_coeff
 
 
-def do_for_th(wn_range, linee_tot, abs_coeff, i, coda):
+def do_for_th(linee_tot, abs_coeff, i, coda):
     step_nlin = len(linee_tot)/n_threads
     linee = linee_tot[step_nlin*i:step_nlin*(i+1)]
     if i == n_threads-1:
