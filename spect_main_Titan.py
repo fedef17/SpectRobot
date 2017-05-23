@@ -22,12 +22,21 @@ from multiprocessing import Process, Queue
 
 ### Program for CH4 HCN and C2H2 climatology on TITAN from VIMS spectra
 
+input_file = 'inputs_spect_robot.in'
+
 cartatm = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/Tit_atm/climat_0607_manuel/p-T_clima2_07-07/'
 
 cart_old_ch4 = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/Old_vts/INP_TEST_OLDs/'
 
+cart_LUTS = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/LUTs/'
+
 hit08_25 = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/HITRAN/HITRAN08_2-5mu.par'
 
+keys = 'cart_atm cart_molecs cart_LUTS hitran_db n_threads'
+keys = keys.split()
+itype = [str, str, str, str, int]
+defaults = [cartatm, cart_old_ch4, cart_LUTS, hit08_25, 8]
+inputs = sbm.read_inputs(input_file, keys, itype = itype, defaults = defaults)
 
 ### LOADING PLANET
 print('Loading planet...')
@@ -42,7 +51,7 @@ temps = []
 press = []
 for i,band,minl,maxl in zip(range(len(lat_bands)),lat_bands,lat_ext[:-1],lat_ext[1:]):
     print('Band {} from lat {} to lat {}'.format(band,minl,maxl))
-    z2,T,P = sbm.read_input_atm_man(cartatm+'pt_clima2_06-07_lat{:1d}.prf'.format(i+1))
+    z2,T,P = sbm.read_input_atm_man(inputs['cart_atm']+'pt_clima2_06-07_lat{:1d}.prf'.format(i+1))
     temps.append(T)
     press.append(P)
 
@@ -59,14 +68,14 @@ planet.add_atmosphere(Atm)
 ### LOADING MOLECULES
 print('Loading molecules...')
 
-temp_old = sbm.read_input_prof_gbb(cart_old_ch4 + 'in_temp.dat', 'temp')
-pres_old = sbm.read_input_prof_gbb(cart_old_ch4 + 'in_pres.dat', 'pres')
+temp_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_temp.dat', 'temp')
+pres_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_pres.dat', 'pres')
 zold = np.linspace(0.,1500.,151)
 
 ch4 = sbm.Molec(6, 'CH4', MM=12)
 
 ch4.add_iso(1, MM = 16.04, ratio = 0.9883)
-alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(cart_old_ch4+'vt_ch4__029_2006_t15_10.2s_29.9_vmrA2_v10_0061')
+alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(inputs['cart_molecs']+'vt_ch4__029_2006_t15_10.2s_29.9_vmrA2_v10_0061')
 
 atm_old = sbm.AtmProfile(np.interp(alts_vib,zold,temp_old),np.array(alts_vib),profname='temp')
 atm_old.add_profile(np.exp(np.interp(alts_vib,zold,np.log(pres_old))), 'pres', interp = 'exp')
@@ -77,12 +86,12 @@ print('qui')
 ch4.iso_1.add_levels(levels, energies, vibtemps=vib_ok, add_fundamental = True, T_kin = atm_old.temp)
 
 ch4.add_iso(2, MM = 17, ratio = 0.0111)
-alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(cart_old_ch4+'vt_ch4__029_2006_t15_10.2s_29.9_vmrA2_v10_0062')
+alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(inputs['cart_molecs']+'vt_ch4__029_2006_t15_10.2s_29.9_vmrA2_v10_0062')
 ch4.iso_2.add_levels(levels, energies, vibtemps=vib_ok, add_fundamental = True, T_kin = atm_old.temp)
 
 ch4.add_iso(3, MM = 17, ratio = 6.158e-4, LTE = True)
 
-pickle.dump(ch4, open(cart_old_ch4+'ch4_old_ref.pic','w'))
+pickle.dump(ch4, open(inputs['cart_molecs']+'ch4_old_ref.pic','w'))
 
 planet.add_gas(ch4)
 
@@ -91,9 +100,13 @@ print('Loading lines...')
 
 time0 = time.time()
 
-db_file = hit08_25
+db_file = inputs['hitran_db']
 wn_range = [2800.,3500.]
 linee = spcl.read_line_database(db_file, freq_range = wn_range)
 
 abs_coeff = smm.prepare_spe_grid(wn_range)
-LUTS = smm.makeLUT_nonLTE_Gcoeffs(abs_coeff.spectral_grid, linee, planet.gases.values(), planet.atmosphere, pres_step_log = 0.2)
+LUTS = smm.makeLUT_nonLTE_Gcoeffs(abs_coeff.spectral_grid, linee, planet.gases.values(), planet.atmosphere, pres_step_log = 0.2, cartLUTs = inputs['cart_LUTS'], n_threads = inputs['n_threads'])
+
+pickle.dump(LUTS, open(inputs['cart_LUTS']+'_allLUTS'+smm.date_stamp(),'w') )
+print(time.ctime())
+print('CIAO!')

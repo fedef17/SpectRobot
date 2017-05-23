@@ -1,0 +1,16 @@
+INPUT FILE FOR SPECT_ROBOT
+
+[cart_atm]
+/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/Tit_atm/climat_0607_manuel/p-T_clima2_07-07/
+
+[cart_molecs]
+/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/Old_vts/INP_TEST_OLDs/
+
+[cart_LUTS]
+/home/fedefab/Scrivania/Research/Dotto/Spect_data/LUTs/
+
+[hitran_db]
+/home/fedefab/Scrivania/Research/Dotto/Spect_data/HITRAN/HITRAN08_2-5mu.par
+
+[n_threads]
+8

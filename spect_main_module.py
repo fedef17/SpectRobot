@@ -19,8 +19,6 @@ import lineshape
 from multiprocessing import Process, Queue
 import copy
 
-hit08_25 = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/HITRAN/HITRAN08_2-5mu.par'
-cart_LUTS = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/LUTs/'
 n_threads = 8
 
 ############ MAIN ROUTINES USED FOR SPECT_ROBOT.PY
@@ -142,7 +140,7 @@ def prepare_spe_grid(wn_range, sp_step = 5.e-4, units = 'cm_1'):
     return abs_coeff
 
 
-def parallel_scs_LTE(wn_range_tot, n_threads = n_threads, db_file = hit08_25, mol = None):
+def parallel_scs_LTE(wn_range_tot, n_threads = n_threads, db_file = None, mol = None):
     """
     Drives the calculation of the Absorption coefficient.
     """
@@ -264,7 +262,7 @@ def read_Gcoeffs_from_LUTs():
 def calc_single_Gcoeff():
     pass
 
-def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = cart_LUTS, tagLUTs = 'LUT_', n_pres_levels = None, pres_step_log = 0.1, temp_step = 5.0, save_LUTs = True):
+def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = None, tagLUTs = 'LUT_', n_pres_levels = None, pres_step_log = 0.1, temp_step = 5.0, save_LUTs = True, n_threads = n_threads):
     """
     Calculates the G_coeffs for the isomolec_levels at Temp and Pres.
     :param isomolecs: A list of isomolecs objects or a single one.
