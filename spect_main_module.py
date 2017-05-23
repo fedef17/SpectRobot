@@ -51,6 +51,8 @@ class LookUpTable(object):
         Builds the LUT.
         """
 
+        print('Producing LUT for mol {}, iso {}. The following levels are considered: {}'.format(self.mol,self.iso,self.isomolec.levels))
+
         for lev in self.isomolec.levels:
             print('Building LutSet for level {} of mol {}, iso {}'.format(lev,self.mol,self.iso))
             set1 = LutSet(self.mol, self.iso, self.MM, getattr(self.isomolec, lev))
@@ -318,6 +320,8 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
     for molec in molecs:
         for isoname in molec.all_iso:
             isomol = getattr(molec, isoname)
+            if len(isomol.levels) == 0:
+                continue
             taggg = tagLUTs + '_' + molec.name + '_' + isoname
             names.append(molec.name+'_'+isoname)
             LUT = LookUpTable(tag = taggg, isomolec = isomol)

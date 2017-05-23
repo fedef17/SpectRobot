@@ -78,7 +78,7 @@ ch4.iso_1.add_levels(levels, energies, vibtemps=vib_ok, add_fundamental = True, 
 
 ch4.add_iso(2, MM = 17, ratio = 0.0111)
 alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(cart_old_ch4+'vt_ch4__029_2006_t15_10.2s_29.9_vmrA2_v10_0062')
-ch4.iso_1.add_levels(levels, energies, vibtemps=vib_ok, add_fundamental = True, T_kin = atm_old.temp)
+ch4.iso_2.add_levels(levels, energies, vibtemps=vib_ok, add_fundamental = True, T_kin = atm_old.temp)
 
 ch4.add_iso(3, MM = 17, ratio = 6.158e-4, LTE = True)
 
