@@ -113,15 +113,12 @@ class LutSet(object):
         minimal_level_string = minimal_level_string[:-1]
 
         if control:
-            comm = 'echo "Producing set for mol {}, iso {}, level {}. {} lines total. Time is {}" > control_spectrobot'.format(self.mol,self.iso,self.level,len(lines),time.ctime())
+            comm = 'echo "Producing set for mol {}, iso {}, level {}. Time is {}" > control_spectrobot'.format(self.mol,self.iso,minimal_level_string,time.ctime())
             os.system(comm)
             time0 = time.time()
 
         for ctype in ctypes:
             print('Producing set for '+ctype+'...')
-            if control:
-                comm = 'echo "ctype is {}" >> control_spectrobot'.format(ctype)
-                os.system(comm)
 
             if ctype == 'sp_emission' or ctype == 'ind_emission':
                 linee_mol = [lin for lin in lines if (minimal_level_string in lin.Up_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
@@ -131,6 +128,10 @@ class LutSet(object):
             if len(linee_mol) == 0:
                 print('NO lines in {} for level {}'.format(ctype,minimal_level_string))
                 continue
+
+            if control:
+                comm = 'echo "ctype is {}. {} lines found." >> control_spectrobot'.format(ctype,len(linee_mol))
+                os.system(comm)
 
             num = 0
             for [P,T] in PTcouples:
