@@ -44,10 +44,13 @@ class LookUpTable(object):
         self.level_sets = []
         return
 
-    def make(self, spectral_grid, lines, PTcouples):
+    def make(self, spectral_grid, lines, PTcouples, export_levels = True, cartLUTs = None):
         """
         Builds the LUT.
         """
+
+        if cartLUTs is None:
+            os.mkdir('./LUTS_'+date_stamp())
 
         print('Producing LUT for mol {}, iso {}. The following levels are considered: {}'.format(self.mol,self.iso,self.isomolec.levels))
 
@@ -55,7 +58,14 @@ class LookUpTable(object):
             print('Building LutSet for level {} of mol {}, iso {}'.format(lev,self.mol,self.iso))
             set1 = LutSet(self.mol, self.iso, self.MM, getattr(self.isomolec, lev))
             set1.make(spectral_grid, lines, PTcouples)
-            self.level_sets.append(set1)
+
+            if export_levels:
+                filename = cartLUTs + self.tag + '_' + lev + date_stamp() + '.pic'
+                set1.export(filename)
+                self.level_sets.append(filename)
+                del set1
+            else:
+                self.level_sets.append(set1)
 
         return
 
@@ -122,6 +132,10 @@ class LutSet(object):
                 print('Added')
 
         return
+
+        def export(self, filename):
+            pickle.dump(self, open(filename,'w'))
+            return
 
 
 # FUNCTIONS
@@ -325,9 +339,9 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
             LUT = LookUpTable(tag = taggg, isomolec = isomol)
             print(time.ctime())
             print("Hopefully this calculation will take about {} minutes, but actually I really don't know, take your time :)".format(LUT.CPU_time_estimate(lines, PTcouples)))
-            LUT.make(spectral_grid, lines, PTcouples)
+            LUT.make(spectral_grid, lines, PTcouples, export_levels = True, cartLUTs = cartLUTs)
             print(time.ctime())
-            LUT.export(filename = cartLUTs+taggg+date_stamp()+'.pic')
+            #LUT.export(filename = cartLUTs+taggg+date_stamp()+'.pic')
             LUTS.append(LUT)
 
     LUTs_wnames = dict(zip(names,LUTS))
