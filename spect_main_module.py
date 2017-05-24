@@ -99,7 +99,7 @@ class LutSet(object):
         self.level = copy.deepcopy(level)
         return
 
-    def make(self, spectral_grid, lines, PTcouples):
+    def make(self, spectral_grid, lines, PTcouples, control = True):
         """
         Produces the full set for PTcouples.
         """
@@ -112,8 +112,16 @@ class LutSet(object):
             minimal_level_string += ' '
         minimal_level_string = minimal_level_string[:-1]
 
+        if control:
+            comm = 'echo "Producing set for mol {}, iso {}, level {}. {} lines total. Time is {}" > control_spectrobot'.format(self.mol,self.iso,self.level,len(lines),time.ctime())
+            os.system(comm)
+            time0 = time.time()
+
         for ctype in ctypes:
             print('Producing set for '+ctype+'...')
+            if control:
+                comm = 'echo "ctype is {}" >> control_spectrobot'.format(ctype)
+                os.system(comm)
 
             if ctype == 'sp_emission' or ctype == 'ind_emission':
                 linee_mol = [lin for lin in lines if (minimal_level_string in lin.Up_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
@@ -124,11 +132,18 @@ class LutSet(object):
                 print('NO lines in {} for level {}'.format(ctype,minimal_level_string))
                 continue
 
+            num = 0
             for [P,T] in PTcouples:
                 print('PTcouple: {}, {}'.format(P,T))
+                num += 1
+                time1 = time.time()
+
                 gigi = spcl.SpectralGcoeff(ctype, spectral_grid, self.mol, self.iso, self.MM, minimal_level_string)
                 gigi.BuildCoeff(lines, T, P)
                 set_[ctype].append(gigi)
+                if control:
+                    comm = 'echo "PTcouple {} out of {}. P = {}, T = {}. PT done in {:5.1f} s, time from start {:7.1f} min" >> control_spectrobot'.format(num,len(PTcouples),P,T,time.time()-time0,(time.time()-time0)/60.)
+                    os.system(comm)
                 print('Added')
 
         return
@@ -347,3 +362,26 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
     LUTs_wnames = dict(zip(names,LUTS))
 
     return LUTs_wnames
+
+"""
+def make_abs_coeff_nonLTE(planet, point, molecs, useLUTs = True, LUT = None):
+    #Builds the absorption and emission coefficients at point, both in LTE and non-LTE.
+
+    if not useLUTs:
+        pass # SIMPLE calculation
+    elif useLUTs and type(LUT) is LookUpTable:
+        pass # read LUTS
+    else:
+        print("LUT is not a LookUpTable object. If you want to calculate a single abs_coeff without LUTs set useLUTs = False in the call. It's 3 o'clock in the morning. Hope it works")
+
+    for molec in molecs:
+        for isoname in molec.all_iso:
+            isomol = getattr(molec, isoname)
+            if len(isomol.levels) == 0:
+                continue
+
+            abs_coeff =
+            find_temps_at_point(planet,point,isomol)
+            for lev in isomol.levels:
+                level = getattr(isomol, lev)
+"""
