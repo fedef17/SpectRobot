@@ -52,10 +52,13 @@ class LookUpTable(object):
         Builds the LUT.
         """
 
+        self.spectral_grid = copy.deepcopy(spectral_grid)
+
         if cartLUTs is None:
             os.mkdir('./LUTS_'+date_stamp())
 
         print('Producing LUT for mol {}, iso {}. The following levels are considered: {}'.format(self.mol,self.iso,self.isomolec.levels))
+        print('This calculation will take about {} Gb of disk space. Is there enough??'.format(2*len(PTcouples)*len(self.isomolec.levels)*3*len(spectral_grid.grid)*8/1.e9))
 
         lines = [lin for lin in lines if (lin.Mol == self.mol and lin.Iso == self.iso)]
 
@@ -209,6 +212,7 @@ class LutSet(object):
             print('Producing set for '+ctype+'...')
             gigi = spcl.SpectralGcoeff(ctype, spectral_grid, self.mol, self.iso, self.MM, minimal_level_string)
             gigi.BuildCoeff(lines, Temp, Pres, preCalc_shapes = True)
+            gigi.erase_grid()
 
             set_[ctype] = copy.deepcopy(gigi)
             print('Added')
@@ -234,9 +238,9 @@ def prepare_spe_grid(wn_range, sp_step = 5.e-4, units = 'cm_1'):
     Prepares the SpectralObject for the range considered.
     """
 
-    spoffo = np.arange(wn_range[0],wn_range[1]+sp_step/2,sp_step,dtype = np.float64)
+    spoffo = np.arange(wn_range[0],wn_range[1]+sp_step/2,sp_step,dtype = float)
     spect_grid = spcl.SpectralGrid(spoffo, units = units)
-    spoffo = np.zeros(len(spect_grid.grid), dtype = np.float64)
+    spoffo = np.zeros(len(spect_grid.grid), dtype = float)
     abs_coeff = spcl.SpectralObject(spoffo, spect_grid, units = units)
 
     return abs_coeff
@@ -313,7 +317,7 @@ def abs_coeff_calc_LTE(linee_mol, abs_coeff, mol, iso, MM, Temp, Pres, LTE = Tru
     """
     print('Inside spect_calc.. reading lines and calculating linshapes')
 
-    lin_grid = np.arange(-imxsig*sp_step/2,imxsig*sp_step/2,sp_step, dtype = np.float64)
+    lin_grid = np.arange(-imxsig*sp_step/2,imxsig*sp_step/2,sp_step, dtype = float)
 
     Q_part = spcl.CalcPartitionSum(mol, iso, temp = Temp)
 
@@ -364,7 +368,7 @@ def read_Gcoeffs_from_LUTs():
 def calc_single_Gcoeff():
     pass
 
-def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = None, tagLUTs = 'LUT_', n_pres_levels = None, pres_step_log = 0.1, temp_step = 5.0, save_LUTs = True, n_threads = n_threads):
+def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = None, tagLUTs = 'LUT_', n_pres_levels = None, pres_step_log = 0.1, temp_step = 5.0, save_LUTs = True, n_threads = n_threads, test = False):
     """
     Calculates the G_coeffs for the isomolec_levels at Temp and Pres.
     :param isomolecs: A list of isomolecs objects or a single one.
@@ -413,7 +417,10 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
         for temp in all_t:
             PTcouples.append([pres,temp])
 
-    PTcouples = PTcouples[:10]
+    if test:
+        print('Keeping ONLY 10 PTcouples for testing')
+        PTcouples = PTcouples[:10]
+
     print('Building LUTs for {} pres/temp couples... This may take some time... like {} minutes, maybe, not sure at all. Good luck ;)'.format(len(PTcouples),3.*len(PTcouples)))
 
     LUTS = []
@@ -438,7 +445,11 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
     return LUTs_wnames
 
 
-#def make_abscoeff_from_Gcoeffs(Gcoeffs):
+def make_abscoeff_isomolec(isomolec, Temp, Pres, LTE = False, fileLUTs = None, singleCalc = False):
+    """
+    Builds the absorption and emission coefficients for isomolec, both in LTE and non-LTE. If in non-LTE, isomolec levels have to contain the attribute local_vibtemp, produced by calling level.add_local_vibtemp(). If LTE is set to True, LTE populations are used.
+    LUT is the object created by makeLUT_nonLTE_Gcoeffs(). Contains
+    """
 
 """
 def make_abs_coeff_nonLTE(planet, point, molecs, useLUTs = True, LUT = None):

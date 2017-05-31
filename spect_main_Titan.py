@@ -32,10 +32,10 @@ cart_LUTS = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/LUTs/'
 
 hit08_25 = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/HITRAN/HITRAN08_2-5mu.par'
 
-keys = 'cart_atm cart_molecs cart_LUTS hitran_db n_threads'
+keys = 'cart_atm cart_molecs cart_LUTS hitran_db n_threads test'
 keys = keys.split()
-itype = [str, str, str, str, int]
-defaults = [cartatm, cart_old_ch4, cart_LUTS, hit08_25, 8]
+itype = [str, str, str, str, int, bool]
+defaults = [cartatm, cart_old_ch4, cart_LUTS, hit08_25, 8, False]
 inputs = sbm.read_inputs(input_file, keys, itype = itype, defaults = defaults)
 
 ### LOADING PLANET
@@ -104,10 +104,13 @@ db_file = inputs['hitran_db']
 wn_range = [2800.,3500.]
 linee = spcl.read_line_database(db_file, freq_range = wn_range)
 linee = [lin for lin in linee if lin.Mol == 6]
-linee = linee[:1000]
+
+if test:
+    print('Keeping ONLY 1000 lines for testing')
+    linee = linee[:1000]
 
 abs_coeff = smm.prepare_spe_grid(wn_range)
-LUTS = smm.makeLUT_nonLTE_Gcoeffs(abs_coeff.spectral_grid, linee, planet.gases.values(), planet.atmosphere, pres_step_log = 0.2, cartLUTs = inputs['cart_LUTS'], n_threads = inputs['n_threads'])
+LUTS = smm.makeLUT_nonLTE_Gcoeffs(abs_coeff.spectral_grid, linee, planet.gases.values(), planet.atmosphere, pres_step_log = 0.2, cartLUTs = inputs['cart_LUTS'], n_threads = inputs['n_threads'], test = test)
 
 pickle.dump(LUTS, open(inputs['cart_LUTS']+'_allLUTS'+smm.date_stamp(),'w') )
 print(time.ctime())

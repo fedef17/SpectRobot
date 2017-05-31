@@ -264,6 +264,20 @@ class SpectralObject(object):
         self.spectrum = self.spectrum * factor
         return
 
+    def erase_grid(self):
+        """
+        Erases the spectral_grid to save disk space.
+        """
+        self.spectral_grid = None
+        return
+
+    def ripristina_grid(self, spectral_grid):
+        """
+        Erases the spectral_grid to save disk space.
+        """
+        self.spectral_grid = copy.deepcopy(spectral_grid)
+        return
+
     def convertto_nm(self):
         if self.spectral_grid.units == 'nm':
             return self.spectral_grid.grid, self.spectrum
@@ -419,13 +433,13 @@ class SpectralObject(object):
         del lines
 
         mancano = imxlines-len(finarr)
-        matrzero = np.zeros((mancano,imxsig), dtype=np.float64, order='F')
+        matrzero = np.zeros((mancano,imxsig), dtype=float, order='F')
         matrix = np.vstack([matrix, matrzero])
 
         initarr = np.append(initarr, np.zeros(mancano, dtype=int))
         finarr = np.append(finarr, np.zeros(mancano, dtype=int))
 
-        spettro = np.zeros(imxsig_long, dtype=np.float64)
+        spettro = np.zeros(imxsig_long, dtype=float)
         spettro[:self.n_points()] = self.spectrum
 
         time_fort = time.time()
@@ -447,7 +461,7 @@ class SpectralObject(object):
         spino = self.spectral_grid.step()/10.
         n_lines = len(lines)
 
-        matrix = np.zeros((n_lines,fix_length), dtype = np.float64, order='F')
+        matrix = np.zeros((n_lines,fix_length), dtype = float, order='F')
         init = []
         fin = []
 
@@ -464,7 +478,7 @@ class SpectralObject(object):
             n_zeri = fix_length - (ok_fin - ok_ini +1)
 
             if n_zeri > 0:
-                zeros = np.zeros(n_zeri, dtype=np.float64)
+                zeros = np.zeros(n_zeri, dtype=float)
 
                 if ok_fin + n_zeri < self.n_points():
                     # appiccico zeri a dx
@@ -555,7 +569,7 @@ class SpectralGcoeff(SpectralObject):
         self.lev_string = minimal_level_string
         self.ctype = ctype
         self.spectral_grid = copy.deepcopy(spectral_grid)
-        self.spectrum = np.zeros(len(spectral_grid.grid), dtype = np.float64)
+        self.spectrum = np.zeros(len(spectral_grid.grid), dtype = float)
 
         return
 
@@ -669,7 +683,7 @@ def PrepareCalcShapes(wn_arr, linee_mol, Temp, Pres, MM):
     """
 
     sp_step = wn_arr.step()
-    lin_grid = np.arange(-imxsig*sp_step/2,imxsig*sp_step/2,sp_step, dtype = np.float64)
+    lin_grid = np.arange(-imxsig*sp_step/2,imxsig*sp_step/2,sp_step, dtype = float)
 
     time0 = time.time()
     time_100 = time.time()
@@ -1030,7 +1044,7 @@ def MakeShape(wn_arr, wn_0, lw, dw, Strength = 1.0):
     PAY ATTENTION: while the inputs for MakeShape are lw and dw, the humliv_bb routine takes lw and dw/sqrt(ln2). Moreover, the lineshape is multiplied by a factor (fac below) which is maybe useful for optimization.
     However, the shape returned by MakeShape is normalized -> integral(shape) = 1.
     """
-    fac = np.float64(dw*mt.sqrt(np.pi/mt.log(2.0)))
+    fac = float(dw*mt.sqrt(np.pi/mt.log(2.0)))
 
     y = lineshape.humliv_bb(wn_arr.grid,1,len(wn_arr.grid),wn_0,lw,dw/mt.sqrt(mt.log(2.0)))
     #### PUT 1 HERE!! FORTRAN ARRAYS START FROM ONEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE -> 1
@@ -1046,7 +1060,7 @@ def MakeShape_py(wn_arr, wn_0, lw, dw, Strength = 1.0):
     """
     Returns the line shape array as a SpectralObject class.
     """
-    fac = np.float64(dw*mt.sqrt(np.pi/mt.log(2.0)))
+    fac = float(dw*mt.sqrt(np.pi/mt.log(2.0)))
 
     Lorentz = Lorentz_shape(wn_arr.grid-wn_0, 0.0, lw)
     Doppler = Doppler_shape(wn_arr.grid-wn_0, 0.0, dw)
