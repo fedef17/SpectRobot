@@ -105,12 +105,12 @@ wn_range = [2800.,3500.]
 linee = spcl.read_line_database(db_file, freq_range = wn_range)
 linee = [lin for lin in linee if lin.Mol == 6]
 
-if test:
+if inputs['test']:
     print('Keeping ONLY 1000 lines for testing')
     linee = linee[:1000]
 
 abs_coeff = smm.prepare_spe_grid(wn_range)
-LUTS = smm.makeLUT_nonLTE_Gcoeffs(abs_coeff.spectral_grid, linee, planet.gases.values(), planet.atmosphere, pres_step_log = 0.2, cartLUTs = inputs['cart_LUTS'], n_threads = inputs['n_threads'], test = test)
+LUTS = smm.makeLUT_nonLTE_Gcoeffs(abs_coeff.spectral_grid, linee, planet.gases.values(), planet.atmosphere, pres_step_log = 0.2, cartLUTs = inputs['cart_LUTS'], n_threads = inputs['n_threads'], test = inputs['test'])
 
 pickle.dump(LUTS, open(inputs['cart_LUTS']+'_allLUTS'+smm.date_stamp(),'w') )
 print(time.ctime())
