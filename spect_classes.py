@@ -131,7 +131,8 @@ class SpectLine(object):
 
         return B
 
-    def MakeShapeLine(self, wn_arr, Temp, Pres, MM, Strength = 1.0, verbose = False):
+
+    def MakeShapeLine(self, wn_arr, Temp, Pres, MM, Strength = 1.0, verbose = False, keep_memory = False):
         """
         Calls routine makeshape.
         """
@@ -146,6 +147,9 @@ class SpectLine(object):
         #shape = MakeShape_py(wn_arr, self.Freq, lw, dw, Strength = Strength)
         shape = MakeShape(wn_arr, self.Freq, lw, dw, Strength = Strength)
 
+        if keep_memory:
+            self.shape = shape
+
         return shape #, lw, dw
 
     def CalcStrength_nonLTE(self, T_vib_lower, T_vib_upper, Q_part):
@@ -156,18 +160,21 @@ class SpectLine(object):
 
         return S
 
-    def Calc_Gcoeff_abs(self, wn_arr, Temp, Pres, MM):
-        G_co = Einstein_A_to_Gcoeff_abs(wn_arr, self, Temp, Pres, MM)
-        return G_co
+    def Calc_Gcoeffs(self, Temp, Pres, MM):
+        ctypes = ['sp_emission','ind_emission','absorption']
+        values = []
+        G_co = Einstein_A_to_Gcoeff_spem(self, Temp, Pres, MM)
+        values.append(G_co)
+        G_co = Einstein_A_to_Gcoeff_indem(self, Temp, Pres, MM)
+        values.append(G_co)
+        G_co = Einstein_A_to_Gcoeff_abs(self, Temp, Pres, MM)
+        values.append(G_co)
 
-    def Calc_Gcoeff_indem(self, wn_arr, Temp, Pres, MM):
-        G_co = Einstein_A_to_Gcoeff_indem(wn_arr, self, Temp, Pres, MM)
-        return G_co
+        G_coeffs = dict(zip(ctypes,values))
 
-    def Calc_Gcoeff_spem(self, wn_arr, Temp, Pres, MM):
-        G_co = Einstein_A_to_Gcoeff_spem(wn_arr, self, Temp, Pres, MM)
-        return G_co
+        self.G_coeffs = G_coeffs
 
+        return G_coeffs
 
 
 class SpectralGrid(object):
@@ -249,6 +256,13 @@ class SpectralObject(object):
 
     def n_points(self):
         return len(self.spectrum)
+
+    def Multiply(self, factor):
+        """
+        Simply multiplies all the spectrum by factor.
+        """
+        self.spectrum = self.spectrum * factor
+        return
 
     def convertto_nm(self):
         if self.spectral_grid.units == 'nm':
@@ -346,7 +360,7 @@ class SpectralObject(object):
             return griddifsum
 
 
-    def add_lines_to_spectrum(self, lines, fix_length = imxsig, n_threads = n_threads):
+    def add_lines_to_spectrum(self, lines, Strengths = None, fix_length = imxsig, n_threads = n_threads):
         """
         Sums a set of lines to the spectrum, using a fast routine in fortran. All shapes are filled with zeros till fix_length dimension.
 
@@ -356,6 +370,9 @@ class SpectralObject(object):
         print('Inside add_lines_to_spectrum.. summing up all the lines!')
 
         n_lines = len(lines)
+        print('Preparing to sum {} lines...'.format(len(lines)))
+        if n_lines == 0:
+            return self.spectrum
 
         if n_lines > imxlines:
             raise ValueError('{} are too many lines!! Increase the thresold imxlines (now {}) or decrease num of lines..'.format(n_lines,imxlines))
@@ -363,6 +380,10 @@ class SpectralObject(object):
             raise ValueError('The input spectrum is too long!! Increase the thresold imxsig_long or decrease num of wn..')
 
         time0 = time.time()
+
+        if Strengths is not None:
+            for line, strength in zip(lines,Strengths):
+                line.Multiply(strength)
 
         processi = []
         coda = []
@@ -385,41 +406,24 @@ class SpectralObject(object):
         for i in range(n_threads):
             processi[i].join()
 
-
-        #print('Fatto tutto! Ora devo solo montare la matrice')
-        # matrix = np.zeros((imxlines,imxsig), dtype = np.float64, order='F')
-        # initarr = np.zeros(imxlines, dtype=int)
-        # finarr = np.zeros(imxlines, dtype=int)
-
-        # print('Creato la matrice vuota, ora devo riempirla')
-        #print('Monto, ciclo {}, n_lines = {}'.format(0,len(outputs[0][1])))
         initarr = np.array(outputs[0][1])
         finarr = np.array(outputs[0][2])
         matrix = outputs[0][0]
 
         for output, i in zip(outputs[1:],range(1,n_threads)):
-        #    print('Monto, ciclo {}, n_lines = {}'.format(i,len(output[1])))
             initarr = np.append(initarr, np.array(output[1]))
             finarr = np.append(finarr, np.array(output[2]))
             matrix = np.vstack([matrix, output[0]])
 
-        #print("Libero un po' di memoria")
         del outputs
         del lines
 
-        #print('Fatto. ora devo fillare la matrice con gli zeri')
-        print(n_lines)
-        print(len(finarr))
-
         mancano = imxlines-len(finarr)
-        #print('Mancano {} lines, aggiungo zeri'.format(mancano))
         matrzero = np.zeros((mancano,imxsig), dtype=np.float64, order='F')
-        #matrzero = np.zeros((mancano,imxsig), order='F')
         matrix = np.vstack([matrix, matrzero])
 
         initarr = np.append(initarr, np.zeros(mancano, dtype=int))
         finarr = np.append(finarr, np.zeros(mancano, dtype=int))
-
 
         spettro = np.zeros(imxsig_long, dtype=np.float64)
         spettro[:self.n_points()] = self.spectrum
@@ -432,14 +436,13 @@ class SpectralObject(object):
 
         self.spectrum = somma[:self.n_points()]
 
-        return self.spectrum#, matrix, initarr, finarr, outputs
+        return self.spectrum
 
 
     def prepare_fortran_sum(self, lines, i, coda, fix_length = imxsig):
         """
         Subprocess of the call add_lines_to_spectrum. Each process calls this routine that produces a slice of the final matrix.
         """
-        #print('dentro proc: {}'.format(i))
 
         spino = self.spectral_grid.step()/10.
         n_lines = len(lines)
@@ -556,43 +559,42 @@ class SpectralGcoeff(SpectralObject):
 
         return
 
-    def BuildCoeff(self, lines, Temp, Pres, n_threads = n_threads):
+    def BuildCoeff(self, lines, Temp, Pres, n_threads = n_threads, preCalc_shapes = False):
         """
         Calculates the G_coeff for the selected level, using the proper lines among lines.
+        If preCalc_shapes is set as True, the lines in input shall already contain the calculated shape as attribute. Default is False. Setting preCalc_shapes as True speeds up the calculation by a factor of three when calculating LUTs.
         """
 
         ctypes = ['sp_emission','ind_emission','absorption']
 
+        if preCalc_shapes:
+            print('Using precalculated shapes..')
+            try:
+                gigi = lines[0].shape
+                gigi = lines[0].G_coeffs
+            except Exception as cazzillo:
+                print(cazzillo)
+                raise ValueError('preCalc_shapes is set as True but the lines do not contain the attribute << shapes >>. Are you sure you precalculated the line shapes? Run calc_shapes_lines on your line set first.')
+            lines_new = lines
+        else:
+            print('Calculating shapes..')
+            lines_new = self.calc_shapes(lines, Temp, Pres)
+
+        # for lin in lines:
+        #     if self.lev_string in lin.Up_lev_str or self.lev_string in lin.Lo_lev_str:
+        #         print('NAUUiii')
+        #         print(self.lev_string, self.mol, self.iso, lin.Up_lev_str, lin.Mol, lin.Iso)
+
         if self.ctype == 'sp_emission' or self.ctype == 'ind_emission':
-            linee_mol = [lin for lin in lines if (self.lev_string in lin.Up_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
+            shapes_tot = [lin.shape for lin in lines_new if (self.lev_string in lin.Up_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
+            G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string in lin.Up_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
         elif self.ctype == 'absorption':
-            linee_mol = [lin for lin in lines if (self.lev_string in lin.Lo_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
+            shapes_tot = [lin.shape for lin in lines_new if (self.lev_string in lin.Lo_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
+            G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string in lin.Lo_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
         else:
             raise ValueError('ctype has to be one among {}, {} and {}. {} not recognized'.format(ctypes[0],ctypes[1],ctypes[2],self.ctype))
 
-        time0 = time.time()
-
-        processi = []
-        coda = []
-        outputs = []
-
-        for i in range(n_threads):
-            coda.append(Queue())
-            processi.append(Process(target=self.do_for_th,args=(linee_mol, Temp, Pres, i, coda[i])))
-            processi[i].start()
-
-        for i in range(n_threads):
-            outputs.append(coda[i].get())
-
-        for i in range(n_threads):
-            processi[i].join()
-
-        shapes_tot = []
-
-        for output in outputs:
-            shapes_tot += output
-
-        self.add_lines_to_spectrum(shapes_tot)
+        self.add_lines_to_spectrum(shapes_tot, Strengths = G_coeffs_tot)
 
         self.temp = Temp
         self.pres = Pres
@@ -600,60 +602,95 @@ class SpectralGcoeff(SpectralObject):
         return self.spectrum
 
 
-    def do_for_th(self, linee_tot, Temp, Pres, i, coda):
-        time0 = time.time()
-        step_nlin = len(linee_tot)/n_threads
-        linee = linee_tot[step_nlin*i:step_nlin*(i+1)]
-        if i == n_threads-1:
-            linee = linee_tot[step_nlin*i:]
-
-        print('Hey! Questo è il ciclo {} con {} linee su {}!'.format(i,len(linee),len(linee_tot)))
-
-        shapes = self.PrepareCalc_nonLTE_coeff(linee, Temp, Pres)
-
-        print('Ciclo {} concluso in {} s!'.format(i,time.time()-time0))
-
-        coda.put(shapes)
-
-        return
-
-
-    def PrepareCalc_nonLTE_coeff(self, linee_mol, Temp, Pres):
+    def calc_shapes(self, lines, Temp, Pres):
         """
-        Calculates the G_coeff for the specific ctype, for all the lines that involve the level considered.
+        Calculates the line shapes for the selected type of coefficient.
         """
 
-        print('Calculating {} G_coeff for mol {}, iso {}, level {}. Found {} lines.'.format(self.ctype,self.mol,self.iso,self.lev_string,len(linee_mol)))
+        lines_new = calc_shapes_lines(self.spectral_grid, lines, Temp, Pres, self.MM)
 
-        sp_step = self.spectral_grid.step()
-        lin_grid = np.arange(-imxsig*sp_step/2,imxsig*sp_step/2,sp_step, dtype = np.float64)
+        return lines_new
 
-        time0 = time.time()
-        time_100 = time.time()
 
-        shapes = []
-        for ii,lin in zip(range(len(linee_mol)),linee_mol):
-            #print('linea {} at {}'.format(ii,lin.Freq))
-            ind_ok, fr_grid_ok = closest_grid(self.spectral_grid, lin.Freq)
-            lin_grid_ok = SpectralGrid(lin_grid+fr_grid_ok, units = 'cm_1')
+def calc_shapes_lines(wn_arr, lines, Temp, Pres, MM):
+    """
+    Calculates the line shapes and attaches new attributes "shape" and "Gcoeffs" to the line objects. line.Gcoeffs is a dict with three elements: sp_emission, ind_emission and absorption. Multiplying line.shape by line.Gcoeffs one has the three SpectralGcoeffs contributions of each line.
+    """
 
-            if self.ctype == 'sp_emission':
-                G_co = lin.Calc_Gcoeff_spem(lin_grid_ok, Temp, Pres, self.MM)
-            elif self.ctype == 'ind_emission':
-                G_co = lin.Calc_Gcoeff_indem(lin_grid_ok, Temp, Pres, self.MM)
-            elif self.ctype == 'absorption':
-                G_co = lin.Calc_Gcoeff_abs(lin_grid_ok, Temp, Pres, self.MM)
+    time0 = time.time()
 
-            shapes.append(G_co)
+    processi = []
+    coda = []
+    outputs = []
 
-            if ii % 100 == 0:
-                #print('Made 100 lines in {} s'.format(time.time()-time_100))
-                time_100 = time.time()
+    for i in range(n_threads):
+        coda.append(Queue())
+        processi.append(Process(target=do_for_th_calc,args=(wn_arr, lines, Temp, Pres, MM, i, coda[i])))
+        processi[i].start()
 
-        print('Made {} lines in {} s'.format(len(linee_mol),time.time()-time0))
+    for i in range(n_threads):
+        outputs.append(coda[i].get())
 
-        return shapes
+    for i in range(n_threads):
+        processi[i].join()
 
+    lines_new = []
+
+    for output in outputs:
+        lines_new += output
+
+    return lines_new
+
+
+def do_for_th_calc(wn_arr, linee_tot, Temp, Pres, MM, i, coda):
+    """
+    Single process called by calc_shapes_lines.
+    """
+    time0 = time.time()
+    step_nlin = len(linee_tot)/n_threads
+    linee = linee_tot[step_nlin*i:step_nlin*(i+1)]
+    if i == n_threads-1:
+        linee = linee_tot[step_nlin*i:]
+
+    print('Hey! Questo è il ciclo {} con {} linee su {}!'.format(i,len(linee),len(linee_tot)))
+
+    lines_new = PrepareCalcShapes(wn_arr, linee, Temp, Pres, MM)
+
+    print('Ciclo {} concluso in {} s!'.format(i,time.time()-time0))
+
+    coda.put(lines_new)
+
+    return
+
+
+def PrepareCalcShapes(wn_arr, linee_mol, Temp, Pres, MM):
+    """
+    Core of the calculation in do_for_th_calc.
+    """
+
+    sp_step = wn_arr.step()
+    lin_grid = np.arange(-imxsig*sp_step/2,imxsig*sp_step/2,sp_step, dtype = np.float64)
+
+    time0 = time.time()
+    time_100 = time.time()
+
+    shapes = []
+    G_coeffs_tot = []
+    for ii,lin in zip(range(len(linee_mol)),linee_mol):
+        #print('linea {} at {}'.format(ii,lin.Freq))
+        ind_ok, fr_grid_ok = closest_grid(wn_arr, lin.Freq)
+        lin_grid_ok = SpectralGrid(lin_grid+fr_grid_ok, units = 'cm_1')
+
+        lin.MakeShapeLine(lin_grid_ok, Temp, Pres, MM, keep_memory = True)
+        lin.Calc_Gcoeffs(Temp, Pres, MM)
+
+        if ii % 100 == 0:
+            #print('Made 100 lines in {} s'.format(time.time()-time_100))
+            time_100 = time.time()
+
+    print('Made {} lines in {} s'.format(len(linee_mol),time.time()-time0))
+
+    return linee_mol
 
 
 def read_mw_list(db_cart, nome = 'mw_list.dat'):
@@ -851,7 +888,7 @@ def Einstein_A_to_LineStrength_nonLTE(A_coeff, wavenumber, E_lower, T_vib_lower,
     return S
 
 
-def Einstein_A_to_Gcoeff_abs(wn_arr, line, Temp, Pres, MM):
+def Einstein_A_to_Gcoeff_abs(line, Temp, Pres, MM):
     """
     Calculates the absorption contribution to the G_coeff for a SINGLE LINE with the level as LOWER level of the transition.
     G_coeff = hcw/(4pi) * \sum_lines(B_12*Phi(T,P)) --> the sum is on all the lines with LEVEL as LOWER level of the transition.
@@ -863,12 +900,12 @@ def Einstein_A_to_Gcoeff_abs(wn_arr, line, Temp, Pres, MM):
 
     G_co = h_cgs*c_cgs*line.Freq * B_12 / (4*np.pi)
 
-    shape = line.MakeShapeLine(wn_arr, Temp, Pres, MM, Strength = G_co)
+    #shape = line.MakeShapeLine(wn_arr, Temp, Pres, MM, Strength = G_co)
 
-    return shape
+    return G_co
 
 
-def Einstein_A_to_Gcoeff_indem(wn_arr, line, Temp, Pres, MM):
+def Einstein_A_to_Gcoeff_indem(line, Temp, Pres, MM):
     """
     Calculates the induced emission contribution to the G_coeff for a SINGLE LINE with the level as UPPER level of the transition.
     G_coeff = hcw/(4pi) * \sum_lines(B_21*Phi(T,P)) --> the sum is on all the lines with LEVEL as UPPER level of the transition.
@@ -877,12 +914,12 @@ def Einstein_A_to_Gcoeff_indem(wn_arr, line, Temp, Pres, MM):
 
     G_co = h_cgs*c_cgs*line.Freq * B_21 / (4*np.pi)
 
-    shape = line.MakeShapeLine(wn_arr, Temp, Pres, MM, Strength = G_co)
+    #shape = line.MakeShapeLine(wn_arr, Temp, Pres, MM, Strength = G_co)
 
-    return shape
+    return G_co
 
 
-def Einstein_A_to_Gcoeff_spem(wn_arr, line, Temp, Pres, MM):
+def Einstein_A_to_Gcoeff_spem(line, Temp, Pres, MM):
     """
     Calculates the spontaneous emission contribution to the G_coeff for a SINGLE LINE with the level as UPPER level of the transition.
     G_coeff = hcw/(4pi) * \sum_lines(A_21*Phi(T,P)) --> the sum is on all the lines with LEVEL as UPPER level of the transition.
@@ -890,9 +927,9 @@ def Einstein_A_to_Gcoeff_spem(wn_arr, line, Temp, Pres, MM):
 
     G_co = h_cgs*c_cgs*line.Freq * line.A_coeff / (4*np.pi)
 
-    shape = line.MakeShapeLine(wn_arr, Temp, Pres, MM, Strength = G_co)
+    #shape = line.MakeShapeLine(wn_arr, Temp, Pres, MM, Strength = G_co)
 
-    return shape
+    return G_co
 
 
 def Einstein_A_to_LineStrength_hitran(A_coeff, wavenumber, temp, Q_part, g_upper, E_lower, iso_ab = 1.0):

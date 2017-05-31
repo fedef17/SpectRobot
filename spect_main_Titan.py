@@ -103,6 +103,8 @@ time0 = time.time()
 db_file = inputs['hitran_db']
 wn_range = [2800.,3500.]
 linee = spcl.read_line_database(db_file, freq_range = wn_range)
+linee = [lin for lin in linee if lin.Mol == 6]
+linee = linee[:1000]
 
 abs_coeff = smm.prepare_spe_grid(wn_range)
 LUTS = smm.makeLUT_nonLTE_Gcoeffs(abs_coeff.spectral_grid, linee, planet.gases.values(), planet.atmosphere, pres_step_log = 0.2, cartLUTs = inputs['cart_LUTS'], n_threads = inputs['n_threads'])

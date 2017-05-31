@@ -36,15 +36,18 @@ class LookUpTable(object):
     """
 
     def __init__(self, isomolec, tag = None):
-        self.tag = tag
+        if tag is not None:
+            self.tag = tag
+        else:
+            self.tag = 'LUT_mol{0:02d}_iso{:1d}'.format(isomolec.mol,isomolec.iso)
         self.mol = isomolec.mol
         self.iso = isomolec.iso
         self.MM = isomolec.MM
         self.isomolec = copy.deepcopy(isomolec)
-        self.level_sets = []
+        self.level_sets = dict()
         return
 
-    def make(self, spectral_grid, lines, PTcouples, export_levels = True, cartLUTs = None):
+    def make(self, spectral_grid, lines, PTcouples, export_levels = True, cartLUTs = None, control = True):
         """
         Builds the LUT.
         """
@@ -54,18 +57,42 @@ class LookUpTable(object):
 
         print('Producing LUT for mol {}, iso {}. The following levels are considered: {}'.format(self.mol,self.iso,self.isomolec.levels))
 
+        lines = [lin for lin in lines if (lin.Mol == self.mol and lin.Iso == self.iso)]
+
         for lev in self.isomolec.levels:
             print('Building LutSet for level {} of mol {}, iso {}'.format(lev,self.mol,self.iso))
-            set1 = LutSet(self.mol, self.iso, self.MM, getattr(self.isomolec, lev))
-            set1.make(spectral_grid, lines, PTcouples)
+            filename = cartLUTs + self.tag + '_' + lev + date_stamp() + '.pic'
+            set1 = LutSet(self.mol, self.iso, self.MM, getattr(self.isomolec, lev), filename = filename)
+            self.level_sets[lev] = copy.deepcopy(set1)
+            self.level_sets[lev].prepare_export(PTcouples)
 
-            if export_levels:
-                filename = cartLUTs + self.tag + '_' + lev + date_stamp() + '.pic'
-                set1.export(filename)
-                self.level_sets.append(filename)
-                del set1
-            else:
-                self.level_sets.append(set1)
+
+        num=0
+        time0 = time.time()
+        for [Pres,Temp] in PTcouples:
+            num+=1
+            print('Calculating shapes for PTcouple {} out of {}. P = {}, T = {}'.format(num,len(PTcouples),Pres,Temp))
+
+            time1 = time.time()
+            lines_proc = spcl.calc_shapes_lines(spectral_grid, lines, Temp, Pres, self.MM)
+
+            print("PTcouple {} out of {}. P = {}, T = {}. Lineshapes calculated in {:5.1f} s, time from start {:7.1f} min".format(num,len(PTcouples),Pres,Temp,time.time()-time1,(time.time()-time0)/60.))
+
+            if control:
+                comm = 'echo "PTcouple {} out of {}. P = {}, T = {}. Lineshapes calculated in {:5.1f} s, time from start {:7.1f} min" >> control_spectrobot'.format(num,len(PTcouples),Pres,Temp,time.time()-time1,(time.time()-time0)/60.)
+                os.system(comm)
+
+            time1 = time.time()
+
+            for lev in self.isomolec.levels:
+                print('Building LutSet for level {} of mol {}, iso {}'.format(lev,self.mol,self.iso))
+                self.level_sets[lev].add_PT(spectral_grid, lines_proc, Pres, Temp, keep_memory = False)
+
+            mess = "Extracted single levels G_coeffs in {:5.1f} s. PT couple completed. Saving..".format(time.time()-time1)
+            print(mess)
+            if control:
+                comm = 'echo '+mess+' >> control_spectrobot'
+                os.system(comm)
 
         return
 
@@ -76,7 +103,7 @@ class LookUpTable(object):
         n_lin = len(linee_ok)
         n_PT = len(PTcouples)
 
-        time = n_lin * 3./30000. * n_PT * 3
+        time = n_lin * 3./30000. * n_PT
         print('Estimated time is about {:8.1f} min'.format(time))
 
         return time
@@ -92,12 +119,27 @@ class LutSet(object):
     This class represent a single entry of look-up table for a single level, for all temps/press and for all ctypes. Each ctype is an element of a dictionary.
     """
 
-    def __init__(self, mol, iso, MM, level):
+    def __init__(self, mol, iso, MM, level, filename = None):
         self.mol = mol
         self.iso = iso
         self.MM = MM
         self.level = copy.deepcopy(level)
+        self.filename = filename
+        self.sets = []
         return
+
+    def prepare_export(self, PTcouples):
+        """
+        Opens the pic file for export, dumps PTcouples on top.
+        """
+        if self.filename is None:
+            raise ValueError('ERROR!: NO filename set for LutSet.')
+        else:
+            self.temp_file = open(self.filename, 'wb')
+        pickle.dump(PTcouples, self.temp_file)
+
+        return
+
 
     def make(self, spectral_grid, lines, PTcouples, control = True):
         """
@@ -143,15 +185,45 @@ class LutSet(object):
                 gigi.BuildCoeff(lines, T, P)
                 set_[ctype].append(gigi)
                 if control:
-                    comm = 'echo "PTcouple {} out of {}. P = {}, T = {}. PT done in {:5.1f} s, time from start {:7.1f} min" >> control_spectrobot'.format(num,len(PTcouples),P,T,time.time()-time0,(time.time()-time0)/60.)
+                    comm = 'echo "PTcouple {} out of {}. P = {}, T = {}. PT done in {:5.1f} s, time from start {:7.1f} min" >> control_spectrobot'.format(num,len(PTcouples),P,T,time.time()-time1,(time.time()-time0)/60.)
                     os.system(comm)
                 print('Added')
 
         return
 
-        def export(self, filename):
-            pickle.dump(self, open(filename,'w'))
-            return
+    def add_PT(self, spectral_grid, lines, Pres, Temp, keep_memory = False, control = True):
+        """
+        Adds a single PT couple to the set. If keep_memory is set to True, the resulting G coeffs are stored in the set, instead are just dumped in the pickle file.
+        """
+
+        ctypes = ['sp_emission','ind_emission','absorption']
+        set_ = dict()
+
+        minimal_level_string = ''
+        for qu in self.level.get_quanta()[0]:
+            minimal_level_string += '{:1d}'.format(qu)
+            minimal_level_string += ' '
+        minimal_level_string = minimal_level_string[:-1]
+
+        for ctype in ctypes:
+            print('Producing set for '+ctype+'...')
+            gigi = spcl.SpectralGcoeff(ctype, spectral_grid, self.mol, self.iso, self.MM, minimal_level_string)
+            gigi.BuildCoeff(lines, Temp, Pres, preCalc_shapes = True)
+
+            set_[ctype] = copy.deepcopy(gigi)
+            print('Added')
+
+        pickle.dump(set_, self.temp_file)
+        if not keep_memory:
+            del set_
+        else:
+            self.sets.append(set_)
+
+        return
+
+    def export(self, filename):
+        pickle.dump(self, open(filename,'w'))
+        return
 
 
 # FUNCTIONS
@@ -341,6 +413,7 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
         for temp in all_t:
             PTcouples.append([pres,temp])
 
+    PTcouples = PTcouples[:10]
     print('Building LUTs for {} pres/temp couples... This may take some time... like {} minutes, maybe, not sure at all. Good luck ;)'.format(len(PTcouples),3.*len(PTcouples)))
 
     LUTS = []
@@ -357,12 +430,15 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
             print("Hopefully this calculation will take about {} minutes, but actually I really don't know, take your time :)".format(LUT.CPU_time_estimate(lines, PTcouples)))
             LUT.make(spectral_grid, lines, PTcouples, export_levels = True, cartLUTs = cartLUTs)
             print(time.ctime())
-            #LUT.export(filename = cartLUTs+taggg+date_stamp()+'.pic')
+            LUT.export(filename = cartLUTs+taggg+date_stamp()+'.pic')
             LUTS.append(LUT)
 
     LUTs_wnames = dict(zip(names,LUTS))
 
     return LUTs_wnames
+
+
+#def make_abscoeff_from_Gcoeffs(Gcoeffs):
 
 """
 def make_abs_coeff_nonLTE(planet, point, molecs, useLUTs = True, LUT = None):
