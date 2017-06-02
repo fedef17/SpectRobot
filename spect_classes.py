@@ -201,6 +201,20 @@ class SpectralGrid(object):
     def max_wn(self):
         return max(self.grid)
 
+    def half_precision(self):
+        """
+        Converts the grid to half precision (float16) for saving.
+        """
+        self.grid = self.grid.astype(np.float16)
+        return
+
+    def double_precision(self):
+        """
+        Converts the grid to double precision (float).
+        """
+        self.grid = self.grid.astype(float)
+        return
+
     def convertto_nm(self):
         if self.units == 'nm':
             return self.grid
@@ -276,6 +290,33 @@ class SpectralObject(object):
         Erases the spectral_grid to save disk space.
         """
         self.spectral_grid = copy.deepcopy(spectral_grid)
+        return
+
+    def half_precision(self):
+        """
+        Converts the spectrum to half precision (np.float16) for saving.
+        """
+        self.spectrum = self.spectrum.astype(np.float16)
+        if self.spectral_grid is not None:
+            self.spectral_grid.half_precision()
+        return
+
+    def double_precision(self):
+        """
+        Converts the spectrum to double precision (float).
+        """
+        self.spectrum = self.spectrum.astype(float)
+        if self.spectral_grid is not None:
+            self.spectral_grid.double_precision()
+        return
+
+    def compress_spectrum(self, threshold = 1.e-25):
+        """
+        Converts the spectrum to scipy.sparse.csr_matrix. threshold should be carefully evaluated in order to avoid errors in the spectrum computation. Deve essere threshold*column_density << 1 (not more than 0.001 I'd say).
+        """
+        coso = self.spectrum
+        coso[self.spectrum < threshold] = 0.0
+        self.spectrum = scipy.sparse.csr_matrix(coso)
         return
 
     def convertto_nm(self):

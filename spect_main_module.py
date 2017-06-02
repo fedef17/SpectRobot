@@ -213,6 +213,7 @@ class LutSet(object):
             gigi = spcl.SpectralGcoeff(ctype, spectral_grid, self.mol, self.iso, self.MM, minimal_level_string)
             gigi.BuildCoeff(lines, Temp, Pres, preCalc_shapes = True)
             gigi.erase_grid()
+            gigi.half_precision()
 
             set_[ctype] = copy.deepcopy(gigi)
             print('Added')
