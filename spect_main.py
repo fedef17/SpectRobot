@@ -1,4 +1,4 @@
-#!/usr/bin/python
+E_lower#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 import numpy as np
@@ -149,9 +149,9 @@ essesss = [lin.Strength for lin in linee_ch4]
 linea = linee_ch4[117]
 print(linea.Q_num_lo, linea.Q_num_up)
 Bi = spcl.Einstein_A_to_B(linea.A_coeff,linea.Freq)
-esse = spcl.Einstein_A_to_LineStrength_nonLTE(linea.A_coeff,linea.Freq,linea.Energy_low,296.0,296.0,linea.g_lo,linea.g_up,Q_hit,  iso_ab = 0.98827)
+esse = spcl.Einstein_A_to_LineStrength_nonLTE(linea.A_coeff,linea.Freq,linea.E_lower,296.0,296.0,linea.g_lo,linea.g_up,Q_hit,  iso_ab = 0.98827)
 
-esse3 = spcl.Einstein_A_to_LineStrength_hitran(linea.A_coeff,linea.Freq,296.0,Q_hit,linea.g_up,linea.Energy_low, iso_ab = 0.98827)
+esse3 = spcl.Einstein_A_to_LineStrength_hitran(linea.A_coeff,linea.Freq,296.0,Q_hit,linea.g_up,linea.E_lower, iso_ab = 0.98827)
 
 
 print(linea.Strength,esse,esse3)

@@ -45,8 +45,8 @@ k_cgs = const.physical_constants['Boltzmann constant'][0]*1.e7 # erg K-1
 c2 = h_cgs * c_cgs / k_cgs
 
 ### NAMES for SpectLine object
-cose = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coeff', 'Air_broad', 'Self_broad', 'Energy_low', 'T_dep_broad', 'P_shift','Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo')
-cose_hit = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coeff', 'Air_broad', 'Self_broad', 'Energy_low', 'T_dep_broad', 'P_shift','Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo', 'others', 'g_up', 'g_lo')
+cose = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coeff', 'Air_broad', 'Self_broad', 'E_lower', 'T_dep_broad', 'P_shift','Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo')
+cose_hit = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coeff', 'Air_broad', 'Self_broad', 'E_lower', 'T_dep_broad', 'P_shift','Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo', 'others', 'g_up', 'g_lo')
 
 cose_mas = ('Up_lev_id', 'Lo_lev_id', 'Up_lev', 'Lo_lev')
 #############################################################################
@@ -86,9 +86,9 @@ class SpectLine(object):
 
     def Print(self, ofile = None):
         if ofile is None:
-            print('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.Energy_low,self.Up_lev_str,self.Lo_lev_str))
+            print('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.E_lower,self.Up_lev_str,self.Lo_lev_str))
         else:
-            ofile.write('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.Energy_low,self.Up_lev_str,self.Lo_lev_str))
+            ofile.write('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.E_lower,self.Up_lev_str,self.Lo_lev_str))
         return
 
 
@@ -100,7 +100,7 @@ class SpectLine(object):
         """
         Calcs Line Strength at temperature T.
         """
-        return CalcStrength_at_T(self.Mol, self.Iso, self.Strength, self.Freq, self.Energy_low, T)
+        return CalcStrength_at_T(self.Mol, self.Iso, self.Strength, self.Freq, self.E_lower, T)
 
 
     def LinkToMolec(self,IsoMolec):
@@ -108,20 +108,27 @@ class SpectLine(object):
         IsoMolec has to be of the corresponding type in module spect_base_module.
         Sets the values of the two attr. "Up_lev_id" and "Lo_lev_id" with the internal names of the corresponding levels in IsoMolec. So that all level quantities can be accessed via Level = getattr(IsoMolec,Up_lev_id) and using Level..
         """
+        self.Up_lev_id = None
+        self.E_vib_up = None
+        self.Lo_lev_id = None
+        self.E_vib_lo = None
+
         for lev in IsoMolec.levels:
             Level = getattr(IsoMolec, lev)
-            if np.any(np.array([self.Up_lev_str in string for string in [Level.level]+Level.simmetry])):
-                # This is the right upper level!
+            if Level.minimal_level_string() in self.Up_lev_str:
                 self.Up_lev_id = lev
-                self.Up_lev = Level
-            elif np.any(np.array([self.Lo_lev_str in string for string in [Level.level]+Level.simmetry])):
-                # This is the right lower level!
+                self.E_vib_up = Level.energy
+            elif Level.minimal_level_string() in self.Lo_lev_str:
                 self.Lo_lev_id = lev
-                self.Lo_lev = Level
+                self.E_vib_lo = Level.energy
             else:
                 continue
 
-        return
+        #print(self.Up_lev_id, self.E_vib_up, self.Lo_lev_id, self.E_vib_lo)
+        if self.Up_lev_id is None or self.Lo_lev_id is None:
+            return False
+        else:
+            return True
 
     def Einstein_A_to_B(self):
         """
@@ -156,18 +163,21 @@ class SpectLine(object):
         """
         Calculates the line strength S in nonLTE conditions.
         """
-        S = Einstein_A_to_LineStrength_nonLTE(self.A_coeff, self.Freq, self.Energy_low, T_vib_lower, T_vib_upper, self.g_lo, self.g_up, Q_part)
+        S = Einstein_A_to_LineStrength_nonLTE(self.A_coeff, self.Freq, self.E_lower, T_vib_lower, T_vib_upper, self.g_lo, self.g_up, Q_part)
 
         return S
 
-    def Calc_Gcoeffs(self, Temp, Pres, MM):
+    def Calc_Gcoeffs(self, Temp, Pres, isomolec):
         ctypes = ['sp_emission','ind_emission','absorption']
         values = []
-        G_co = Einstein_A_to_Gcoeff_spem(self, Temp, Pres, MM)
+
+        ok = self.LinkToMolec(isomolec)
+
+        G_co = Einstein_A_to_Gcoeff_spem(self, Temp, Pres, isomolec.MM, self.E_vib_up)
         values.append(G_co)
-        G_co = Einstein_A_to_Gcoeff_indem(self, Temp, Pres, MM)
+        G_co = Einstein_A_to_Gcoeff_indem(self, Temp, Pres, isomolec.MM, self.E_vib_up)
         values.append(G_co)
-        G_co = Einstein_A_to_Gcoeff_abs(self, Temp, Pres, MM)
+        G_co = Einstein_A_to_Gcoeff_abs(self, Temp, Pres, isomolec.MM, self.E_vib_lo)
         values.append(G_co)
 
         G_coeffs = dict(zip(ctypes,values))
@@ -175,6 +185,14 @@ class SpectLine(object):
         self.G_coeffs = G_coeffs
 
         return G_coeffs
+
+    def minimal_level_string_up(self):
+        minstr, _, _ = sbm.extract_quanta_HITRAN(self.Mol, self.Iso, self.Up_lev_str)
+        return minstr
+
+    def minimal_level_string_lo(self):
+        minstr, _, _ = sbm.extract_quanta_HITRAN(self.Mol, self.Iso, self.Lo_lev_str)
+        return minstr
 
 
 class SpectralGrid(object):
@@ -270,6 +288,13 @@ class SpectralObject(object):
 
     def n_points(self):
         return len(self.spectrum)
+
+    def add_mask(self, mask):
+        """
+        Adds a mask (an array of bool usually) to the obj.
+        """
+        self.mask = mask
+        return
 
     def Multiply(self, factor):
         """
@@ -381,13 +406,30 @@ class SpectralObject(object):
         return intt
 
 
-    def convolve_to_grid(self, new_spectral_grid, spectral_widths = None, conv_type = 'gaussian'):
+    def convolve_to_grid(self, new_spectral_grid, spectral_widths = None, conv_type = 'gaussian', n_sigma = 5.):
         """
         Convolution of the spectrum to a different grid.
         """
-        pass
+        print('eja')
+        sp_step_old = self.spectral_grid.step()
+        n_points = n_sigma*new_spectral_grid.step()/sp_step_old
+        lin_grid = np.arange(-n_points*sp_step_old,n_points*sp_step_old,sp_step_old, dtype = float)
 
-    def add_to_spectrum(self, spectrum2, sumcheck = 10.):
+        spectrum = np.zeros(len(new_spectral_grid.grid), dtype = float)
+        gigi = gaussian(lin_grid, 0.0, new_spectral_grid.step())
+
+        for num,freq in zip(range(len(spectrum)), new_spectral_grid.grid):
+            ind_ok, fr_grid_ok = closest_grid(self.spectral_grid, freq)
+            lin_grid_ok = SpectralGrid(lin_grid+fr_grid_ok, units = 'cm_1')
+            spect_old = self.spectrum[((self.spectral_grid.grid > lin_grid_ok.grid[0]-self.spectral_grid.step()/2.) & (self.spectral_grid.grid < lin_grid_ok.grid[-1]+self.spectral_grid.step()/2.))]
+
+            for num2 in range(len(spect_old)):
+                spectrum[num] += spect_old[num2]*gigi[num2]*new_spectral_grid.step()
+
+        convolved = SpectralObject(spectrum, new_spectral_grid)
+        return convolved
+
+    def add_to_spectrum(self, spectrum2, Strength = None, sumcheck = 10.):
         """
         Spectrum2 is a SpectralObject with a spectral_grid which is entirely or partially included in the self.spectral_grid, with the SAME STEP.
         """
@@ -405,7 +447,10 @@ class SpectralObject(object):
             ok = (self.spectral_grid.grid > spectrum2.spectral_grid.grid[0]-spino) & (self.spectral_grid.grid < spectrum2.spectral_grid.grid[-1]+spino)
             ok2 = (spectrum2.spectral_grid.grid > self.spectral_grid.grid[0]-spino) & (spectrum2.spectral_grid.grid < self.spectral_grid.grid[-1]+spino)
 
-            self.spectrum[ok] += spectrum2.spectrum[ok2]
+            if Strength is not None:
+                self.spectrum[ok] += Strength*spectrum2.spectrum[ok2]
+            else:
+                self.spectrum[ok] += spectrum2.spectrum[ok2]
 
             check_grid_diff = self.spectral_grid.grid[ok]-spectrum2.spectral_grid.grid[ok2]
             griddifsum = np.sum(np.abs(check_grid_diff))
@@ -603,14 +648,21 @@ class SpectralGcoeff(SpectralObject):
     <<< IMPORTANT: Set as level string the part of the string containing the quanta, not the simmetry of the levels. Instead it will not recognize levels with same quanta and different symmetry. Example: for level "0 0 1 2 1F2" set minimal_level_string = "0 0 1 2" >>>>>
     """
 
-    def __init__(self, ctype, spectral_grid, mol, iso, MM, minimal_level_string):
+    def __init__(self, ctype, spectral_grid, mol, iso, MM, minimal_level_string, spectrum = None, Pres = None, Temp = None):
         self.mol = mol
         self.iso = iso
         self.MM = MM
         self.lev_string = minimal_level_string
         self.ctype = ctype
         self.spectral_grid = copy.deepcopy(spectral_grid)
-        self.spectrum = np.zeros(len(spectral_grid.grid), dtype = float)
+        if spectrum is None:
+            self.spectrum = np.zeros(len(spectral_grid.grid), dtype = float)
+        else:
+            self.spectrum = spectrum
+
+        if Pres is not None and Temp is not None:
+            self.pres = Pres
+            self.temp = Temp
 
         return
 
@@ -621,6 +673,12 @@ class SpectralGcoeff(SpectralObject):
         """
 
         ctypes = ['sp_emission','ind_emission','absorption']
+
+        if len(lines) == 0:
+            print('No lines here, returning..')
+            self.temp = Temp
+            self.pres = Pres
+            return self.spectrum
 
         if preCalc_shapes:
             print('Using precalculated shapes..')
@@ -657,20 +715,48 @@ class SpectralGcoeff(SpectralObject):
         return self.spectrum
 
 
-    def calc_shapes(self, lines, Temp, Pres):
+    def calc_shapes(self, lines, Temp, Pres, isomolec):
         """
         Calculates the line shapes for the selected type of coefficient.
         """
 
-        lines_new = calc_shapes_lines(self.spectral_grid, lines, Temp, Pres, self.MM)
+        lines_new = calc_shapes_lines(self.spectral_grid, lines, Temp, Pres, isomolec)
 
         return lines_new
 
+    def interpolate(self, coeff2, Pres = None, Temp = None):
+        """
+        Interpolates self with another Gcoeff coeff2, considering the parameters given. The two coeffs should either have the same pressure (and in this case the desired Temp is given in the call) or the same temperature (Pres is given in the call).
+        """
+        if self.temp != coeff2.temp and self.pres != coeff2.pres:
+            raise ValueError('The two coeffs have both different temperatures and pressures! cannot interpolate')
 
-def calc_shapes_lines(wn_arr, lines, Temp, Pres, MM):
+        if Pres is not None:
+            if self.temp != coeff2.temp:
+                raise ValueError('The two coeffs have different temperatures! You should specify the interpolation temperature, not the pressure')
+            w1, w2 = sbm.weight(Pres, self.pres, coeff2.pres, itype='exp')
+            new_spect = w1 * self.spectrum + w2 * coeff2.spectrum
+            gigi = spcl.SpectralGcoeff(self.ctype, self.spectral_grid, self.mol, self.iso, self.MM, self.lev_string, spectrum = new_spect, Pres = Pres, Temp = self.temp)
+        elif Temp is not None:
+            if self.pres != coeff2.pres:
+                raise ValueError('The two coeffs have different pressures! You should specify the interpolation pressure, not the temperature')
+            w1, w2 = sbm.weight(Temp, self.temp, coeff2.temp, itype='lin')
+            new_spect = w1 * self.spectrum + w2 * coeff2.spectrum
+            gigi = spcl.SpectralGcoeff(self.ctype, self.spectral_grid, self.mol, self.iso, self.MM, self.lev_string, spectrum = new_spect, Pres = self.pres, Temp = Temp)
+
+        return gigi
+
+
+def calc_shapes_lines(wn_arr, lines, Temp, Pres, isomolec):
     """
     Calculates the line shapes and attaches new attributes "shape" and "Gcoeffs" to the line objects. line.Gcoeffs is a dict with three elements: sp_emission, ind_emission and absorption. Multiplying line.shape by line.Gcoeffs one has the three SpectralGcoeffs contributions of each line.
     """
+
+    if not isomolec.is_in_LTE:
+        oks = []
+        for line in lines:
+            oks.append(line.LinkToMolec(isomolec))
+        lines = [lin for lin, ok in zip(lines,oks) if ok]
 
     time0 = time.time()
 
@@ -680,7 +766,7 @@ def calc_shapes_lines(wn_arr, lines, Temp, Pres, MM):
 
     for i in range(n_threads):
         coda.append(Queue())
-        processi.append(Process(target=do_for_th_calc,args=(wn_arr, lines, Temp, Pres, MM, i, coda[i])))
+        processi.append(Process(target=do_for_th_calc,args=(wn_arr, lines, Temp, Pres, isomolec, i, coda[i])))
         processi[i].start()
 
     for i in range(n_threads):
@@ -697,7 +783,7 @@ def calc_shapes_lines(wn_arr, lines, Temp, Pres, MM):
     return lines_new
 
 
-def do_for_th_calc(wn_arr, linee_tot, Temp, Pres, MM, i, coda):
+def do_for_th_calc(wn_arr, linee_tot, Temp, Pres, isomolec, i, coda):
     """
     Single process called by calc_shapes_lines.
     """
@@ -709,7 +795,7 @@ def do_for_th_calc(wn_arr, linee_tot, Temp, Pres, MM, i, coda):
 
     print('Hey! Questo è il ciclo {} con {} linee su {}!'.format(i,len(linee),len(linee_tot)))
 
-    lines_new = PrepareCalcShapes(wn_arr, linee, Temp, Pres, MM)
+    lines_new = PrepareCalcShapes(wn_arr, linee, Temp, Pres, isomolec)
 
     print('Ciclo {} concluso in {} s!'.format(i,time.time()-time0))
 
@@ -718,7 +804,7 @@ def do_for_th_calc(wn_arr, linee_tot, Temp, Pres, MM, i, coda):
     return
 
 
-def PrepareCalcShapes(wn_arr, linee_mol, Temp, Pres, MM):
+def PrepareCalcShapes(wn_arr, linee_mol, Temp, Pres, isomolec):
     """
     Core of the calculation in do_for_th_calc.
     """
@@ -729,19 +815,14 @@ def PrepareCalcShapes(wn_arr, linee_mol, Temp, Pres, MM):
     time0 = time.time()
     time_100 = time.time()
 
-    shapes = []
-    G_coeffs_tot = []
+    print(type(isomolec.MM), isomolec.MM)
+
     for ii,lin in zip(range(len(linee_mol)),linee_mol):
-        #print('linea {} at {}'.format(ii,lin.Freq))
         ind_ok, fr_grid_ok = closest_grid(wn_arr, lin.Freq)
         lin_grid_ok = SpectralGrid(lin_grid+fr_grid_ok, units = 'cm_1')
 
-        lin.MakeShapeLine(lin_grid_ok, Temp, Pres, MM, keep_memory = True)
-        lin.Calc_Gcoeffs(Temp, Pres, MM)
-
-        if ii % 100 == 0:
-            #print('Made 100 lines in {} s'.format(time.time()-time_100))
-            time_100 = time.time()
+        lin.MakeShapeLine(lin_grid_ok, Temp, Pres, isomolec.MM, keep_memory = True)
+        lin.Calc_Gcoeffs(Temp, Pres, isomolec)
 
     print('Made {} lines in {} s'.format(len(linee_mol),time.time()-time0))
 
@@ -784,11 +865,11 @@ def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev 
 
     if db_format == 'gbb':
         delim = (2, 1, 12, 10, 10, 6, 6, 10, 4, 8, 15, 15, 15, 15)
-        cose = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coeff', 'Air_broad', 'Self_broad', 'Energy_low', 'T_dep_broad', 'P_shift', 'Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo')
+        cose = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coeff', 'Air_broad', 'Self_broad', 'E_lower', 'T_dep_broad', 'P_shift', 'Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo')
         cose2 = 2 * 'i4,' + 8 * 'f8,' + 3 * '|S15,' + '|S15'
     elif db_format == 'HITRAN':
         delim = (2, 1, 12, 10, 10, 5, 5, 10, 4, 8, 15, 15, 15, 15, 19, 7, 7)
-        cose = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coeff', 'Air_broad', 'Self_broad', 'Energy_low', 'T_dep_broad', 'P_shift', 'Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo', 'others', 'g_up', 'g_lo')
+        cose = ('Mol', 'Iso', 'Freq', 'Strength', 'A_coeff', 'Air_broad', 'Self_broad', 'E_lower', 'T_dep_broad', 'P_shift', 'Up_lev_str', 'Lo_lev_str', 'Q_num_up', 'Q_num_lo', 'others', 'g_up', 'g_lo')
         cose2 = 'i4,i4' + 8 * ',f8' + 4 * ',|S15' + ',|S19' + 2 * ',f8'
     else:
         raise ValueError('Allowed values for db_format: {}, {}'.format('gbb','HITRAN'))
@@ -943,7 +1024,7 @@ def Einstein_A_to_LineStrength_nonLTE(A_coeff, wavenumber, E_lower, T_vib_lower,
     return S
 
 
-def Einstein_A_to_Gcoeff_abs(line, Temp, Pres, MM):
+def Einstein_A_to_Gcoeff_abs(line, Temp, Pres, MM, E_vib):
     """
     Calculates the absorption contribution to the G_coeff for a SINGLE LINE with the level as LOWER level of the transition.
     G_coeff = hcw/(4pi) * \sum_lines(B_12*Phi(T,P)) --> the sum is on all the lines with LEVEL as LOWER level of the transition.
@@ -952,35 +1033,37 @@ def Einstein_A_to_Gcoeff_abs(line, Temp, Pres, MM):
     B_21 = line.Einstein_A_to_B()
 
     B_12 = Einstein_B21_to_B12(B_21, line.g_lo, line.g_up)
+    rot_pop = line.g_lo * Boltz_ratio_nodeg(line.E_lower-E_vib, Temp)
 
-    G_co = h_cgs*c_cgs*line.Freq * B_12 / (4*np.pi)
+    G_co = h_cgs*c_cgs*line.Freq * rot_pop * B_12 / (4*np.pi)
 
     #shape = line.MakeShapeLine(wn_arr, Temp, Pres, MM, Strength = G_co)
 
     return G_co
 
 
-def Einstein_A_to_Gcoeff_indem(line, Temp, Pres, MM):
+def Einstein_A_to_Gcoeff_indem(line, Temp, Pres, MM, E_vib):
     """
     Calculates the induced emission contribution to the G_coeff for a SINGLE LINE with the level as UPPER level of the transition.
     G_coeff = hcw/(4pi) * \sum_lines(B_21*Phi(T,P)) --> the sum is on all the lines with LEVEL as UPPER level of the transition.
     """
     B_21 = line.Einstein_A_to_B()
 
-    G_co = h_cgs*c_cgs*line.Freq * B_21 / (4*np.pi)
+    rot_pop = line.g_up * Boltz_ratio_nodeg(line.E_lower+line.Freq-E_vib, Temp)
+    G_co = h_cgs*c_cgs*line.Freq * rot_pop * B_21 / (4*np.pi)
 
     #shape = line.MakeShapeLine(wn_arr, Temp, Pres, MM, Strength = G_co)
 
     return G_co
 
 
-def Einstein_A_to_Gcoeff_spem(line, Temp, Pres, MM):
+def Einstein_A_to_Gcoeff_spem(line, Temp, Pres, MM, E_vib):
     """
     Calculates the spontaneous emission contribution to the G_coeff for a SINGLE LINE with the level as UPPER level of the transition.
     G_coeff = hcw/(4pi) * \sum_lines(A_21*Phi(T,P)) --> the sum is on all the lines with LEVEL as UPPER level of the transition.
     """
-
-    G_co = h_cgs*c_cgs*line.Freq * line.A_coeff / (4*np.pi)
+    rot_pop = line.g_up * Boltz_ratio_nodeg(line.E_lower+line.Freq-E_vib, Temp)
+    G_co = h_cgs*c_cgs*line.Freq * rot_pop * line.A_coeff / (4*np.pi)
 
     #shape = line.MakeShapeLine(wn_arr, Temp, Pres, MM, Strength = G_co)
 
@@ -1044,6 +1127,17 @@ def Doppler_shape(wn,wn_0,dw):
     ds = mt.sqrt(mt.log(2.0)/(np.pi*dw**2)) * np.exp(-(wn-wn_0)**2*mt.log(2.0)/dw**2)
 
     return ds
+
+
+def gaussian(arr,mu,sig):
+    """
+    normalized gaussian function on array.
+    """
+    fac = 1/(sig*np.sqrt(2.*np.pi))
+
+    gauss = fac*np.exp(-0.5*((arr-mu)/sig)**2)
+
+    return gauss
 
 
 def closest_grid(wn_arr,wn_0):

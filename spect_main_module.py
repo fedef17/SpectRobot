@@ -26,6 +26,22 @@ def date_stamp():
     strin = '_'+time.ctime().split()[2]+'-'+time.ctime().split()[1]+'-'+time.ctime().split()[4]
     return strin
 
+def equiv(num1, num2, thres = 1e-8):
+    """
+    Tells if two float numbers are to be considered equivalent.
+    """
+
+    if num1 == 0:
+        if num2 == 0:
+            return True
+        else:
+            return False
+    if abs((num1-num2)/num1) < thres:
+        return True
+
+    return False
+
+
 
 # CLASSES
 
@@ -44,12 +60,12 @@ class LookUpTable(object):
         self.iso = isomolec.iso
         self.MM = isomolec.MM
         self.isomolec = copy.deepcopy(isomolec)
-        self.level_sets = dict()
+        self.sets = dict()
         return
 
     def make(self, spectral_grid, lines, PTcouples, export_levels = True, cartLUTs = None, control = True):
         """
-        Builds the LUT.
+        Builds the LUT for isomolec in nonLTE: one LutSet for each level, vibrational population is left outside to be added later.
         """
 
         self.spectral_grid = copy.deepcopy(spectral_grid)
@@ -65,9 +81,9 @@ class LookUpTable(object):
         for lev in self.isomolec.levels:
             print('Building LutSet for level {} of mol {}, iso {}'.format(lev,self.mol,self.iso))
             filename = cartLUTs + self.tag + '_' + lev + date_stamp() + '.pic'
-            set1 = LutSet(self.mol, self.iso, self.MM, getattr(self.isomolec, lev), filename = filename)
-            self.level_sets[lev] = copy.deepcopy(set1)
-            self.level_sets[lev].prepare_export(PTcouples)
+            set1 = LutSet(self.mol, self.iso, self.MM, level = getattr(self.isomolec, lev), filename = filename)
+            self.sets[lev] = copy.deepcopy(set1)
+            self.sets[lev].prepare_export(PTcouples)
 
 
         num=0
@@ -77,7 +93,7 @@ class LookUpTable(object):
             print('Calculating shapes for PTcouple {} out of {}. P = {}, T = {}'.format(num,len(PTcouples),Pres,Temp))
 
             time1 = time.time()
-            lines_proc = spcl.calc_shapes_lines(spectral_grid, lines, Temp, Pres, self.MM)
+            lines_proc = spcl.calc_shapes_lines(spectral_grid, lines, Temp, Pres, self.isomolec)
 
             print("PTcouple {} out of {}. P = {}, T = {}. Lineshapes calculated in {:5.1f} s, time from start {:7.1f} min".format(num,len(PTcouples),Pres,Temp,time.time()-time1,(time.time()-time0)/60.))
 
@@ -89,7 +105,7 @@ class LookUpTable(object):
 
             for lev in self.isomolec.levels:
                 print('Building LutSet for level {} of mol {}, iso {}'.format(lev,self.mol,self.iso))
-                self.level_sets[lev].add_PT(spectral_grid, lines_proc, Pres, Temp, keep_memory = False)
+                self.sets[lev].add_PT(spectral_grid, lines_proc, Pres, Temp, keep_memory = False)
 
             mess = "Extracted single levels G_coeffs in {:5.1f} s. PT couple completed. Saving..".format(time.time()-time1)
             print(mess)
@@ -98,6 +114,7 @@ class LookUpTable(object):
                 os.system(comm)
 
         return
+
 
     def CPU_time_estimate(self,lines,PTcouples):
         linee_ok = [lin for lin in lines if (lin.Mol == self.mol and lin.Iso == self.iso)]
@@ -142,6 +159,74 @@ class LutSet(object):
         pickle.dump(PTcouples, self.temp_file)
 
         return
+
+    def load_from_file(self):
+        """
+        Loads from file just the data regarding level's LutSet. Better not to load all levels together due to memory limits.
+        """
+        fileo = open(self.filename,'rb')
+        self.PTcouples = pickle.load(fileo)
+
+        for PT in PTcouples:
+            self.sets.append(pickle.load(fileo))
+
+        fileo.close()
+
+        return
+
+    def free_memory(self):
+        self.sets = []
+        return
+
+    def find(self, Pres, Temp):
+        """
+        Looks for [Pres,Temp] in PTcouples and returns the corresponding list index.
+        """
+        if [Pres,Temp] not in self.PTcouples:
+            raise ValueError('{} couple not found!'.format([Pres,Temp]))
+        else:
+            ok = self.PTcouples.index([Pres,Temp])
+
+        return ok
+
+    def calculate(self, Pres, Temp):
+        """
+        Finds the closer temps and pres in PTcouples.
+        """
+        ctypes = ['sp_emission','ind_emission','absorption']
+
+        Ps = np.array([PT[0] for PT in PTcouples])
+        Ts = np.array([PT[1] for PT in PTcouples])
+
+        closest_P1 = np.min(np.unique(np.abs(Ps-Pres)))
+        closest_P2 = np.sort(np.unique(np.abs(Ps-Pres)))[1]
+
+        # Now that I found the two closest Ps, I check which temps are closer to my case
+
+        T_P1 = np.array([PT[1] for PT in PTcouples if PT[0] == closest_P1])
+        T_P2 = np.array([PT[1] for PT in PTcouples if PT[0] == closest_P2])
+
+        closest_TA = np.min(np.abs(Ts-Temp))
+        closest_TB = np.sort(np.unique(np.abs(Ts-Temp)))[1]
+
+        # I'm doing first the P interpolation
+        set_ = []
+        ok1 = self.find(closest_P1,closest_TA)
+        coeff_ok1 = self.sets[ok1]
+        ok2 = self.find(closest_P1,closest_TB)
+        coeff_ok2 = self.sets[ok2]
+        ok3 = self.find(closest_P2,closest_TA)
+        coeff_ok3 = self.sets[ok3]
+        ok4 = self.find(closest_P2,closest_TB)
+        coeff_ok4 = self.sets[ok4]
+
+        set_ = []
+        for ctype in ctypes:
+            coeff_ok13 = coeff_ok1[ctype].interpolate(coeff_ok3[ctype], Pres = Pres)
+            coeff_ok24 = coeff_ok2[ctype].interpolate(coeff_ok4[ctype], Pres = Pres)
+            set_[ctype] = coeff_ok13.interpolate(coeff_ok24, Temp = Temp)
+
+        return set_
 
 
     def make(self, spectral_grid, lines, PTcouples, control = True):
@@ -188,11 +273,12 @@ class LutSet(object):
                 gigi.BuildCoeff(lines, T, P)
                 set_[ctype].append(gigi)
                 if control:
-                    comm = 'echo "PTcouple {} out of {}. P = {}, T = {}. PT done in {:5.1f} s, time from start {:7.1f} min" >> control_spectrobot'.format(num,len(PTcouples),P,T,time.time()-time1,(time.time()-time0)/60.)
+                    comm = 'echo "PTcouple {} out of {}. P = {}, T = {}. PT done in {:5.1f} s, time from start {:7.1f} min" >> control_spectrobot'.format(num,len(PTcouples),P,T, time.time()-time1,(time.time()-time0)/60.)
                     os.system(comm)
                 print('Added')
 
         return
+
 
     def add_PT(self, spectral_grid, lines, Pres, Temp, keep_memory = False, control = True):
         """
@@ -202,11 +288,7 @@ class LutSet(object):
         ctypes = ['sp_emission','ind_emission','absorption']
         set_ = dict()
 
-        minimal_level_string = ''
-        for qu in self.level.get_quanta()[0]:
-            minimal_level_string += '{:1d}'.format(qu)
-            minimal_level_string += ' '
-        minimal_level_string = minimal_level_string[:-1]
+        minimal_level_string = self.level.minimal_level_string()
 
         for ctype in ctypes:
             print('Producing set for '+ctype+'...')
@@ -352,22 +434,15 @@ def emiss_coeff_calc_LTE(linee_mol, abs_coeff, mol, iso, MM, Temp, Pres, LTE = T
     pass
 
 
-def read_Gcoeffs_from_LUTs():
-    # if not makeLUTs:
-    #     # Check if LUTs are present
-    #     if os.path.isfile(cartLUTs+fileLUTs):
-    #         print('Loading LUTs from {} ...'.format(cartLUTs+fileLUTs))
-    #         LUTs = read_LUTs(isomolecs, cartLUTs+fileLUTs)
-    #     else:
-    #         raise ValueError('LUTs not found at {}! Set param < makeLUTs > to True if you want to calculate them for the first time.'.format(cartLUTs+fileLUTs))
-    # elif makeLUTs:
-    #     LUTs = make_LUTs(isomolecs, cartLUTs+fileLUTs)
+def read_Gcoeffs_from_LUTs(cartLUTs, fileLUTs):
+    """
+    Reads the LookUpTables produced by makeLUT_nonLTE_Gcoeffs. Doesn't load all data, just loads the level structure and the filenames of the level LutSets.
+    """
 
-    pass
+    LUTs = pickle.load(open(cartLUTs+fileLUTs,'r'))
 
+    return LUTs
 
-def calc_single_Gcoeff():
-    pass
 
 def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = None, tagLUTs = 'LUT_', n_pres_levels = None, pres_step_log = 0.1, temp_step = 5.0, save_LUTs = True, n_threads = n_threads, test = False):
     """
@@ -386,6 +461,7 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
     n_dim = len(atmosphere.grid)
 
     temps = []
+    #### QUI c'è un problema se il passo di pressures è più fitto di quello di atmosphere.pres.............. DA RISOLVERE!
     okke = (atmosphere.pres <= pressures[1])
     print(np.any(okke))
     temps_pres = atmosphere.temp[okke]
@@ -393,7 +469,7 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
     print('For level {} with pres {}, temp in range: {} <-> {}'.format(len(temps)-1,pressures[0],temps[-1][0],temps[-1][1]))
 
     i = 0
-    for pres0, pres1, pres2 in zip(pressures[:-2],pressures[1:-1],pressures[2:]):
+    for pres0, pres1, pres2 in zip(pressures[:-2], pressures[1:-1], pressures[2:]):
         # Find the corresponding Temps.
         okke = (atmosphere.pres >= pres0) & (atmosphere.pres <= pres2)
         print(i,np.any(okke))
@@ -446,31 +522,155 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
     return LUTs_wnames
 
 
-def make_abscoeff_isomolec(isomolec, Temp, Pres, LTE = False, fileLUTs = None, singleCalc = False):
+def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUTs = None, cartLUTs = None, useLUTs = False, lines = None):
     """
     Builds the absorption and emission coefficients for isomolec, both in LTE and non-LTE. If in non-LTE, isomolec levels have to contain the attribute local_vibtemp, produced by calling level.add_local_vibtemp(). If LTE is set to True, LTE populations are used.
     LUT is the object created by makeLUT_nonLTE_Gcoeffs(). Contains
     """
 
-"""
-def make_abs_coeff_nonLTE(planet, point, molecs, useLUTs = True, LUT = None):
-    #Builds the absorption and emission coefficients at point, both in LTE and non-LTE.
+    try:
+        len(Press)
+        len(Temps)
+    except:
+        Press = [Press]
+        Temps = [Temps]
+
+    abs_coeff = prepare_spe_grid(wn_range)
+    spectral_grid = abs_coeff.spectral_grid
 
     if not useLUTs:
-        pass # SIMPLE calculation
-    elif useLUTs and type(LUT) is LookUpTable:
-        pass # read LUTS
+        if lines is None:
+            raise ValueError('when calling smm.make_abscoeff_isomolec() with useLUTs = False, you need to give the list of spectral lines of isomolec as input')
+        else:
+            print(len(lines))
+            lines = [lin for lin in lines if lin.Mol == isomolec.mol and lin.Iso == isomolec.iso]
+            print(len(lines))
+
+        ctypes = ['sp_emission','ind_emission','absorption']
+
+        set_tot = dict()
+        for lev in isomolec.levels:
+            set_tot[lev] = []
+
+        for Pres, Temp in zip(Press,Temps):
+            lines_proc = spcl.calc_shapes_lines(spectral_grid, lines, Temp, Pres, isomolec)
+            for lev in isomolec.levels:
+                levello = getattr(isomolec, lev)
+                minimal_level_string = levello.minimal_level_string()
+                set_ = dict()
+                for ctype in ctypes:
+                    print('Producing set for '+ctype+'...')
+                    gigi = spcl.SpectralGcoeff(ctype, spectral_grid, isomolec.mol, isomolec.iso, isomolec.MM, minimal_level_string)
+                    gigi.BuildCoeff(lines_proc, Temp, Pres, preCalc_shapes = True)
+                    set_[ctype] = copy.deepcopy(gigi)
+                set_tot[lev].append(set_)
+
+        for lev in isomolec.levels:
+            levello = getattr(isomolec, lev)
+            levello.add_Gcoeffs(set_tot[lev])
+            print('Added')
+
     else:
-        print("LUT is not a LookUpTable object. If you want to calculate a single abs_coeff without LUTs set useLUTs = False in the call. It's 3 o'clock in the morning. Hope it works")
+        #read Gcoeffs from LUTS and attach to levels
+        LUTs = read_Gcoeffs_from_LUTs(cartLUTs, fileLUTs)
+        for lev in isomolec.levels:
+            set_tot = []
+            levello = getattr(isomolec, lev)
+            print('Loading LutSet for level {}...'.format(lev))
+            LUTs.sets[lev].load_from_file()
+            for Pres, Temp in zip(Press,Temps):
+                set_ = LUTs.sets[lev].calculate(Pres, Temp)
+                set_tot.append(set_)
+            LUTs.sets[lev].free_memory()
+            levello.add_Gcoeffs(set_tot)
+            print('Added')
 
-    for molec in molecs:
-        for isoname in molec.all_iso:
-            isomol = getattr(molec, isoname)
-            if len(isomol.levels) == 0:
-                continue
+    abs_coeffs = []
+    emi_coeffs = []
 
-            abs_coeff =
-            find_temps_at_point(planet,point,isomol)
-            for lev in isomol.levels:
-                level = getattr(isomol, lev)
-"""
+    for num in range(len(Temps)):
+        print('oyeeeeeeeeeee ', num)
+        abs_coeff = prepare_spe_grid(wn_range)
+        emi_coeff = prepare_spe_grid(wn_range)
+            # THIS IS WITH LTE PARTITION FUNCTION!!
+        Q_part = spcl.CalcPartitionSum(isomolec.mol, isomolec.iso, temp = Temps[num])
+        for lev in isomolec.levels:
+            levello = getattr(isomolec, lev)
+            if LTE:
+                vibt = Temps[num]
+            else:
+                vibt = levello.local_vibtemp[num]
+            Gco = levello.Gcoeffs[num]
+            pop = spcl.Boltz_ratio_nodeg(levello.energy, vibt) / Q_part
+            abs_coeff.add_to_spectrum(Gco['absorption'], Strength = pop)
+            abs_coeff.add_to_spectrum(Gco['ind_emission'], Strength = -pop)
+            emi_coeff.add_to_spectrum(Gco['sp_emission'], Strength = pop)
+
+        abs_coeffs.append(abs_coeff)
+        emi_coeffs.append(emi_coeff)
+
+    return abs_coeffs, emi_coeffs
+
+
+def read_obs(filename, formato = 'gbb'):
+    if formato == 'gbb':
+        outs = sbm.read_obs(filename)
+        spectra = outs[-2].T
+        flags = outs[-1].T
+        wn_arr = outs[-3]
+        gri = spcl.SpectralGrid(wn_arr, units = 'nm')
+        obss = []
+        for col,zol in zip(spectra, flags):
+            spet = spcl.SpectralIntensity(col, gri, units = 'Wm2')
+            spet.add_mask(zol)
+            obss.append(spet)
+    else:
+        raise ValueError('formato {} not available'.format(formato))
+
+    return obss
+
+
+def read_orbits(filename, formato = 'VIMSselect', tag = None):
+        orbits = []
+        if formato == 'VIMSselect':
+            infile = open(filename,'r')
+            find_spip(infile)
+            linee = infile.readlines()
+            for lin in linee:
+                nomi = 'num dist sub_obs_lat sub_obs_lon limb_tg_alt limb_tg_lat limb_tg_lon limb_tg_sza pixel_rot phase_ang sub_solar_lat sub_solar_lon sun_dist time'
+                nomi = nomi.split()
+                cose = lin.split()
+                orb = dict(zip(nomi,cose))
+                orb['filename'] = filename
+                orb['tag'] = tag
+                orbits.append(orb)
+            infile.close()
+        else:
+            raise ValueError('formato {} not available'.format(formato))
+
+        return orbits
+
+
+def read_input_observed(observed_cart):
+    """
+    Reads inputs regarding observations. The folder observed_cart has to contain an "orbit_***.dat", an "observ_***.dat". If more files are found inside, all observations are read.
+    """
+
+    lss = subprocess.check_output(['ls', observed_cart])
+    #files_orbit = [fil for fil in lss.split('\n') if 'orbit_' in fil]
+    tag_observ = [fil[7:] for fil in lss.split('\n') if 'observ_' in fil]
+
+    set_pixels = []
+    obs_tot = []
+    orbit_tot = []
+
+    for tag in tag_observ:
+        orbit_tot += read_orbits(observed_cart+'orbit_'+tag, formato = 'VIMSselect', tag = tag)
+        obs_tot += read_obs(observed_cart+'observ_'+tag, formato = 'gbb')
+
+    for ob, orb in zip(obs_tot, orbit_tot):
+        orb['observation'] = copy.deepcopy(ob)
+        pix = sbm.Pixel(orb.keys(), orb.values())
+        set_pixels.append(pix)
+
+    return set_pixels
