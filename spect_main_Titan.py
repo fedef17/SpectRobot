@@ -46,8 +46,8 @@ time0 = time.time()
 db_file = inputs['hitran_db']
 wn_range = [2800.,3500.]
 
-linee = spcl.read_line_database(db_file)
-#linee = spcl.read_line_database(db_file, freq_range = wn_range)
+#linee = spcl.read_line_database(db_file)
+linee = spcl.read_line_database(db_file, freq_range = wn_range)
 
 inputs['test'] = False
 
@@ -56,6 +56,7 @@ print('Loading planet...')
 
 planet = sbm.Titan()
 
+"""
 lat_bands = ['SP','subPS','TS','EQ','TN','subPN','NP']
 lat_ext = [-90.,-75.,-60.,-30.,30.,60.,75.,90.]
 lat_c = [(cos+cos2)/2.0 for cos,cos2 in zip(lat_ext[:-1],lat_ext[1:])]
@@ -78,6 +79,8 @@ Atm.add_profile(PP, 'pres', interp = ['box','exp'])
 
 planet.add_atmosphere(Atm)
 
+"""
+
 ### LOADING MOLECULES
 print('Loading molecules...')
 
@@ -92,7 +95,17 @@ alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(inputs['cart_m
 
 atm_old = sbm.AtmProfile(np.interp(alts_vib,zold,temp_old),np.array(alts_vib),profname='temp')
 atm_old.add_profile(np.exp(np.interp(alts_vib,zold,np.log(pres_old))), 'pres', interp = 'exp')
+
+planet.add_atmosphere(atm_old)
+
+atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_vmr_prof.dat', 'vmr')
+
+for gas in atm_gases_old:
+    atm_gases_old[gas] = sbm.AtmProfile(np.interp(alts_vib,zold,atm_gases_old[gas]),np.array(alts_vib),profname='vmr')
+print(atm_gases_old.viewitems())
+
 ch4.link_to_atmos(atm_old)
+ch4.add_clim(atm_gases_old['CH4'])
 
 print('qui')
 
@@ -120,10 +133,12 @@ ch4.add_all_iso_from_HITRAN(linee)
 hcn = sbm.Molec(23, 'HCN')
 hcn.add_all_iso_from_HITRAN(linee)
 hcn.link_to_atmos(atm_old)
+hcn.add_clim(atm_gases_old['HCN'])
 
 c2h2 = sbm.Molec(26, 'C2H2')
 c2h2.add_all_iso_from_HITRAN(linee)
 c2h2.link_to_atmos(atm_old)
+c2h2.add_clim(atm_gases_old['C2H2'])
 
 planet.add_gas(ch4)
 planet.add_gas(hcn)
@@ -133,32 +148,31 @@ pickle.dump(planet, open(inputs['cart_molecs']+'ch4_old_ref.pic','w'))
 
 linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1]]
 
-
-#planet = pickle.load(open(inputs['cart_molecs']+'ch4_old_ref.pic','r'))
-
 if inputs['test']:
     print('Keeping ONLY 1000 linee for testing')
     linee = linee[:1000]
+
+#planet = pickle.load(open(inputs['cart_molecs']+'ch4_old_ref.pic','r'))
 
 #sys.exit()
 ##########################################################
 ##########################################################
 ###########################################################
 
-"""
+# abs_coeff = smm.prepare_spe_grid(wn_range)
+# LUTS = smm.makeLUT_nonLTE_Gcoeffs(abs_coeff.spectral_grid, linee, planet.gases.values(), planet.atmosphere, pres_step_log = 0.2, cartLUTs = inputs['cart_LUTS'], n_threads = inputs['n_threads'], test = inputs['test'])
+#
+# pickle.dump(LUTS, open(inputs['cart_LUTS']+'_allLUTS'+smm.date_stamp(),'w') )
+# print(time.ctime())
+# print('CIAO!')
 
-abs_coeff = smm.prepare_spe_grid(wn_range)
-LUTS = smm.makeLUT_nonLTE_Gcoeffs(abs_coeff.spectral_grid, linee, planet.gases.values(), planet.atmosphere, pres_step_log = 0.2, cartLUTs = inputs['cart_LUTS'], n_threads = inputs['n_threads'], test = inputs['test'])
 
-pickle.dump(LUTS, open(inputs['cart_LUTS']+'_allLUTS'+smm.date_stamp(),'w') )
-print(time.ctime())
-print('CIAO!')
-
-"""
 
 ####################### BUILDING ABS_COEFFFFF
 
 # IN LTE: check che il abs_coeff in LTE fatto dai Gcoeff venga uguale a quello fatto dalla line strength
+
+"""
 
 ch4 = planet.gases['CH4']
 catullo = open('./caccabudin2','w')
@@ -192,7 +206,7 @@ pickle.dump([t600, p600, ch4], open('./local_vibtemp_ch4.pic','w'))
 abs_coeff_tot = smm.prepare_spe_grid(wn_range)
 emi_coeff_tot = smm.prepare_spe_grid(wn_range)
 
-"""
+
 
 for iso in ch4.all_iso:
     isomol = getattr(ch4, iso)
@@ -215,7 +229,8 @@ for iso in hcn.all_iso:
 
 pickle.dump([abs_coeff_tot, emi_coeff_tot], open('./validation_abscoeff_hcnLTE_600km.pic','w'))
 
-"""
+
+
 
 abs_coeff_tot = smm.prepare_spe_grid(wn_range)
 emi_coeff_tot = smm.prepare_spe_grid(wn_range)
@@ -233,6 +248,33 @@ for iso in c2h2.all_iso:
         emi_coeff_tot.add_to_spectrum(em, Strength = iso_ab)
 
 pickle.dump([abs_coeff_tot, emi_coeff_tot], open('./validation_abscoeff_c2h2LTE_600km.pic','w'))
+
+
+
+"""
+
+#planet = pickle.load(open(inputs['cart_molecs']+'ch4_old_ref.pic','r'))
+
+spacecraft = sbm.Coords([1.e5,600.,0],s_ref='Cartesian')
+second = sbm.Coords([90,0,600],s_ref='Spherical')
+
+linea1 = sbm.LineOfSight(spacecraft, second)
+linea1.details()
+
+# Winter Solstice NORTH
+#ssp = sbm.Coords(np.array([-26.,90,0]),s_ref='Spherical')
+
+point1 = linea1.calc_atm_intersections(planet)
+#psza1 = linea1.calc_SZA_along_los(planet,ssp)
+
+pt1 = linea1.calc_along_LOS(planet.atmosphere, 'temp', set_attr = True)
+pp1 = linea1.calc_along_LOS(planet.atmosphere, 'pres', set_attr = True)
+
+for gas in planet.gases:
+    conc_gas = linea1.calc_abundance(planet, gas, set_attr = True)
+
+opt_depth = linea1.calc_optical_depth(linee)
+pickle.dump(opt_depth, open('./opt_dep_600_CONFRONTO.pic','w'))
 
 # pl.ion()
 # pl.figure(17)

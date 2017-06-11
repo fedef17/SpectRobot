@@ -18,6 +18,7 @@ import pickle
 import lineshape
 from multiprocessing import Process, Queue
 import copy
+import subprocess
 
 n_threads = 8
 
@@ -634,13 +635,14 @@ def read_orbits(filename, formato = 'VIMSselect', tag = None):
         orbits = []
         if formato == 'VIMSselect':
             infile = open(filename,'r')
-            find_spip(infile)
+            sbm.find_spip(infile)
             linee = infile.readlines()
             for lin in linee:
                 nomi = 'num dist sub_obs_lat sub_obs_lon limb_tg_alt limb_tg_lat limb_tg_lon limb_tg_sza pixel_rot phase_ang sub_solar_lat sub_solar_lon sun_dist time'
                 nomi = nomi.split()
-                cose = lin.split()
+                cose = map(float,lin.split())
                 orb = dict(zip(nomi,cose))
+                orb['num'] = int(cose[0])
                 orb['filename'] = filename
                 orb['tag'] = tag
                 orbits.append(orb)
