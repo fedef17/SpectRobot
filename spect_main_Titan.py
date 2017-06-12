@@ -84,21 +84,23 @@ planet.add_atmosphere(Atm)
 ### LOADING MOLECULES
 print('Loading molecules...')
 
-temp_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_temp.dat', 'temp')
-pres_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_pres.dat', 'pres')
-zold = np.linspace(0.,1500.,151)
+n_alt_max = 121
+
+temp_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_temp.dat', 'temp', n_alt_max = n_alt_max)
+pres_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_pres.dat', 'pres', n_alt_max = n_alt_max)
+zold = np.linspace(0.,10*(n_alt_max-1),n_alt_max)
 
 ch4 = sbm.Molec(6, 'CH4')
 
 ch4.add_iso(1, LTE = False)
-alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(inputs['cart_molecs']+'vt_ch4__029_2006_t15_10.2s_29.9_vmrA2_v10_0061')
+alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(inputs['cart_molecs']+'vt_ch4__029_2006_t15_10.2s_29.9_vmrA2_v10_0061', n_alt_max = 2*n_alt_max-1)
 
 atm_old = sbm.AtmProfile(np.interp(alts_vib,zold,temp_old),np.array(alts_vib),profname='temp')
 atm_old.add_profile(np.exp(np.interp(alts_vib,zold,np.log(pres_old))), 'pres', interp = 'exp')
 
 planet.add_atmosphere(atm_old)
 
-atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_vmr_prof.dat', 'vmr')
+atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_vmr_prof.dat', 'vmr', n_alt_max = n_alt_max)
 
 for gas in atm_gases_old:
     atm_gases_old[gas] = sbm.AtmProfile(np.interp(alts_vib,zold,atm_gases_old[gas]),np.array(alts_vib),profname='vmr')
@@ -264,16 +266,20 @@ linea1.details()
 # Winter Solstice NORTH
 #ssp = sbm.Coords(np.array([-26.,90,0]),s_ref='Spherical')
 
-point1 = linea1.calc_atm_intersections(planet)
+steplos = 120.0 # km!
+point1 = linea1.calc_atm_intersections(planet, delta_x = steplos)
+print(len(point1))
 #psza1 = linea1.calc_SZA_along_los(planet,ssp)
 
-pt1 = linea1.calc_along_LOS(planet.atmosphere, 'temp', set_attr = True)
-pp1 = linea1.calc_along_LOS(planet.atmosphere, 'pres', set_attr = True)
+pt1 = linea1.calc_along_LOS(planet.atmosphere, profname = 'temp', set_attr = True)
+print(pt1)
+pp1 = linea1.calc_along_LOS(planet.atmosphere, profname = 'pres', set_attr = True)
+print(pp1)
 
 for gas in planet.gases:
     conc_gas = linea1.calc_abundance(planet, gas, set_attr = True)
 
-opt_depth = linea1.calc_optical_depth(linee)
+opt_depth = linea1.calc_optical_depth(wn_range, planet, linee, step = steplos)
 pickle.dump(opt_depth, open('./opt_dep_600_CONFRONTO.pic','w'))
 
 # pl.ion()
