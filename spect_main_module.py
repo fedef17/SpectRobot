@@ -149,6 +149,14 @@ class LutSet(object):
         self.sets = []
         return
 
+    def prepare_read(self):
+        if self.filename is None:
+            raise ValueError('ERROR!: NO filename set for LutSet.')
+        else:
+            self.temp_file = open(self.filename, 'rb')
+        PTcouples = pickle.load(self.temp_file)
+        return PTcouples
+
     def prepare_export(self, PTcouples):
         """
         Opens the pic file for export, dumps PTcouples on top.
@@ -161,6 +169,11 @@ class LutSet(object):
 
         return
 
+    def finalize_IO(self):
+        self.temp_file.close()
+        self.temp_file = None
+        return
+
     def load_from_file(self):
         """
         Loads from file just the data regarding level's LutSet. Better not to load all levels together due to memory limits.
@@ -169,11 +182,30 @@ class LutSet(object):
         self.PTcouples = pickle.load(fileo)
 
         for PT in PTcouples:
-            self.sets.append(pickle.load(fileo))
+            gigi = pickle.load(fileo)
+            for pig in gigi.values():
+                pig.double_precision()
+                pig.restore_grid(spectral_grid)
+            self.sets.append(gigi)
 
         fileo.close()
 
         return
+
+    def load_singlePT_from_file(self, spectral_grid):
+        """
+        Loads from file just the data regarding level's LutSet, for a single PT. Better not to load all the LOS together due to memory limits.
+        """
+        if self.temp_file is None:
+            self.prepare_read()
+
+        gigi = pickle.load(self.temp_file)
+
+        for pig in gigi.values():
+            pig.double_precision()
+            pig.restore_grid(spectral_grid)
+
+        return gigi
 
     def free_memory(self):
         self.sets = []
@@ -295,13 +327,26 @@ class LutSet(object):
             print('Producing set for '+ctype+'...')
             gigi = spcl.SpectralGcoeff(ctype, spectral_grid, self.mol, self.iso, self.MM, minimal_level_string)
             gigi.BuildCoeff(lines, Temp, Pres, preCalc_shapes = True)
+
+            print(np.max(gigi.spectrum))
+
             gigi.erase_grid()
-            gigi.half_precision()
+            #gigi.half_precision()
+
+            # if ctype == 'absorption':
+            #     print(gigi.spectrum)
+            #     print(np.max(gigi.spectrum))
+            #     pl.ion()
+            #     pl.figure(17)
+            #     pl.plot(spectral_grid.grid, gigi.spectrum)
+            #     pl.show()
 
             set_[ctype] = copy.deepcopy(gigi)
             print('Added')
 
+        print('dampoooooooooooooooooooooooo')
         pickle.dump(set_, self.temp_file)
+
         if not keep_memory:
             del set_
         else:
@@ -536,6 +581,7 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
         Press = [Press]
         Temps = [Temps]
 
+    print('Sto entrandooooooooooooo, mol {}, iso {}'.format(isomolec.mol, isomolec.iso))
     abs_coeff = prepare_spe_grid(wn_range)
     spectral_grid = abs_coeff.spectral_grid
 
@@ -551,25 +597,35 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
 
         set_tot = dict()
         for lev in isomolec.levels:
-            set_tot[lev] = []
+            levvo = getattr(isomolec, lev)
+            strin = cartLUTs+'LUTLOS_mol_{}_iso_{}_{}.pic'.format(isomolec.mol, isomolec.iso, lev)
+            set_tot[lev] = LutSet(isomolec.mol, isomolec.iso, isomolec.MM, levvo, filename = strin)
+            set_tot[lev].prepare_export([zui for zui in zip(Press,Temps)])
 
+        numh = 0
         for Pres, Temp in zip(Press,Temps):
+            numh+=1
+            print('Siamo a step {} catuuuullooooooo'.format(numh))
+            print(isomolec.levels)
             lines_proc = spcl.calc_shapes_lines(spectral_grid, lines, Temp, Pres, isomolec)
+            print(len(lines_proc))
+
             for lev in isomolec.levels:
+                print('Siamo a mol {}, iso {}, lev {} bauuuuuuuuu'.format(isomolec.mol, isomolec.iso, lev))
                 levello = getattr(isomolec, lev)
-                minimal_level_string = levello.minimal_level_string()
-                set_ = dict()
-                for ctype in ctypes:
-                    print('Producing set for '+ctype+'...')
-                    gigi = spcl.SpectralGcoeff(ctype, spectral_grid, isomolec.mol, isomolec.iso, isomolec.MM, minimal_level_string)
-                    gigi.BuildCoeff(lines_proc, Temp, Pres, preCalc_shapes = True)
-                    set_[ctype] = copy.deepcopy(gigi)
-                set_tot[lev].append(set_)
+                set_tot[lev].add_PT(spectral_grid, lines_proc, Pres, Temp)
+                # minimal_level_string = levello.minimal_level_string()
+                # set_ = dict()
+                # for ctype in ctypes:
+                #     print('Producing set for '+ctype+'...')
+                #     gigi = spcl.SpectralGcoeff(ctype, spectral_grid, isomolec.mol, isomolec.iso, isomolec.MM, minimal_level_string)
+                #     gigi.BuildCoeff(lines_proc, Temp, Pres, preCalc_shapes = True)
+                #     set_[ctype] = copy.deepcopy(gigi)
+                ####set_tot[lev].append(set_)
 
         for lev in isomolec.levels:
-            levello = getattr(isomolec, lev)
-            levello.add_Gcoeffs(set_tot[lev])
-            print('Added')
+            set_tot[lev].finalize_IO()
+            print('Finalizzzooooooooooo')
 
     else:
         #read Gcoeffs from LUTS and attach to levels
@@ -589,6 +645,10 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
     abs_coeffs = []
     emi_coeffs = []
 
+    for lev in isomolec.levels:
+        set_tot[lev].prepare_read()
+        print('Reading... -> '+lev)
+
     for num in range(len(Temps)):
         print('oyeeeeeeeeeee ', num)
         abs_coeff = prepare_spe_grid(wn_range)
@@ -601,7 +661,8 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
                 vibt = Temps[num]
             else:
                 vibt = levello.local_vibtemp[num]
-            Gco = levello.Gcoeffs[num]
+            #Gco = levello.Gcoeffs[num]
+            Gco = set_tot[lev].load_singlePT_from_file(spectral_grid)
             pop = spcl.Boltz_ratio_nodeg(levello.energy, vibt) / Q_part
             abs_coeff.add_to_spectrum(Gco['absorption'], Strength = pop)
             abs_coeff.add_to_spectrum(Gco['ind_emission'], Strength = -pop)

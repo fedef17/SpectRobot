@@ -112,22 +112,13 @@ ch4.add_clim(atm_gases_old['CH4'])
 print('qui')
 
 ch4.iso_1.add_levels(levels, energies, vibtemps=vib_ok, add_fundamental = True, T_kin = atm_old.temp)
+ch4.iso_1.add_simmetries_levels(linee)
+
 
 ch4.add_iso(2, LTE = False)
 alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(inputs['cart_molecs']+'vt_ch4__029_2006_t15_10.2s_29.9_vmrA2_v10_0062')
 ch4.iso_2.add_levels(levels, energies, vibtemps=vib_ok, add_fundamental = True, T_kin = atm_old.temp)
-
-catullo = open('./caccabudin','w')
-
-for lev in ch4.iso_1.levels:
-    levello = getattr(ch4.iso_1, lev)
-    catullo.write('{} -- {} -- {} -- {} -- {}\n'.format(lev, levello.energy, levello.mol, levello.iso, levello.lev_string))
-    if levello.vibtemp is not None:
-        catullo.write('peppapaintbox\n')
-    else:
-        catullo.write('cazzucuyu\n')
-
-catullo.close()
+ch4.iso_2.add_simmetries_levels(linee)
 
 #ch4.add_iso(3, MM = 17, ratio = 6.158e-4, LTE = True)
 ch4.add_all_iso_from_HITRAN(linee)
@@ -174,18 +165,6 @@ if inputs['test']:
 
 # IN LTE: check che il abs_coeff in LTE fatto dai Gcoeff venga uguale a quello fatto dalla line strength
 
-"""
-
-ch4 = planet.gases['CH4']
-catullo = open('./caccabudin2','w')
-for lev in ch4.iso_1.levels:
-    levello = getattr(ch4.iso_1, lev)
-    catullo.write('{} -- {} -- {} -- {} -- {}\n'.format(lev, levello.energy, levello.mol, levello.iso, levello.lev_string))
-    if levello.vibtemp is not None:
-        catullo.write('peppapaintbox\n')
-    else:
-        catullo.write('cazzucuyu\n')
-
 # IN NON-LTE: check tra il nostro e quello del gbb a 600 km
 t600 = ch4.atmosphere.calc(600., profname = 'temp')
 p600 = ch4.atmosphere.calc(600., profname = 'pres')
@@ -194,45 +173,45 @@ print('PRESSURE: {}, TEMPERATURE: {}'.format(p600,t600))
 for iso in ch4.all_iso:
     isomol = getattr(ch4, iso)
     print('Calculating mol {}, iso {}. Mol in LTE? {}'.format(isomol.mol,isomol.iso,isomol.is_in_LTE))
-    if not isomol.is_in_LTE:
-        for lev in isomol.levels:
-            print(lev)
-            levello = getattr(isomol, lev)
-            print(dir(levello))
-            print(levello.vibtemp)
+    for lev in isomol.levels:
+        print(lev)
+        levello = getattr(isomol, lev)
+        print(levello.lev_string)
+        print(levello.simmetry)
+        if not isomol.is_in_LTE:
+        #print(levello.vibtemp)
             tvi = levello.vibtemp.calc(600.)
             levello.add_local_vibtemp(tvi)
+
 
 pickle.dump([t600, p600, ch4], open('./local_vibtemp_ch4.pic','w'))
 
 abs_coeff_tot = smm.prepare_spe_grid(wn_range)
 emi_coeff_tot = smm.prepare_spe_grid(wn_range)
 
-
-
 for iso in ch4.all_iso:
     isomol = getattr(ch4, iso)
-    abs_coeffs, emi_coeffs = smm.make_abscoeff_isomolec(wn_range, isomol, t600, p600, lines = linee, LTE = isomol.is_in_LTE)
+    abs_coeffs, emi_coeffs = smm.make_abscoeff_isomolec(wn_range, isomol, t600, p600, lines = linee, LTE = isomol.is_in_LTE, cartLUTs = inputs['cart_LUTS'])
     iso_ab = isomol.ratio
     for ab, em in zip(abs_coeffs,emi_coeffs):
         abs_coeff_tot.add_to_spectrum(ab, Strength = iso_ab)
         emi_coeff_tot.add_to_spectrum(em, Strength = iso_ab)
+
+pickle.dump([abs_coeff_tot, emi_coeff_tot], open('./validation_abscoeff_ch4_600km_2.pic','w'))
+
 
 abs_coeff_tot = smm.prepare_spe_grid(wn_range)
 emi_coeff_tot = smm.prepare_spe_grid(wn_range)
 hcn = planet.gases['HCN']
 for iso in hcn.all_iso:
     isomol = getattr(hcn, iso)
-    abs_coeffs, emi_coeffs = smm.make_abscoeff_isomolec(wn_range, isomol, t600, p600, lines = linee, LTE = isomol.is_in_LTE)
+    abs_coeffs, emi_coeffs = smm.make_abscoeff_isomolec(wn_range, isomol, t600, p600, lines = linee, LTE = isomol.is_in_LTE, cartLUTs = inputs['cart_LUTS'])
     iso_ab = isomol.ratio
     for ab, em in zip(abs_coeffs,emi_coeffs):
         abs_coeff_tot.add_to_spectrum(ab, Strength = iso_ab)
         emi_coeff_tot.add_to_spectrum(em, Strength = iso_ab)
 
-pickle.dump([abs_coeff_tot, emi_coeff_tot], open('./validation_abscoeff_hcnLTE_600km.pic','w'))
-
-
-
+pickle.dump([abs_coeff_tot, emi_coeff_tot], open('./validation_abscoeff_hcnLTE_600km_2.pic','w'))
 
 abs_coeff_tot = smm.prepare_spe_grid(wn_range)
 emi_coeff_tot = smm.prepare_spe_grid(wn_range)
@@ -243,17 +222,16 @@ for iso in c2h2.all_iso:
         print(levi)
         levello = getattr(isomol, levi)
         print(levello.energy, levello.lev_string)
-    abs_coeffs, emi_coeffs = smm.make_abscoeff_isomolec(wn_range, isomol, t600, p600, lines = linee, LTE = isomol.is_in_LTE)
+    abs_coeffs, emi_coeffs = smm.make_abscoeff_isomolec(wn_range, isomol, t600, p600, lines = linee, LTE = isomol.is_in_LTE, cartLUTs = inputs['cart_LUTS'])
     iso_ab = isomol.ratio
     for ab, em in zip(abs_coeffs,emi_coeffs):
         abs_coeff_tot.add_to_spectrum(ab, Strength = iso_ab)
         emi_coeff_tot.add_to_spectrum(em, Strength = iso_ab)
 
-pickle.dump([abs_coeff_tot, emi_coeff_tot], open('./validation_abscoeff_c2h2LTE_600km.pic','w'))
+pickle.dump([abs_coeff_tot, emi_coeff_tot], open('./validation_abscoeff_c2h2LTE_600km_2.pic','w'))
 
 
-
-"""
+sys.exit()
 
 #planet = pickle.load(open(inputs['cart_molecs']+'ch4_old_ref.pic','r'))
 
@@ -277,9 +255,12 @@ pp1 = linea1.calc_along_LOS(planet.atmosphere, profname = 'pres', set_attr = Tru
 print(pp1)
 
 for gas in planet.gases:
+    for iso in planet.gases[gas].all_iso:
+        isomol = getattr(planet.gases[gas], iso)
+        print('Gas {}, iso {}, lev {}'.format(isomol.mol, isomol.iso, isomol.levels))
     conc_gas = linea1.calc_abundance(planet, gas, set_attr = True)
 
-opt_depth = linea1.calc_optical_depth(wn_range, planet, linee, step = steplos)
+opt_depth = linea1.calc_optical_depth(wn_range, planet, linee, step = steplos, cartLUTs = inputs['cart_LUTS'])
 pickle.dump(opt_depth, open('./opt_dep_600_CONFRONTO.pic','w'))
 
 # pl.ion()

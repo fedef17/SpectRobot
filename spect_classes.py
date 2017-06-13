@@ -115,10 +115,10 @@ class SpectLine(object):
 
         for lev in IsoMolec.levels:
             Level = getattr(IsoMolec, lev)
-            if Level.minimal_level_string() in self.Up_lev_str:
+            if Level.minimal_level_string() == self.minimal_level_string_up():
                 self.Up_lev_id = lev
                 self.E_vib_up = Level.energy
-            elif Level.minimal_level_string() in self.Lo_lev_str:
+            elif Level.minimal_level_string() == self.minimal_level_string_lo():
                 self.Lo_lev_id = lev
                 self.E_vib_lo = Level.energy
             else:
@@ -310,7 +310,7 @@ class SpectralObject(object):
         self.spectral_grid = None
         return
 
-    def ripristina_grid(self, spectral_grid):
+    def restore_grid(self, spectral_grid):
         """
         Erases the spectral_grid to save disk space.
         """
@@ -321,7 +321,13 @@ class SpectralObject(object):
         """
         Converts the spectrum to half precision (np.float16) for saving.
         """
-        self.spectrum = self.spectrum.astype(np.float16)
+        print(self.spectrum.dtype)
+        print(np.max(self.spectrum))
+        cos = copy.deepcopy(self.spectrum)
+        self.spectrum = copy.deepcopy(cos.astype(np.float16))
+        #self.spectrum = self.spectrum.astype(np.float16)
+        print(self.spectrum.dtype)
+        print(np.max(self.spectrum))
         if self.spectral_grid is not None:
             self.spectral_grid.half_precision()
         return
@@ -446,7 +452,9 @@ class SpectralObject(object):
         else:
             ok = (self.spectral_grid.grid > spectrum2.spectral_grid.grid[0]-spino) & (self.spectral_grid.grid < spectrum2.spectral_grid.grid[-1]+spino)
             ok2 = (spectrum2.spectral_grid.grid > self.spectral_grid.grid[0]-spino) & (spectrum2.spectral_grid.grid < self.spectral_grid.grid[-1]+spino)
-
+            print(type(ok), type(ok2))
+            print(ok)
+            print(ok2)
             if Strength is not None:
                 self.spectrum[ok] += Strength*spectrum2.spectrum[ok2]
             else:
@@ -693,19 +701,25 @@ class SpectralGcoeff(SpectralObject):
             print('Calculating shapes..')
             lines_new = self.calc_shapes(lines, Temp, Pres)
 
+        #print(len(lines_new))
+        #print('aaaaaaaaaaazzzulegnaaaaaaaaaaaaaaaa')
         # for lin in lines:
-        #     if self.lev_string in lin.Up_lev_str or self.lev_string in lin.Lo_lev_str:
+        #     print(self.lev_string, lin.minimal_level_string_up(), lin.minimal_level_string_lo())
+        #     if self.lev_string == lin.minimal_level_string_up() or self.lev_string == lin.minimal_level_string_lo():
         #         print('NAUUiii')
         #         print(self.lev_string, self.mol, self.iso, lin.Up_lev_str, lin.Mol, lin.Iso)
 
         if self.ctype == 'sp_emission' or self.ctype == 'ind_emission':
-            shapes_tot = [lin.shape for lin in lines_new if (self.lev_string in lin.Up_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
-            G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string in lin.Up_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
+            #shapes_tot = [lin.shape for lin in lines_new if (self.lev_string in lin.Up_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
+            shapes_tot = [lin.shape for lin in lines_new if (self.lev_string == lin.minimal_level_string_up() and lin.Mol == self.mol and lin.Iso == self.iso)]
+            G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string == lin.minimal_level_string_up() and lin.Mol == self.mol and lin.Iso == self.iso)]
         elif self.ctype == 'absorption':
-            shapes_tot = [lin.shape for lin in lines_new if (self.lev_string in lin.Lo_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
-            G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string in lin.Lo_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
+            shapes_tot = [lin.shape for lin in lines_new if (self.lev_string == lin.minimal_level_string_lo() and lin.Mol == self.mol and lin.Iso == self.iso)]
+            G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string == lin.minimal_level_string_lo() and lin.Mol == self.mol and lin.Iso == self.iso)]
         else:
             raise ValueError('ctype has to be one among {}, {} and {}. {} not recognized'.format(ctypes[0],ctypes[1],ctypes[2],self.ctype))
+
+        #print(len(shapes_tot))
 
         self.add_lines_to_spectrum(shapes_tot, Strengths = G_coeffs_tot)
 
