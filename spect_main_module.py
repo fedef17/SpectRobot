@@ -140,11 +140,16 @@ class LutSet(object):
     This class represent a single entry of look-up table for a single level, for all temps/press and for all ctypes. Each ctype is an element of a dictionary.
     """
 
-    def __init__(self, mol, iso, MM, level, filename = None):
+    def __init__(self, mol, iso, MM, level = None, filename = None):
         self.mol = mol
         self.iso = iso
         self.MM = MM
-        self.level = copy.deepcopy(level)
+        if level is not None:
+            self.level = copy.deepcopy(level)
+            self.unidentified_lines = False
+        else:
+            self.level = None
+            self.unidentified_lines = True
         self.filename = filename
         self.sets = []
         return
@@ -321,11 +326,14 @@ class LutSet(object):
         ctypes = ['sp_emission','ind_emission','absorption']
         set_ = dict()
 
-        minimal_level_string = self.level.minimal_level_string()
+        if not self.unidentified_lines:
+            minimal_level_string = self.level.minimal_level_string()
+        else:
+            minimal_level_string = ''
 
         for ctype in ctypes:
             print('Producing set for '+ctype+'...')
-            gigi = spcl.SpectralGcoeff(ctype, spectral_grid, self.mol, self.iso, self.MM, minimal_level_string)
+            gigi = spcl.SpectralGcoeff(ctype, spectral_grid, self.mol, self.iso, self.MM, minimal_level_string, unidentified_lines = self.unidentified_lines)
             gigi.BuildCoeff(lines, Temp, Pres, preCalc_shapes = True)
 
             print(np.max(gigi.spectrum))
@@ -356,6 +364,10 @@ class LutSet(object):
 
     def export(self, filename):
         pickle.dump(self, open(filename,'w'))
+        return
+
+    def add_dump(self, set_):
+        pickle.dump(set_, self.temp_file)
         return
 
 
@@ -585,6 +597,25 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
     abs_coeff = prepare_spe_grid(wn_range)
     spectral_grid = abs_coeff.spectral_grid
 
+    unidentified_lines = False
+    if len(isomolec.levels) == 0:
+        unidentified_lines = True
+        print('acazuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu')
+
+    set_tot = dict()
+    if not unidentified_lines:
+        for lev in isomolec.levels:
+            levvo = getattr(isomolec, lev)
+            strin = cartLUTs+'LUTLOS_mol_{}_iso_{}_{}.pic'.format(isomolec.mol, isomolec.iso, lev)
+            set_tot[lev] = LutSet(isomolec.mol, isomolec.iso, isomolec.MM, level = levvo, filename = strin)
+            set_tot[lev].prepare_export([zui for zui in zip(Press,Temps)])
+    else:
+        print('siamo quaaaA')
+        strin = cartLUTs+'LUTLOS_mol_{}_iso_{}_alllev.pic'.format(isomolec.mol, isomolec.iso)
+        set_tot['all'] = LutSet(isomolec.mol, isomolec.iso, isomolec.MM, level = None, filename = strin)
+        set_tot['all'].prepare_export([zui for zui in zip(Press,Temps)])
+
+
     if not useLUTs:
         if lines is None:
             raise ValueError('when calling smm.make_abscoeff_isomolec() with useLUTs = False, you need to give the list of spectral lines of isomolec as input')
@@ -595,13 +626,6 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
 
         ctypes = ['sp_emission','ind_emission','absorption']
 
-        set_tot = dict()
-        for lev in isomolec.levels:
-            levvo = getattr(isomolec, lev)
-            strin = cartLUTs+'LUTLOS_mol_{}_iso_{}_{}.pic'.format(isomolec.mol, isomolec.iso, lev)
-            set_tot[lev] = LutSet(isomolec.mol, isomolec.iso, isomolec.MM, levvo, filename = strin)
-            set_tot[lev].prepare_export([zui for zui in zip(Press,Temps)])
-
         numh = 0
         for Pres, Temp in zip(Press,Temps):
             numh+=1
@@ -609,45 +633,38 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
             print(isomolec.levels)
             lines_proc = spcl.calc_shapes_lines(spectral_grid, lines, Temp, Pres, isomolec)
             print(len(lines_proc))
-
-            for lev in isomolec.levels:
-                print('Siamo a mol {}, iso {}, lev {} bauuuuuuuuu'.format(isomolec.mol, isomolec.iso, lev))
-                levello = getattr(isomolec, lev)
-                set_tot[lev].add_PT(spectral_grid, lines_proc, Pres, Temp)
-                # minimal_level_string = levello.minimal_level_string()
-                # set_ = dict()
-                # for ctype in ctypes:
-                #     print('Producing set for '+ctype+'...')
-                #     gigi = spcl.SpectralGcoeff(ctype, spectral_grid, isomolec.mol, isomolec.iso, isomolec.MM, minimal_level_string)
-                #     gigi.BuildCoeff(lines_proc, Temp, Pres, preCalc_shapes = True)
-                #     set_[ctype] = copy.deepcopy(gigi)
-                ####set_tot[lev].append(set_)
-
-        for lev in isomolec.levels:
-            set_tot[lev].finalize_IO()
-            print('Finalizzzooooooooooo')
+            if not unidentified_lines:
+                for lev in isomolec.levels:
+                    print('Siamo a mol {}, iso {}, lev {} bauuuuuuuuu'.format(isomolec.mol, isomolec.iso, lev))
+                    levello = getattr(isomolec, lev)
+                    set_tot[lev].add_PT(spectral_grid, lines_proc, Pres, Temp)
+            else:
+                print('Siamo a mol {}, iso {}, all_levssss miaoooooooooooo'.format(isomolec.mol, isomolec.iso))
+                set_tot['all'].add_PT(spectral_grid, lines_proc, Pres, Temp)
 
     else:
         #read Gcoeffs from LUTS and attach to levels
         LUTs = read_Gcoeffs_from_LUTs(cartLUTs, fileLUTs)
         for lev in isomolec.levels:
-            set_tot = []
             levello = getattr(isomolec, lev)
             print('Loading LutSet for level {}...'.format(lev))
             LUTs.sets[lev].load_from_file()
             for Pres, Temp in zip(Press,Temps):
                 set_ = LUTs.sets[lev].calculate(Pres, Temp)
-                set_tot.append(set_)
+                set_tot[lev].add_dump(set_)
             LUTs.sets[lev].free_memory()
-            levello.add_Gcoeffs(set_tot)
             print('Added')
+
+    for val in set_tot.values():
+        val.finalize_IO()
+        print('Finalizzzooooooooooo')
 
     abs_coeffs = []
     emi_coeffs = []
 
-    for lev in isomolec.levels:
-        set_tot[lev].prepare_read()
-        print('Reading... -> '+lev)
+    for nam, val in zip(set_tot.keys(), set_tot.values()):
+        val.prepare_read()
+        print('Reading... -> '+nam)
 
     for num in range(len(Temps)):
         print('oyeeeeeeeeeee ', num)
@@ -655,18 +672,26 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
         emi_coeff = prepare_spe_grid(wn_range)
             # THIS IS WITH LTE PARTITION FUNCTION!!
         Q_part = spcl.CalcPartitionSum(isomolec.mol, isomolec.iso, temp = Temps[num])
-        for lev in isomolec.levels:
-            levello = getattr(isomolec, lev)
-            if LTE:
-                vibt = Temps[num]
-            else:
-                vibt = levello.local_vibtemp[num]
-            #Gco = levello.Gcoeffs[num]
-            Gco = set_tot[lev].load_singlePT_from_file(spectral_grid)
-            pop = spcl.Boltz_ratio_nodeg(levello.energy, vibt) / Q_part
+
+        if unidentified_lines:
+            Gco = set_tot['all'].load_singlePT_from_file(spectral_grid)
+            pop = 1 / Q_part
             abs_coeff.add_to_spectrum(Gco['absorption'], Strength = pop)
             abs_coeff.add_to_spectrum(Gco['ind_emission'], Strength = -pop)
             emi_coeff.add_to_spectrum(Gco['sp_emission'], Strength = pop)
+        else:
+            for lev in isomolec.levels:
+                levello = getattr(isomolec, lev)
+                if LTE:
+                    vibt = Temps[num]
+                else:
+                    vibt = levello.local_vibtemp[num]
+                #Gco = levello.Gcoeffs[num]
+                Gco = set_tot[lev].load_singlePT_from_file(spectral_grid)
+                pop = spcl.Boltz_ratio_nodeg(levello.energy, vibt) / Q_part
+                abs_coeff.add_to_spectrum(Gco['absorption'], Strength = pop)
+                abs_coeff.add_to_spectrum(Gco['ind_emission'], Strength = -pop)
+                emi_coeff.add_to_spectrum(Gco['sp_emission'], Strength = pop)
 
         abs_coeffs.append(abs_coeff)
         emi_coeffs.append(emi_coeff)

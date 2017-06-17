@@ -120,6 +120,8 @@ alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(inputs['cart_m
 ch4.iso_2.add_levels(levels, energies, vibtemps=vib_ok, add_fundamental = True, T_kin = atm_old.temp)
 ch4.iso_2.add_simmetries_levels(linee)
 
+print(levels, energies)
+
 #ch4.add_iso(3, MM = 17, ratio = 6.158e-4, LTE = True)
 ch4.add_all_iso_from_HITRAN(linee)
 
@@ -179,26 +181,30 @@ for iso in ch4.all_iso:
         print(levello.lev_string)
         print(levello.simmetry)
         if not isomol.is_in_LTE:
-        #print(levello.vibtemp)
+            #print(levello.vibtemp)
             tvi = levello.vibtemp.calc(600.)
             levello.add_local_vibtemp(tvi)
+            print(levello.local_vibtemp)
 
 
 pickle.dump([t600, p600, ch4], open('./local_vibtemp_ch4.pic','w'))
 
 abs_coeff_tot = smm.prepare_spe_grid(wn_range)
 emi_coeff_tot = smm.prepare_spe_grid(wn_range)
+abs_coeffs_iso = dict()
 
 for iso in ch4.all_iso:
     isomol = getattr(ch4, iso)
     abs_coeffs, emi_coeffs = smm.make_abscoeff_isomolec(wn_range, isomol, t600, p600, lines = linee, LTE = isomol.is_in_LTE, cartLUTs = inputs['cart_LUTS'])
+    abs_coeffs_iso[iso] = abs_coeffs[0]
     iso_ab = isomol.ratio
     for ab, em in zip(abs_coeffs,emi_coeffs):
         abs_coeff_tot.add_to_spectrum(ab, Strength = iso_ab)
         emi_coeff_tot.add_to_spectrum(em, Strength = iso_ab)
 
-pickle.dump([abs_coeff_tot, emi_coeff_tot], open('./validation_abscoeff_ch4_600km_2.pic','w'))
+pickle.dump([abs_coeff_tot, emi_coeff_tot, abs_coeffs_iso], open('./validation_abscoeff_ch4_600km_6_nonLTE_ok.pic','w'))
 
+sys.exit()
 
 abs_coeff_tot = smm.prepare_spe_grid(wn_range)
 emi_coeff_tot = smm.prepare_spe_grid(wn_range)
@@ -211,7 +217,7 @@ for iso in hcn.all_iso:
         abs_coeff_tot.add_to_spectrum(ab, Strength = iso_ab)
         emi_coeff_tot.add_to_spectrum(em, Strength = iso_ab)
 
-pickle.dump([abs_coeff_tot, emi_coeff_tot], open('./validation_abscoeff_hcnLTE_600km_2.pic','w'))
+pickle.dump([abs_coeff_tot, emi_coeff_tot], open('./validation_abscoeff_hcnLTE_600km_3.pic','w'))
 
 abs_coeff_tot = smm.prepare_spe_grid(wn_range)
 emi_coeff_tot = smm.prepare_spe_grid(wn_range)
@@ -228,10 +234,7 @@ for iso in c2h2.all_iso:
         abs_coeff_tot.add_to_spectrum(ab, Strength = iso_ab)
         emi_coeff_tot.add_to_spectrum(em, Strength = iso_ab)
 
-pickle.dump([abs_coeff_tot, emi_coeff_tot], open('./validation_abscoeff_c2h2LTE_600km_2.pic','w'))
-
-
-sys.exit()
+pickle.dump([abs_coeff_tot, emi_coeff_tot], open('./validation_abscoeff_c2h2LTE_600km_3.pic','w'))
 
 #planet = pickle.load(open(inputs['cart_molecs']+'ch4_old_ref.pic','r'))
 

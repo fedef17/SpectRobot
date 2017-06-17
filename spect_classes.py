@@ -173,11 +173,19 @@ class SpectLine(object):
 
         ok = self.LinkToMolec(isomolec)
 
-        G_co = Einstein_A_to_Gcoeff_spem(self, Temp, Pres, isomolec.MM, self.E_vib_up)
+        if not ok:
+            print('Line is unidentified! setting 0.0 as level_energy')
+            lev_energy_lo = 0.0
+            lev_energy_up = 0.0
+        else:
+            lev_energy_lo = self.E_vib_lo
+            lev_energy_up = self.E_vib_up
+
+        G_co = Einstein_A_to_Gcoeff_spem(self, Temp, Pres, isomolec.MM, lev_energy_up)
         values.append(G_co)
-        G_co = Einstein_A_to_Gcoeff_indem(self, Temp, Pres, isomolec.MM, self.E_vib_up)
+        G_co = Einstein_A_to_Gcoeff_indem(self, Temp, Pres, isomolec.MM, lev_energy_up)
         values.append(G_co)
-        G_co = Einstein_A_to_Gcoeff_abs(self, Temp, Pres, isomolec.MM, self.E_vib_lo)
+        G_co = Einstein_A_to_Gcoeff_abs(self, Temp, Pres, isomolec.MM, lev_energy_lo)
         values.append(G_co)
 
         G_coeffs = dict(zip(ctypes,values))
@@ -321,13 +329,15 @@ class SpectralObject(object):
         """
         Converts the spectrum to half precision (np.float16) for saving.
         """
-        print(self.spectrum.dtype)
-        print(np.max(self.spectrum))
-        cos = copy.deepcopy(self.spectrum)
-        self.spectrum = copy.deepcopy(cos.astype(np.float16))
-        #self.spectrum = self.spectrum.astype(np.float16)
-        print(self.spectrum.dtype)
-        print(np.max(self.spectrum))
+        # print(self.spectrum.dtype)
+        # print(np.max(self.spectrum))
+        # cos = np.frexp(self.spectrum)
+        # esp = cos[1]
+        # mant = np.float32()
+        # self.spectrum = copy.deepcopy(cos.astype(np.float16))
+        self.spectrum = self.spectrum.astype(np.float32)
+        # print(self.spectrum.dtype)
+        # print(np.max(self.spectrum))
         if self.spectral_grid is not None:
             self.spectral_grid.half_precision()
         return
@@ -656,11 +666,15 @@ class SpectralGcoeff(SpectralObject):
     <<< IMPORTANT: Set as level string the part of the string containing the quanta, not the simmetry of the levels. Instead it will not recognize levels with same quanta and different symmetry. Example: for level "0 0 1 2 1F2" set minimal_level_string = "0 0 1 2" >>>>>
     """
 
-    def __init__(self, ctype, spectral_grid, mol, iso, MM, minimal_level_string, spectrum = None, Pres = None, Temp = None):
+    def __init__(self, ctype, spectral_grid, mol, iso, MM, minimal_level_string, unidentified_lines = False, spectrum = None, Pres = None, Temp = None):
         self.mol = mol
         self.iso = iso
         self.MM = MM
-        self.lev_string = minimal_level_string
+        if not unidentified_lines:
+            self.lev_string = minimal_level_string
+            self.unidentified_lines = False
+        else:
+            self.unidentified_lines = True
         self.ctype = ctype
         self.spectral_grid = copy.deepcopy(spectral_grid)
         if spectrum is None:
@@ -709,16 +723,25 @@ class SpectralGcoeff(SpectralObject):
         #         print('NAUUiii')
         #         print(self.lev_string, self.mol, self.iso, lin.Up_lev_str, lin.Mol, lin.Iso)
 
-        if self.ctype == 'sp_emission' or self.ctype == 'ind_emission':
-            #shapes_tot = [lin.shape for lin in lines_new if (self.lev_string in lin.Up_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
-            shapes_tot = [lin.shape for lin in lines_new if (self.lev_string == lin.minimal_level_string_up() and lin.Mol == self.mol and lin.Iso == self.iso)]
-            G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string == lin.minimal_level_string_up() and lin.Mol == self.mol and lin.Iso == self.iso)]
-        elif self.ctype == 'absorption':
-            shapes_tot = [lin.shape for lin in lines_new if (self.lev_string == lin.minimal_level_string_lo() and lin.Mol == self.mol and lin.Iso == self.iso)]
-            G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string == lin.minimal_level_string_lo() and lin.Mol == self.mol and lin.Iso == self.iso)]
+        if not self.unidentified_lines:
+            if self.ctype == 'sp_emission' or self.ctype == 'ind_emission':
+                #shapes_tot = [lin.shape for lin in lines_new if (self.lev_string in lin.Up_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
+                shapes_tot = [lin.shape for lin in lines_new if (self.lev_string == lin.minimal_level_string_up() and lin.Mol == self.mol and lin.Iso == self.iso)]
+                G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string == lin.minimal_level_string_up() and lin.Mol == self.mol and lin.Iso == self.iso)]
+            elif self.ctype == 'absorption':
+                shapes_tot = [lin.shape for lin in lines_new if (self.lev_string == lin.minimal_level_string_lo() and lin.Mol == self.mol and lin.Iso == self.iso)]
+                G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string == lin.minimal_level_string_lo() and lin.Mol == self.mol and lin.Iso == self.iso)]
+            else:
+                raise ValueError('ctype has to be one among {}, {} and {}. {} not recognized'.format(ctypes[0],ctypes[1],ctypes[2],self.ctype))
         else:
-            raise ValueError('ctype has to be one among {}, {} and {}. {} not recognized'.format(ctypes[0],ctypes[1],ctypes[2],self.ctype))
-
+            if self.ctype == 'sp_emission' or self.ctype == 'ind_emission':
+                shapes_tot = [lin.shape for lin in lines_new if (lin.Mol == self.mol and lin.Iso == self.iso)]
+                G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (lin.Mol == self.mol and lin.Iso == self.iso)]
+            elif self.ctype == 'absorption':
+                shapes_tot = [lin.shape for lin in lines_new if (lin.Mol == self.mol and lin.Iso == self.iso)]
+                G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (lin.Mol == self.mol and lin.Iso == self.iso)]
+            else:
+                raise ValueError('ctype has to be one among {}, {} and {}. {} not recognized'.format(ctypes[0],ctypes[1],ctypes[2],self.ctype))
         #print(len(shapes_tot))
 
         self.add_lines_to_spectrum(shapes_tot, Strengths = G_coeffs_tot)
