@@ -139,6 +139,19 @@ class SpectLine(object):
         return B
 
 
+    def CheckWidths(self, Temp, Pres, MM):
+        """
+        Returns the pressure and doppler half widths for the line.
+        """
+        Pres_atm = convert_to_atm(Pres, units='hPa')
+        p_shift = self.P_shift * Pres_atm # Pressure shift
+
+        lw = Lorenz_width(Temp, Pres_atm, self.T_dep_broad, self.Air_broad)
+        dw = Doppler_width(Temp, MM, self.Freq)
+
+        return dw, lw, p_shift
+
+
     def MakeShapeLine(self, wn_arr, Temp, Pres, MM, Strength = 1.0, verbose = False, keep_memory = False):
         """
         Calls routine makeshape.
@@ -304,7 +317,7 @@ class SpectralObject(object):
         self.mask = mask
         return
 
-    def Multiply(self, factor):
+    def multiply(self, factor):
         """
         Simply multiplies all the spectrum by factor.
         """
@@ -426,7 +439,7 @@ class SpectralObject(object):
         """
         Convolution of the spectrum to a different grid.
         """
-        print('eja')
+        #print('eja')
         sp_step_old = self.spectral_grid.step()
         n_points = n_sigma*new_spectral_grid.step()/sp_step_old
         lin_grid = np.arange(-n_points*sp_step_old,n_points*sp_step_old,sp_step_old, dtype = float)
@@ -457,14 +470,14 @@ class SpectralObject(object):
         spino = self.spectral_grid.step()/10.
 
         if len(grid_intersect) == 0:
-            print('No intersection between the two spectra, doing nothing')
+            #print('No intersection between the two spectra, doing nothing')
             return
         else:
             ok = (self.spectral_grid.grid > spectrum2.spectral_grid.grid[0]-spino) & (self.spectral_grid.grid < spectrum2.spectral_grid.grid[-1]+spino)
             ok2 = (spectrum2.spectral_grid.grid > self.spectral_grid.grid[0]-spino) & (spectrum2.spectral_grid.grid < self.spectral_grid.grid[-1]+spino)
-            print(type(ok), type(ok2))
-            print(ok)
-            print(ok2)
+            #print(type(ok), type(ok2))
+            #print(ok)
+            #print(ok2)
             if Strength is not None:
                 self.spectrum[ok] += Strength*spectrum2.spectrum[ok2]
             else:
@@ -478,6 +491,34 @@ class SpectralObject(object):
             return griddifsum
 
 
+    def multiply_elementwise(self, spectrum2):
+        """
+        Multiplies each element of self.spectrum by the corresponding element of spectrum2.
+        """
+        if len(self.spectrum) != len(spectrum2.spectrum):
+            raise ValueError('The two spectra have different lengths!')
+
+        self.spectrum = spectrum2.spectrum * self.spectrum
+
+        return self.spectrum
+
+    def divide_elementwise(self, spectrum2):
+        """
+        Divides each element of self.spectrum by the corresponding element of spectrum2.
+        """
+        if len(self.spectrum) != len(spectrum2.spectrum):
+            raise ValueError('The two spectra have different lengths!')
+
+        self.spectrum = self.spectrum/spectrum2.spectrum
+
+        return self.spectrum
+
+
+    def sum_scalar(self, scalar):
+        self.spectrum = self.spectrum + scalar
+        return self.spectrum
+
+
     def add_lines_to_spectrum(self, lines, Strengths = None, fix_length = imxsig, n_threads = n_threads):
         """
         Sums a set of lines to the spectrum, using a fast routine in fortran. All shapes are filled with zeros till fix_length dimension.
@@ -485,10 +526,10 @@ class SpectralObject(object):
         To be added:
             - adaptation to large set of lines (for now max = 20000)
         """
-        print('Inside add_lines_to_spectrum.. summing up all the lines!')
+        #print('Inside add_lines_to_spectrum.. summing up all the lines!')
 
         n_lines = len(lines)
-        print('Preparing to sum {} lines...'.format(len(lines)))
+        #print('Preparing to sum {} lines...'.format(len(lines)))
         if n_lines == 0:
             return self.spectrum
 
@@ -501,7 +542,7 @@ class SpectralObject(object):
 
         if Strengths is not None:
             for line, strength in zip(lines,Strengths):
-                line.Multiply(strength)
+                line.multiply(strength)
 
         processi = []
         coda = []
@@ -547,10 +588,10 @@ class SpectralObject(object):
         spettro[:self.n_points()] = self.spectrum
 
         time_fort = time.time()
-        print('The python pre-routine took {} s to prepare {} lines for the sum'.format(time.time()-time0,n_lines))
+        #print('The python pre-routine took {} s to prepare {} lines for the sum'.format(time.time()-time0,n_lines))
 
         somma = lineshape.sum_all_lines(spettro, matrix, initarr, finarr, n_lines, self.n_points())
-        print('The fortran routine took {} s to sum {} lines'.format(time.time()-time_fort,n_lines))
+        #print('The fortran routine took {} s to sum {} lines'.format(time.time()-time_fort,n_lines))
 
         self.spectrum = somma[:self.n_points()]
 
@@ -697,13 +738,13 @@ class SpectralGcoeff(SpectralObject):
         ctypes = ['sp_emission','ind_emission','absorption']
 
         if len(lines) == 0:
-            print('No lines here, returning..')
+            #print('No lines here, returning..')
             self.temp = Temp
             self.pres = Pres
             return self.spectrum
 
         if preCalc_shapes:
-            print('Using precalculated shapes..')
+            #print('Using precalculated shapes..')
             try:
                 gigi = lines[0].shape
                 gigi = lines[0].G_coeffs
@@ -712,7 +753,7 @@ class SpectralGcoeff(SpectralObject):
                 raise ValueError('preCalc_shapes is set as True but the lines do not contain the attribute << shapes >>. Are you sure you precalculated the line shapes? Run calc_shapes_lines on your line set first.')
             lines_new = lines
         else:
-            print('Calculating shapes..')
+            #print('Calculating shapes..')
             lines_new = self.calc_shapes(lines, Temp, Pres)
 
         #print(len(lines_new))
@@ -830,11 +871,11 @@ def do_for_th_calc(wn_arr, linee_tot, Temp, Pres, isomolec, i, coda):
     if i == n_threads-1:
         linee = linee_tot[step_nlin*i:]
 
-    print('Hey! Questo è il ciclo {} con {} linee su {}!'.format(i,len(linee),len(linee_tot)))
+    #print('Hey! Questo è il ciclo {} con {} linee su {}!'.format(i,len(linee),len(linee_tot)))
 
     lines_new = PrepareCalcShapes(wn_arr, linee, Temp, Pres, isomolec)
 
-    print('Ciclo {} concluso in {} s!'.format(i,time.time()-time0))
+    #print('Ciclo {} concluso in {} s!'.format(i,time.time()-time0))
 
     coda.put(lines_new)
 
@@ -852,7 +893,7 @@ def PrepareCalcShapes(wn_arr, linee_mol, Temp, Pres, isomolec):
     time0 = time.time()
     time_100 = time.time()
 
-    print(type(isomolec.MM), isomolec.MM)
+    #print(type(isomolec.MM), isomolec.MM)
 
     for ii,lin in zip(range(len(linee_mol)),linee_mol):
         ind_ok, fr_grid_ok = closest_grid(wn_arr, lin.Freq)
@@ -861,7 +902,7 @@ def PrepareCalcShapes(wn_arr, linee_mol, Temp, Pres, isomolec):
         lin.MakeShapeLine(lin_grid_ok, Temp, Pres, isomolec.MM, keep_memory = True)
         lin.Calc_Gcoeffs(Temp, Pres, isomolec)
 
-    print('Made {} lines in {} s'.format(len(linee_mol),time.time()-time0))
+    #print('Made {} lines in {} s'.format(len(linee_mol),time.time()-time0))
 
     return linee_mol
 
@@ -924,8 +965,7 @@ def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev 
 
     #print('Creo lista di oggetti linea\n')
     for linea in linee:
-        if verbose:
-            print(linea['Mol'], linea['Iso'], linea['Freq'])
+        if verbose: print(linea['Mol'], linea['Iso'], linea['Freq'])
         if freq_range is not None:
             if linea['Freq'] < freq_range[0]:
                 continue
@@ -933,8 +973,7 @@ def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev 
                 break
         if (linea['Mol'] == mol or mol is None) and (linea['Iso'] == iso or iso is None) and (linea['Up_lev_str'] == up_lev or up_lev is None) and (linea['Lo_lev_str'] == down_lev or down_lev is None):
             line = SpectLine(linea)
-            if verbose:
-                print(linea)
+            if verbose: print(linea)
             if link_to_isomolecs is not None:
                 IsoMolecol = [molecolo for molecolo in link_to_isomolecs if (molecolo.mol == mol and molecolo.iso == iso)]
                 if len(IsoMolecol) > 1:
@@ -948,7 +987,7 @@ def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev 
         essort = np.sort(np.array(essesss))[int(fraction_to_keep*(len(linee_ok)-1))]
 
         linee_sel = [lin for lin in linee_ok if lin.Strength >= essort]
-        print('The threshold for line Strength is {}. Selected {} out of {} lines.'.format(essort,len(linee_sel),len(linee_ok)))
+        #print('The threshold for line Strength is {}. Selected {} out of {} lines.'.format(essort,len(linee_sel),len(linee_ok)))
     else:
         linee_sel = linee_ok
 
