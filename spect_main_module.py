@@ -14,7 +14,8 @@ import warnings
 import spect_base_module as sbm
 import spect_classes as spcl
 import time
-import pickle
+#import pickle
+import cPickle as pickle
 import lineshape
 from multiprocessing import Process, Queue
 import copy
@@ -139,7 +140,7 @@ class LookUpTable(object):
         return time
 
     def export(self, filename):
-        pickle.dump(self, open(filename,'w'))
+        pickle.dump(self, open(filename,'w'), protocol = -1)
         return
 
 
@@ -179,7 +180,7 @@ class LutSet(object):
             raise ValueError('ERROR!: NO filename set for LutSet.')
         else:
             self.temp_file = open(self.filename, 'wb')
-        pickle.dump(PTcouples, self.temp_file)
+        pickle.dump(PTcouples, self.temp_file, protocol = -1)
 
         return
 
@@ -362,7 +363,7 @@ class LutSet(object):
             #print('Added')
 
         #print('dampoooooooooooooooooooooooo')
-        pickle.dump(set_, self.temp_file)
+        pickle.dump(set_, self.temp_file, protocol = -1)
 
         if not keep_memory:
             del set_
@@ -372,11 +373,11 @@ class LutSet(object):
         return
 
     def export(self, filename):
-        pickle.dump(self, open(filename,'w'))
+        pickle.dump(self, open(filename,'w'), protocol = -1)
         return
 
     def add_dump(self, set_):
-        pickle.dump(set_, self.temp_file)
+        pickle.dump(set_, self.temp_file, protocol = -1)
         return
 
 
