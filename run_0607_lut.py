@@ -44,7 +44,7 @@ print('Loading lines...')
 time0 = time.time()
 
 db_file = inputs['hitran_db']
-wn_range = [2800.,3500.]
+wn_range = [2900.,3200.]
 
 #linee = spcl.read_line_database(db_file)
 linee = spcl.read_line_database(db_file, freq_range = wn_range)
