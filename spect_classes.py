@@ -458,6 +458,7 @@ class SpectralObject(object):
         convolved = SpectralObject(spectrum, new_spectral_grid)
         return convolved
 
+
     def add_to_spectrum(self, spectrum2, Strength = None, sumcheck = 10.):
         """
         Spectrum2 is a SpectralObject with a spectral_grid which is entirely or partially included in the self.spectral_grid, with the SAME STEP.
@@ -491,27 +492,39 @@ class SpectralObject(object):
             return griddifsum
 
 
-    def multiply_elementwise(self, spectrum2):
+    def multiply_elementwise(self, spectrum2, save = True):
         """
         Multiplies each element of self.spectrum by the corresponding element of spectrum2.
         """
         if len(self.spectrum) != len(spectrum2.spectrum):
             raise ValueError('The two spectra have different lengths!')
 
-        self.spectrum = spectrum2.spectrum * self.spectrum
+        if save:
+            self.spectrum = spectrum2.spectrum * self.spectrum
+        else:
+            coso_new = spectrum2.spectrum * self.spectrum
+            coso = copy.deepcopy(self)
+            coso.spectrum = coso_new
+            return coso
 
-        return self.spectrum
+        return
 
-    def divide_elementwise(self, spectrum2):
+    def divide_elementwise(self, spectrum2, save = True):
         """
         Divides each element of self.spectrum by the corresponding element of spectrum2.
         """
         if len(self.spectrum) != len(spectrum2.spectrum):
             raise ValueError('The two spectra have different lengths!')
 
-        self.spectrum = self.spectrum/spectrum2.spectrum
+        if save:
+            self.spectrum = self.spectrum/spectrum2.spectrum
+        else:
+            coso_new = spectrum2.spectrum/self.spectrum
+            coso = copy.deepcopy(self)
+            coso.spectrum = coso_new
+            return coso
 
-        return self.spectrum
+        return
 
 
     def sum_scalar(self, scalar):

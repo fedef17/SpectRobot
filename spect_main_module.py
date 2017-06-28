@@ -44,14 +44,100 @@ def equiv(num1, num2, thres = 1e-8):
     return False
 
 
-
 # CLASSES
 
 class BayesSet(object):
     """
-    Class to represent the parameters space that drive the forward model.
+    Class to represent the FULL parameters space that drive the forward model. One BayesSet may contain more RetSets and other single RetParams. Each RetSet contains more RetParams (e.g. a VMR profile contains more single values)
     """
-    pass
+    def __init__(self, sets = None, params = None):
+        self.sets = []
+        self.params = []
+        self.n_tot = 0
+        if sets is not None:
+            for set_ in sets:
+                self.sets.append(set_)
+                self.n_tot += set_.n_par
+        elif params is not None:
+            for par in params:
+                self.params.append(par)
+                self.n_tot += 1
+        else:
+            raise ValueError('Your parameter space contains no RetSets and no RetParams, set at least one to define the space!')
+
+        return
+
+
+class RetSet(object):
+    """
+    A set of parameters referring to the same quantity (a VMR profile, lat distributions, a Temp profile..). Contains more RetParams.
+    """
+    def __init__(self, name, params):
+        self.name = name
+        self.set = []
+        self.n_par = len(params)
+        for par in params:
+            self.set.append(copy.deepcopy(par))
+        return
+
+    def update_params(self, new_values):
+        for par, new in zip(self.set, new_values):
+            par.update_par(new)
+        return
+
+
+def triangle(alt_grid, step, node_alt, first = False, last = False):
+    cos = np.zeros(len(alt_grid), dtype = float)
+    for alt, ii in zip(alt_grid, range(len(alt_grid))):
+        if alt < node_alt-step:
+            if first:
+                cos[ii] = 1.0
+            else:
+                cos[ii] = 0.0
+        elif alt > node_alt+step:
+            if last:
+                cos[ii] = 1.0
+            else:
+                cos[ii] = 0.0
+        else:
+            cos[ii] = (1.0-abs(alt-node_alt))/step
+
+    cos = sbm.AtmProfile(cos, alt_grid)
+
+    return cos
+
+
+
+class LinearProfile(RetSet):
+    """
+    A profile constructed through linear interpolation of a set of params.
+    """
+    def __init__(self, name, atmosphere, alt_nodes, apriori_prof, apriori_prof_err, first_guess_prof = None):
+        self.name = name
+        self.set = []
+        self.n_par = len(alt_nodes)
+
+
+
+
+class RetParam(object):
+    """
+    A single parameter in the parameter space.
+    """
+
+    def __init__(self, nameset, maskgrid, apriori, apriori_err, first_guess = None):
+        self.nameset = nameset
+        self.maskgrid = copy.deepcopy(maskgrid)
+        if first_guess is None:
+            first_guess = apriori
+        self.value = first_guess
+        self.apriori = apriori
+        self.apriori_err = apriori_err
+        return
+
+    def update_par(self, new_value):
+        self.value = new_value
+        return
 
 
 class LookUpTable(object):
@@ -439,7 +525,7 @@ class AbsSetLOS(object):
         if self.temp_file is None:
             self.prepare_read()
 
-        set_ = pickle.load(self.temp_file, 'rb')
+        set_ = pickle.load(self.temp_file)
         self.remaining -= 1
 
         return set_
