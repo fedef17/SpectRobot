@@ -381,6 +381,70 @@ class LutSet(object):
         return
 
 
+class AbsSetLOS(object):
+    """
+    This class represent a set of abs and emi coeffs along a LOS. This is to allow for saving in memory when calculating long sets.
+    """
+
+    def __init__(self, filename, indices = None):
+        if indices is not None:
+            self.indices = indices
+        else:
+            self.indices = []
+        self.counter = 0
+        self.remaining = 0
+        self.filename = filename
+        self.temp_file = None
+        self.set = []
+        return
+
+    def prepare_read(self):
+        print('{} coefficients to be read sequentially..'.format(self.counter))
+        if self.filename is None:
+            raise ValueError('ERROR!: NO filename set for LutSet.')
+        else:
+            self.temp_file = open(self.filename, 'rb')
+        self.remaining = self.counter
+        return
+
+    def prepare_export(self):
+        """
+        Opens the pic file for export, dumps PTcouples on top.
+        """
+        if self.filename is None:
+            raise ValueError('ERROR!: NO filename set for LutSet.')
+        else:
+            self.temp_file = open(self.filename, 'wb')
+
+        return
+
+    def finalize_IO(self):
+        self.temp_file.close()
+        self.temp_file = None
+        return
+
+    def add_dump(self, set_):
+        pickle.dump(set_, self.temp_file, protocol = -1)
+        self.counter += 1
+        print('dampato. siamo a {}'.format(self.counter))
+        print(time.ctime())
+        return
+
+    def add_set(self, set_):
+        self.set.append(set_)
+        self.counter += 1
+        return
+
+    def read_one(self):
+        if self.temp_file is None:
+            self.prepare_read()
+
+        set_ = pickle.load(self.temp_file, 'rb')
+        self.remaining -= 1
+
+        return set_
+
+
 # FUNCTIONS
 
 
@@ -613,7 +677,7 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
     return LUTs_wnames
 
 
-def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUTs = None, cartLUTs = None, useLUTs = False, lines = None):
+def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUTs = None, cartLUTs = None, useLUTs = False, lines = None, store_in_memory = False, tagLOS = None):
     """
     Builds the absorption and emission coefficients for isomolec, both in LTE and non-LTE. If in non-LTE, isomolec levels have to contain the attribute local_vibtemp, produced by calling level.add_local_vibtemp(). If LTE is set to True, LTE populations are used.
     LUT is the object created by makeLUT_nonLTE_Gcoeffs(). Contains
@@ -626,9 +690,20 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
         Press = [Press]
         Temps = [Temps]
 
+    if len(Temps) > 10:
+        store_in_memory = True
+
     #print('Sto entrandooooooooooooo, mol {}, iso {}'.format(isomolec.mol, isomolec.iso))
     abs_coeff = prepare_spe_grid(wn_range)
     spectral_grid = abs_coeff.spectral_grid
+
+    if tagLOS is None:
+        tagLOS = 'LOS'
+    abs_coeffs = AbsSetLOS('./abscoeff_'+tagLOS+'.pic')
+    emi_coeffs = AbsSetLOS('./emicoeff_'+tagLOS+'.pic')
+    if store_in_memory:
+        abs_coeffs.prepare_export()
+        emi_coeffs.prepare_export()
 
     unidentified_lines = False
     if len(isomolec.levels) == 0:
@@ -662,7 +737,8 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
         numh = 0
         for Pres, Temp in zip(Press,Temps):
             numh+=1
-            #print('Siamo a step {} catuuuullooooooo'.format(numh))
+            print('Siamo a step {} catuuuullooooooo'.format(numh))
+            print(time.ctime())
             #print(isomolec.levels)
             lines_proc = spcl.calc_shapes_lines(spectral_grid, lines, Temp, Pres, isomolec)
             #print(len(lines_proc))
@@ -691,9 +767,6 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
     for val in set_tot.values():
         val.finalize_IO()
         #print('Finalizzzooooooooooo')
-
-    abs_coeffs = []
-    emi_coeffs = []
 
     for nam, val in zip(set_tot.keys(), set_tot.values()):
         val.prepare_read()
@@ -726,8 +799,16 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
                 abs_coeff.add_to_spectrum(Gco['ind_emission'], Strength = -pop)
                 emi_coeff.add_to_spectrum(Gco['sp_emission'], Strength = pop)
 
-        abs_coeffs.append(abs_coeff)
-        emi_coeffs.append(emi_coeff)
+        if not store_in_memory:
+            abs_coeffs.add_set(abs_coeff)
+            emi_coeffs.add_set(emi_coeff)
+        else:
+            abs_coeffs.add_dump(abs_coeff)
+            emi_coeffs.add_dump(emi_coeff)
+
+    if store_in_memory:
+        abs_coeffs.finalize_IO()
+        emi_coeffs.finalize_IO()
 
     return abs_coeffs, emi_coeffs
 
