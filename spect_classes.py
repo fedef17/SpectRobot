@@ -835,7 +835,7 @@ class SpectralGcoeff(SpectralObject):
 
         return
 
-    def BuildCoeff(self, lines, Temp, Pres, n_threads = n_threads, preCalc_shapes = False):
+    def BuildCoeff(self, lines, Temp, Pres, n_threads = n_threads, preCalc_shapes = False, debug = False):
         """
         Calculates the G_coeff for the selected level, using the proper lines among lines.
         If preCalc_shapes is set as True, the lines in input shall already contain the calculated shape as attribute. Default is False. Setting preCalc_shapes as True speeds up the calculation by a factor of three when calculating LUTs.
