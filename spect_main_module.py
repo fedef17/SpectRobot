@@ -86,21 +86,27 @@ class RetSet(object):
         return
 
 
-def triangle(alt_grid, step, node_alt, first = False, last = False):
+def triangle(alt_grid, node_alt, step = None, node_low = None, node_up = None, first = False, last = False):
+    if step is not None:
+        node_low = node_alt - step
+        node_up = node_alt + step
     cos = np.zeros(len(alt_grid), dtype = float)
     for alt, ii in zip(alt_grid, range(len(alt_grid))):
-        if alt < node_alt-step:
+        if alt < node_lo:
             if first:
                 cos[ii] = 1.0
             else:
                 cos[ii] = 0.0
-        elif alt > node_alt+step:
+        elif alt > node_up:
             if last:
                 cos[ii] = 1.0
             else:
                 cos[ii] = 0.0
         else:
-            cos[ii] = (1.0-abs(alt-node_alt))/step
+            if alt >= node_alt:
+                cos[ii] = (1.0-(alt-node_alt))/(node_up-node_alt)
+            else:
+                cos[ii] = (1.0-(node_alt-alt))/(node_alt-node_lo)
 
     cos = sbm.AtmProfile(cos, alt_grid)
 
@@ -112,12 +118,28 @@ class LinearProfile(RetSet):
     """
     A profile constructed through linear interpolation of a set of params.
     """
+
     def __init__(self, name, atmosphere, alt_nodes, apriori_prof, apriori_prof_err, first_guess_prof = None):
+        pass
         self.name = name
         self.set = []
         self.n_par = len(alt_nodes)
+        if first_guess_prof is None:
+            first_guess_prof = apriori_prof
 
+        maskgrid = triangle(atmosphere.grid, alt_nodes[0], node_up = alt_nodes[1], first = True)
+        par = RetParam(name, maskgrid, apriori_prof[0], apriori_prof_err[0], first_guess = first_guess_prof[0])
+        self.set.append(copy.deepcopy(par))
+        for alo, alt, aup, ap, fi, er in zip(alt_nodes[:-2], alt_nodes[1:-1], alt_nodes[2:], apriori_prof, first_guess_prof, apriori_prof_err):
+            maskgrid = triangle(atmosphere.grid, alt, node_up = aup, node_lo = alo)
+            par = RetParam(name, maskgrid, ap, er, first_guess = fi)
+            self.set.append(copy.deepcopy(par))
 
+        maskgrid = triangle(atmosphere.grid, alt_nodes[-1], node_lo = alt_nodes[-2], last = True)
+        par = RetParam(name, maskgrid, apriori_prof[-1], apriori_prof_err[-1], first_guess = first_guess_prof[-1])
+        self.set.append(copy.deepcopy(par))
+
+        return
 
 
 class RetParam(object):
@@ -138,6 +160,9 @@ class RetParam(object):
     def update_par(self, new_value):
         self.value = new_value
         return
+
+    def add_jacset():
+        pass
 
 
 class LookUpTable(object):
@@ -431,6 +456,8 @@ class LutSet(object):
             #print('Producing set for '+ctype+'...')
             gigi = spcl.SpectralGcoeff(ctype, spectral_grid, self.mol, self.iso, self.MM, minimal_level_string, unidentified_lines = self.unidentified_lines)
             gigi.BuildCoeff(lines, Temp, Pres, preCalc_shapes = True)
+
+            print('iiiii add_PT iiiiii {} {} {}'.format(ctype, np.max(gigi.spectrum),np.min(gigi.spectrum)))
 
             #print(np.max(gigi.spectrum))
 
@@ -763,7 +790,7 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
     return LUTs_wnames
 
 
-def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUTs = None, cartLUTs = None, useLUTs = False, lines = None, store_in_memory = False, tagLOS = None):
+def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUTs = None, cartLUTs = None, useLUTs = False, lines = None, store_in_memory = False, tagLOS = None, cartDROP = None):
     """
     Builds the absorption and emission coefficients for isomolec, both in LTE and non-LTE. If in non-LTE, isomolec levels have to contain the attribute local_vibtemp, produced by calling level.add_local_vibtemp(). If LTE is set to True, LTE populations are used.
     LUT is the object created by makeLUT_nonLTE_Gcoeffs(). Contains
@@ -779,14 +806,20 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
     if len(Temps) > 10:
         store_in_memory = True
 
+    if cartDROP is None:
+        cartDROP = 'stuff_'+date_stamp()
+        if not os.path.exists(cartDROP):
+            os.mkdir(cartDROP)
+        cartDROP += '/'
+
     #print('Sto entrandooooooooooooo, mol {}, iso {}'.format(isomolec.mol, isomolec.iso))
     abs_coeff = prepare_spe_grid(wn_range)
     spectral_grid = abs_coeff.spectral_grid
 
     if tagLOS is None:
         tagLOS = 'LOS'
-    abs_coeffs = AbsSetLOS('./abscoeff_'+tagLOS+'.pic')
-    emi_coeffs = AbsSetLOS('./emicoeff_'+tagLOS+'.pic')
+    abs_coeffs = AbsSetLOS(cartDROP+'abscoeff_'+tagLOS+'.pic')
+    emi_coeffs = AbsSetLOS(cartDROP+'emicoeff_'+tagLOS+'.pic')
     if store_in_memory:
         abs_coeffs.prepare_export()
         emi_coeffs.prepare_export()
@@ -800,12 +833,12 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
     if not unidentified_lines:
         for lev in isomolec.levels:
             levvo = getattr(isomolec, lev)
-            strin = cartLUTs+'LUTLOS_mol_{}_iso_{}_{}.pic'.format(isomolec.mol, isomolec.iso, lev)
+            strin = cartDROP+'LUTLOS_mol_{}_iso_{}_{}.pic'.format(isomolec.mol, isomolec.iso, lev)
             set_tot[lev] = LutSet(isomolec.mol, isomolec.iso, isomolec.MM, level = levvo, filename = strin)
             set_tot[lev].prepare_export([zui for zui in zip(Press,Temps)])
     else:
         #print('siamo quaaaA')
-        strin = cartLUTs+'LUTLOS_mol_{}_iso_{}_alllev.pic'.format(isomolec.mol, isomolec.iso)
+        strin = cartDROP+'LUTLOS_mol_{}_iso_{}_alllev.pic'.format(isomolec.mol, isomolec.iso)
         set_tot['all'] = LutSet(isomolec.mol, isomolec.iso, isomolec.MM, level = None, filename = strin)
         set_tot['all'].prepare_export([zui for zui in zip(Press,Temps)])
 
@@ -880,6 +913,9 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
                     vibt = levello.local_vibtemp[num]
                 #Gco = levello.Gcoeffs[num]
                 Gco = set_tot[lev].load_singlePT_from_file(spectral_grid)
+                for key, val in zip(Gco.keys(), Gco.values()):
+                    print('iiiii make_abs iiiiii {} {} {}'.format(key, np.max(val.spectrum),np.min(val.spectrum)))
+
                 pop = spcl.Boltz_ratio_nodeg(levello.energy, vibt) / Q_part
                 abs_coeff.add_to_spectrum(Gco['absorption'], Strength = pop)
                 abs_coeff.add_to_spectrum(Gco['ind_emission'], Strength = -pop)
@@ -889,6 +925,9 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
             abs_coeffs.add_set(abs_coeff)
             emi_coeffs.add_set(emi_coeff)
         else:
+            print(pop)
+            print('iiiii make_abs 2 iiiiii {} {} {}'.format('absorb-ind_emiss', np.max(abs_coeff.spectrum),np.min(abs_coeff.spectrum)))
+            print('iiiii make_abs 2 iiiiii {} {} {}'.format('sp_emiss', np.max(emi_coeff.spectrum),np.min(emi_coeff.spectrum)))
             abs_coeffs.add_dump(abs_coeff)
             emi_coeffs.add_dump(emi_coeff)
 

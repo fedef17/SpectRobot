@@ -18,6 +18,7 @@ import spect_base_module as sbm
 import lineshape
 import time
 from multiprocessing import Process, Queue
+import cPickle as pickle
 
 n_threads = 8
 
@@ -86,9 +87,9 @@ class SpectLine(object):
 
     def Print(self, ofile = None):
         if ofile is None:
-            print('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.E_lower,self.Up_lev_str,self.Lo_lev_str))
+            print('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}{:8.3f}{:8.3f}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.E_lower,self.Up_lev_str,self.Lo_lev_str,self.g_lo,self.g_up))
         else:
-            ofile.write('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.E_lower,self.Up_lev_str,self.Lo_lev_str))
+            ofile.write('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}{:8.3f}{:8.3f}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.E_lower,self.Up_lev_str,self.Lo_lev_str,self.g_lo,self.g_up))
         return
 
 
@@ -103,18 +104,21 @@ class SpectLine(object):
         return CalcStrength_at_T(self.Mol, self.Iso, self.Strength, self.Freq, self.E_lower, T)
 
 
-    def LinkToMolec(self,IsoMolec):
+    def LinkToMolec(self, isomolec):
         """
         IsoMolec has to be of the corresponding type in module spect_base_module.
         Sets the values of the two attr. "Up_lev_id" and "Lo_lev_id" with the internal names of the corresponding levels in IsoMolec. So that all level quantities can be accessed via Level = getattr(IsoMolec,Up_lev_id) and using Level..
         """
+        if isomolec is None:
+            return False
+
         self.Up_lev_id = None
         self.E_vib_up = None
         self.Lo_lev_id = None
         self.E_vib_lo = None
 
-        for lev in IsoMolec.levels:
-            Level = getattr(IsoMolec, lev)
+        for lev in isomolec.levels:
+            Level = getattr(isomolec, lev)
             if Level.minimal_level_string() == self.minimal_level_string_up():
                 self.Up_lev_id = lev
                 self.E_vib_up = Level.energy
@@ -180,7 +184,24 @@ class SpectLine(object):
 
         return S
 
-    def Calc_Gcoeffs(self, Temp, Pres, isomolec):
+    def CalcStrength_from_Einstein(self, Temp, Q_part, iso_ab = 1.0, isomolec = None, T_vib_lower = None, T_vib_upper = None):
+        """
+        Calculates the line strength S in nonLTE conditions, starting from the Einstein A coeff.
+        """
+        if T_vib_lower is None:
+            T_vib_lower = Temp
+        if T_vib_upper is None:
+            T_vib_upper = Temp
+
+        G_coeffs = self.Calc_Gcoeffs(Temp, isomolec = isomolec)
+
+        S_ab = (G_coeffs['absorption']*Boltz_ratio_nodeg(self.E_vib_lo, Temp) - G_coeffs['ind_emission']*Boltz_ratio_nodeg(self.E_vib_up, Temp))/Q_part
+
+        S_em = G_coeffs['sp_emission']*Boltz_ratio_nodeg(self.E_vib_up, Temp)/Q_part
+
+        return iso_ab*S_ab, iso_ab*S_em
+
+    def Calc_Gcoeffs(self, Temp, isomolec = None):
         ctypes = ['sp_emission','ind_emission','absorption']
         values = []
 
@@ -194,11 +215,11 @@ class SpectLine(object):
             lev_energy_lo = self.E_vib_lo
             lev_energy_up = self.E_vib_up
 
-        G_co = Einstein_A_to_Gcoeff_spem(self, Temp, Pres, isomolec.MM, lev_energy_up)
+        G_co = Einstein_A_to_Gcoeff_spem(self, Temp, lev_energy_up)
         values.append(G_co)
-        G_co = Einstein_A_to_Gcoeff_indem(self, Temp, Pres, isomolec.MM, lev_energy_up)
+        G_co = Einstein_A_to_Gcoeff_indem(self, Temp, lev_energy_up)
         values.append(G_co)
-        G_co = Einstein_A_to_Gcoeff_abs(self, Temp, Pres, isomolec.MM, lev_energy_lo)
+        G_co = Einstein_A_to_Gcoeff_abs(self, Temp, lev_energy_lo)
         values.append(G_co)
 
         G_coeffs = dict(zip(ctypes,values))
@@ -307,6 +328,52 @@ class SpectralObject(object):
 
         return
 
+    def __add__(self, obj2):
+        coso = copy.deepcopy(self)
+        if type(obj2) is SpectralObject:
+            if len(obj2.spectrum) == len(self.spectrum):
+                coso.spectrum += obj2.spectrum
+            else:
+                coso.add_to_spectrum(obj2)
+        else:
+            coso.spectrum += obj2
+        return coso
+
+    def __sub__(self, obj2):
+        coso = copy.deepcopy(self)
+        if type(obj2) is SpectralObject:
+            if len(obj2.spectrum) == len(self.spectrum):
+                coso.spectrum -= obj2.spectrum
+            else:
+                coso.add_to_spectrum(obj2, Strength=-1.0)
+        else:
+            coso.spectrum -= obj2
+        return coso
+
+    def __mul__(self, obj2):
+        coso = copy.deepcopy(self)
+        if type(obj2) is SpectralObject:
+            coso.spectrum *= obj2.spectrum
+        else:
+            coso.spectrum *= obj2
+        return coso
+
+    def __div__(self, obj2):
+        coso = copy.deepcopy(self)
+        if type(obj2) is SpectralObject:
+            coso.spectrum /= obj2.spectrum
+        else:
+            coso.spectrum /= obj2
+        return coso
+
+    # def __truediv__(self, obj2):
+    #     coso = copy.deepcopy(self)
+    #     if type(obj2) is SpectralObject:
+    #         coso.spectrum /= obj2.spectrum
+    #     else:
+    #         coso.spectrum /= obj2
+    #     return coso
+
     def n_points(self):
         return len(self.spectrum)
 
@@ -317,12 +384,29 @@ class SpectralObject(object):
         self.mask = mask
         return
 
-    def multiply(self, factor):
+    def multiply(self, factor, save = True):
         """
         Simply multiplies all the spectrum by factor.
         """
-        self.spectrum = self.spectrum * factor
-        return
+        if save:
+            self.spectrum = self.spectrum * factor
+            return
+        else:
+            coso_new = factor * self.spectrum
+            coso = copy.deepcopy(self)
+            coso.spectrum = coso_new
+            return coso
+
+    def exp_elementwise(self, exp_factor, save = False):
+        coso_new = np.exp(self.spectrum * exp_factor)
+        if save:
+            self.spectrum = coso_new
+            return
+        else:
+            coso = copy.deepcopy(self)
+            coso.spectrum = coso_new
+            return coso
+
 
     def erase_grid(self):
         """
@@ -509,6 +593,7 @@ class SpectralObject(object):
 
         return
 
+
     def divide_elementwise(self, spectrum2, save = True):
         """
         Divides each element of self.spectrum by the corresponding element of spectrum2.
@@ -519,7 +604,7 @@ class SpectralObject(object):
         if save:
             self.spectrum = self.spectrum/spectrum2.spectrum
         else:
-            coso_new = spectrum2.spectrum/self.spectrum
+            coso_new = self.spectrum/spectrum2.spectrum
             coso = copy.deepcopy(self)
             coso.spectrum = coso_new
             return coso
@@ -553,9 +638,13 @@ class SpectralObject(object):
 
         time0 = time.time()
 
+        lines_ok = []
         if Strengths is not None:
             for line, strength in zip(lines,Strengths):
-                line.multiply(strength)
+                line2 = line.multiply(strength, save = False)
+                lines_ok.append(line2)
+
+        lines = lines_ok
 
         processi = []
         coda = []
@@ -658,6 +747,10 @@ class SpectralObject(object):
 
         coda.put([matrix,initarr,finarr])
 
+        return
+
+    def plot(self):
+        pl.plot(self.spectral_grid.grid, self.spectrum)
         return
 
 
@@ -770,35 +863,87 @@ class SpectralGcoeff(SpectralObject):
             lines_new = self.calc_shapes(lines, Temp, Pres)
 
         #print(len(lines_new))
-        #print('aaaaaaaaaaazzzulegnaaaaaaaaaaaaaaaa')
-        # for lin in lines:
-        #     print(self.lev_string, lin.minimal_level_string_up(), lin.minimal_level_string_lo())
-        #     if self.lev_string == lin.minimal_level_string_up() or self.lev_string == lin.minimal_level_string_lo():
-        #         print('NAUUiii')
-        #         print(self.lev_string, self.mol, self.iso, lin.Up_lev_str, lin.Mol, lin.Iso)
+        print('aaaaaaaaaaazzzulegnaaaaaaaaaaaaaaaa')
 
         if not self.unidentified_lines:
             if self.ctype == 'sp_emission' or self.ctype == 'ind_emission':
-                #shapes_tot = [lin.shape for lin in lines_new if (self.lev_string in lin.Up_lev_str and lin.Mol == self.mol and lin.Iso == self.iso)]
-                shapes_tot = [lin.shape for lin in lines_new if (self.lev_string == lin.minimal_level_string_up() and lin.Mol == self.mol and lin.Iso == self.iso)]
-                G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string == lin.minimal_level_string_up() and lin.Mol == self.mol and lin.Iso == self.iso)]
+                lin_ok_levup = [lin for lin in lines_new if lin.Mol == self.mol and lin.Iso == self.iso and self.lev_string == lin.minimal_level_string_up()]
+                shapes_tot = [lin.shape for lin in lin_ok_levup]
+                G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lin_ok_levup]
+
+                if debug:
+                    print(self.lev_string, self.mol, self.iso)
+                    print('NAUUiii------------- EMM')
+                    print(self.ctype)
+
+                    coil = sbm.find_molec_metadata(6, 1)
+                    Qch4 = CalcPartitionSum(6, 1, temp = 296.0)
+
+                    freqs = np.array([lin.Freq for lin in lin_ok_levup])
+                    ch4 = pickle.load(open('./ch4_iso1_LTE.pic','r'))
+
+                    isoab = coil['iso_ratio']
+
+                    for lev in ch4.iso_1.levels:
+                        levello = getattr(ch4.iso_1, lev)
+                        if levello.equiv(self.lev_string):
+                            E_vib = levello.energy
+                            pop = Boltz_ratio_nodeg(E_vib, Temp)/Qch4
+                            for lin,Gco in zip(lin_ok_levup, G_coeffs_tot):
+                                stren = isoab*Gco*pop
+                                stren_ab, stren_em = lin.CalcStrength_from_Einstein(Temp, Qch4, iso_ab = isoab, isomolec = ch4.iso_1)
+                                print(('{:12.3f}'+5*'{:12.3e}'+2*'{:12.3f}').format(lin.Freq, stren_ab, stren_em, stren, stren/stren_ab, stren_em/stren_ab, lin.g_lo, lin.g_up))
+
             elif self.ctype == 'absorption':
-                shapes_tot = [lin.shape for lin in lines_new if (self.lev_string == lin.minimal_level_string_lo() and lin.Mol == self.mol and lin.Iso == self.iso)]
-                G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string == lin.minimal_level_string_lo() and lin.Mol == self.mol and lin.Iso == self.iso)]
+                lin_ok_levlo = [lin for lin in lines_new if lin.Mol == self.mol and lin.Iso == self.iso and self.lev_string == lin.minimal_level_string_lo()]
+                shapes_tot = [lin.shape for lin in lin_ok_levlo]
+                G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lin_ok_levlo]
+                if debug:
+                    print(self.lev_string, self.mol, self.iso)
+                    print('NAUUiii------------- ABSS')
+                    print(self.ctype)
+
+                    coil = sbm.find_molec_metadata(6, 1)
+                    Qch4 = CalcPartitionSum(6, 1, temp = Temp)
+
+                    freqs = np.array([lin.Freq for lin in lin_ok_levlo])
+                    ch4 = pickle.load(open('./ch4_iso1_LTE.pic','r'))
+
+                    isoab = coil['iso_ratio']
+
+                    for lev in ch4.iso_1.levels:
+                        levello = getattr(ch4.iso_1, lev)
+                        if levello.equiv(self.lev_string):
+                            E_vib = levello.energy
+                            pop = Boltz_ratio_nodeg(E_vib, Temp)/Qch4
+                            for lin,Gco in zip(lin_ok_levlo, G_coeffs_tot):
+                                stren = isoab*Gco*pop
+                                stren_ab, stren_em = lin.CalcStrength_from_Einstein(Temp, Qch4, iso_ab = isoab, isomolec = ch4.iso_1)
+                                print(('{:12.3f}'+5*'{:12.3e}'+2*'{:12.3f}').format(lin.Freq, stren_ab, stren_em, stren, stren/stren_ab, stren_em/stren_ab, lin.g_lo, lin.g_up))
+            #     shapes_tot = [lin.shape for lin in lines_new if (self.lev_string == lin.minimal_level_string_up() and lin.Mol == self.mol and lin.Iso == self.iso)]
+            #     G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string == lin.minimal_level_string_up() and lin.Mol == self.mol and lin.Iso == self.iso)]
+            # elif self.ctype == 'absorption':
+            #     shapes_tot = [lin.shape for lin in lines_new if (self.lev_string == lin.minimal_level_string_lo() and lin.Mol == self.mol and lin.Iso == self.iso)]
+            #     G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string == lin.minimal_level_string_lo() and lin.Mol == self.mol and lin.Iso == self.iso)]
             else:
                 raise ValueError('ctype has to be one among {}, {} and {}. {} not recognized'.format(ctypes[0],ctypes[1],ctypes[2],self.ctype))
         else:
-            if self.ctype == 'sp_emission' or self.ctype == 'ind_emission':
+            try:
                 shapes_tot = [lin.shape for lin in lines_new if (lin.Mol == self.mol and lin.Iso == self.iso)]
                 G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (lin.Mol == self.mol and lin.Iso == self.iso)]
-            elif self.ctype == 'absorption':
-                shapes_tot = [lin.shape for lin in lines_new if (lin.Mol == self.mol and lin.Iso == self.iso)]
-                G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (lin.Mol == self.mol and lin.Iso == self.iso)]
-            else:
+            except:
                 raise ValueError('ctype has to be one among {}, {} and {}. {} not recognized'.format(ctypes[0],ctypes[1],ctypes[2],self.ctype))
-        #print(len(shapes_tot))
 
-        self.add_lines_to_spectrum(shapes_tot, Strengths = G_coeffs_tot)
+        if len(shapes_tot) > 0:
+            maxi = [np.max(hap.spectrum*gco) for hap,gco in zip(shapes_tot, G_coeffs_tot)]
+            mini = [np.min(hap.spectrum*gco) for hap,gco in zip(shapes_tot, G_coeffs_tot)]
+            print('cazzzzuuuuuuuuuuuuuuuu {} {}'.format(max(maxi),min(mini)))
+            self.add_lines_to_spectrum(shapes_tot, Strengths = G_coeffs_tot)
+            maxi = [np.max(hap.spectrum*gco) for hap,gco in zip(shapes_tot, G_coeffs_tot)]
+            mini = [np.min(hap.spectrum*gco) for hap,gco in zip(shapes_tot, G_coeffs_tot)]
+            print('cazzzzuuuuuuuuuuuuuuuu {} {}'.format(max(maxi),min(mini)))
+
+            print('iiiiiiiiiiiiiiiiiiiiii {} {} {}'.format(self.ctype, np.max(self.spectrum),np.min(self.spectrum)))
 
         self.temp = Temp
         self.pres = Pres
@@ -827,13 +972,13 @@ class SpectralGcoeff(SpectralObject):
                 raise ValueError('The two coeffs have different temperatures! You should specify the interpolation temperature, not the pressure')
             w1, w2 = sbm.weight(Pres, self.pres, coeff2.pres, itype='exp')
             new_spect = w1 * self.spectrum + w2 * coeff2.spectrum
-            gigi = spcl.SpectralGcoeff(self.ctype, self.spectral_grid, self.mol, self.iso, self.MM, self.lev_string, spectrum = new_spect, Pres = Pres, Temp = self.temp)
+            gigi = SpectralGcoeff(self.ctype, self.spectral_grid, self.mol, self.iso, self.MM, self.lev_string, spectrum = new_spect, Pres = Pres, Temp = self.temp)
         elif Temp is not None:
             if self.pres != coeff2.pres:
                 raise ValueError('The two coeffs have different pressures! You should specify the interpolation pressure, not the temperature')
             w1, w2 = sbm.weight(Temp, self.temp, coeff2.temp, itype='lin')
             new_spect = w1 * self.spectrum + w2 * coeff2.spectrum
-            gigi = spcl.SpectralGcoeff(self.ctype, self.spectral_grid, self.mol, self.iso, self.MM, self.lev_string, spectrum = new_spect, Pres = self.pres, Temp = Temp)
+            gigi = SpectralGcoeff(self.ctype, self.spectral_grid, self.mol, self.iso, self.MM, self.lev_string, spectrum = new_spect, Pres = self.pres, Temp = Temp)
 
         return gigi
 
@@ -843,7 +988,8 @@ def calc_shapes_lines(wn_arr, lines, Temp, Pres, isomolec):
     Calculates the line shapes and attaches new attributes "shape" and "Gcoeffs" to the line objects. line.Gcoeffs is a dict with three elements: sp_emission, ind_emission and absorption. Multiplying line.shape by line.Gcoeffs one has the three SpectralGcoeffs contributions of each line.
     """
 
-    if not isomolec.is_in_LTE:
+    #if not isomolec.is_in_LTE:
+    if len(isomolec.levels) > 0:
         oks = []
         for line in lines:
             oks.append(line.LinkToMolec(isomolec))
@@ -913,7 +1059,7 @@ def PrepareCalcShapes(wn_arr, linee_mol, Temp, Pres, isomolec):
         lin_grid_ok = SpectralGrid(lin_grid+fr_grid_ok, units = 'cm_1')
 
         lin.MakeShapeLine(lin_grid_ok, Temp, Pres, isomolec.MM, keep_memory = True)
-        lin.Calc_Gcoeffs(Temp, Pres, isomolec)
+        lin.Calc_Gcoeffs(Temp, isomolec = isomolec)
 
     #print('Made {} lines in {} s'.format(len(linee_mol),time.time()-time0))
 
@@ -991,7 +1137,7 @@ def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev 
                 IsoMolecol = [molecolo for molecolo in link_to_isomolecs if (molecolo.mol == mol and molecolo.iso == iso)]
                 if len(IsoMolecol) > 1:
                     raise ValueError('Multiple levels corresponding to line! WTF?')
-                line._LinkToMolec_(IsoMolecol)
+                line.LinkToMolec(IsoMolecol)
             linee_ok.append(line)
     #print('Ho creato lista di oggetti linea??\n')
 
@@ -1113,7 +1259,7 @@ def Einstein_A_to_LineStrength_nonLTE(A_coeff, wavenumber, E_lower, T_vib_lower,
     return S
 
 
-def Einstein_A_to_Gcoeff_abs(line, Temp, Pres, MM, E_vib):
+def Einstein_A_to_Gcoeff_abs(line, Temp, E_vib):
     """
     Calculates the absorption contribution to the G_coeff for a SINGLE LINE with the level as LOWER level of the transition.
     G_coeff = hcw/(4pi) * \sum_lines(B_12*Phi(T,P)) --> the sum is on all the lines with LEVEL as LOWER level of the transition.
@@ -1131,7 +1277,7 @@ def Einstein_A_to_Gcoeff_abs(line, Temp, Pres, MM, E_vib):
     return G_co
 
 
-def Einstein_A_to_Gcoeff_indem(line, Temp, Pres, MM, E_vib):
+def Einstein_A_to_Gcoeff_indem(line, Temp, E_vib):
     """
     Calculates the induced emission contribution to the G_coeff for a SINGLE LINE with the level as UPPER level of the transition.
     G_coeff = hcw/(4pi) * \sum_lines(B_21*Phi(T,P)) --> the sum is on all the lines with LEVEL as UPPER level of the transition.
@@ -1146,7 +1292,7 @@ def Einstein_A_to_Gcoeff_indem(line, Temp, Pres, MM, E_vib):
     return G_co
 
 
-def Einstein_A_to_Gcoeff_spem(line, Temp, Pres, MM, E_vib):
+def Einstein_A_to_Gcoeff_spem(line, Temp, E_vib):
     """
     Calculates the spontaneous emission contribution to the G_coeff for a SINGLE LINE with the level as UPPER level of the transition.
     G_coeff = hcw/(4pi) * \sum_lines(A_21*Phi(T,P)) --> the sum is on all the lines with LEVEL as UPPER level of the transition.
@@ -1189,7 +1335,7 @@ def Calc_BB(spectral_grid, T, units = 'ergscm2'):
     Returns a SpectralIntensity object with a Planck spectrum at temp T in the range considered.
     """
 
-    spectrum = 2*h_cgs*c_cgs**2 * (spectral_grid.grid)**3 / (np.exp(-c2*spectral_grid.grid/T)-1)
+    spectrum = 2*h_cgs*c_cgs**2 * (spectral_grid.grid)**3 / (np.exp(c2*spectral_grid.grid/T)-1)
     BBfu = SpectralIntensity(spectrum, spectral_grid, units = 'ergscm2')
 
     if units != 'ergscm2':

@@ -20,6 +20,10 @@ import time
 import spect_main_module as smm
 from multiprocessing import Process, Queue
 
+with warnings.catch_warnings(record=True) as w:
+    # Cause all warnings to always be triggered.
+    warnings.simplefilter("error")
+
 ### Program for CH4 HCN and C2H2 climatology on TITAN from VIMS spectra
 
 input_file = 'inputs_spect_robot.in'
@@ -67,7 +71,7 @@ zold = np.linspace(0.,10*(n_alt_max-1),n_alt_max)
 
 ch4 = sbm.Molec(6, 'CH4')
 
-ch4.add_iso(1, LTE = False)
+#ch4.add_iso(1, LTE = True)
 alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(inputs['cart_molecs']+'vt_ch4__029_2006_t15_10.2s_29.9_vmrA2_v10_0061', n_alt_max = 2*n_alt_max-1)
 
 atm_old = sbm.AtmProfile(np.interp(alts_vib,zold,temp_old),np.array(alts_vib),profname='temp')
@@ -86,8 +90,8 @@ ch4.add_clim(atm_gases_old['CH4'])
 
 print('qui')
 
-ch4.iso_1.add_levels(levels, energies, vibtemps=vib_ok, add_fundamental = True, T_kin = atm_old.temp)
-ch4.iso_1.add_simmetries_levels(linee)
+#ch4.iso_1.add_levels(levels, energies, vibtemps=vib_ok, add_fundamental = True, T_kin = atm_old.temp)
+#ch4.iso_1.add_simmetries_levels(linee)
 
 
 # ch4.add_iso(2, LTE = False)
@@ -98,7 +102,7 @@ ch4.iso_1.add_simmetries_levels(linee)
 # print(levels, energies)
 #
 # #ch4.add_iso(3, MM = 17, ratio = 6.158e-4, LTE = True)
-# ch4.add_all_iso_from_HITRAN(linee)
+ch4.add_all_iso_from_HITRAN(linee, n_max = 1)
 
 # hcn = sbm.Molec(23, 'HCN')
 # hcn.add_all_iso_from_HITRAN(linee)
@@ -117,8 +121,11 @@ planet.add_gas(ch4)
 linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1]]
 
 if inputs['test']:
-    print('Keeping ONLY 1000 linee for testing')
-    linee = linee[:1000]
+    print('Keeping ONLY 100 strongest lines for testing')
+    essesss = [lin.Strength for lin in linee]
+    essort = np.sort(np.array(essesss))[-100]
+    linee_sel = [lin for lin in linee if lin.Strength >= essort]
+    linee = linee_sel
 
 #planet = pickle.load(open(inputs['cart_molecs']+'ch4_old_ref.pic','r'))
 
@@ -151,7 +158,7 @@ linea1.details()
 # Winter Solstice NORTH
 #ssp = sbm.Coords(np.array([-26.,90,0]),s_ref='Spherical')
 
-steplos = 120.0 # km!
+steplos = 1200.0 # km!
 point1 = linea1.calc_atm_intersections(planet, delta_x = steplos)
 print(len(point1))
 #psza1 = linea1.calc_SZA_along_los(planet,ssp)
@@ -169,4 +176,4 @@ for gas in planet.gases:
 
 radtran_600 = linea1.radtran(wn_range, planet, linee, step = steplos, cartLUTs = inputs['cart_LUTS'])
 # opt_depth = linea1.calc_optical_depth(wn_range, planet, linee, step = steplos, cartLUTs = inputs['cart_LUTS'])
-pickle.dump(radtran_600, open('./radtran_600_CONFRONTO.pic','w'))
+pickle.dump(radtran_600, open('./radtran_600_CONFRONTO_LTE.pic','w'))
