@@ -156,10 +156,18 @@ class SpectLine(object):
         return dw, lw, p_shift
 
 
-    def MakeShapeLine(self, wn_arr, Temp, Pres, MM, Strength = 1.0, verbose = False, keep_memory = False):
+    def MakeShapeLine(self, Temp, Pres, grid = None, MM = None, Strength = 1.0, verbose = False, keep_memory = False):
         """
         Calls routine makeshape.
         """
+        if MM is None:
+            MM = sbm.find_molec_metadata(self.Mol, self.Iso)['iso_MM']
+
+        if grid is None:
+            sp_step = 5.e-4
+            grid = np.arange(-imxsig*sp_step/2,imxsig*sp_step/2,sp_step, dtype = float)
+            grid = SpectralGrid(grid+self.Freq, units = 'cm_1')
+
         Pres_atm = convert_to_atm(Pres, units='hPa')
         wn_0 = self.Freq + self.P_shift * Pres_atm # Pressure shift
         if(verbose): print('Shifto da {} a {}'.format(self.Freq, wn_0))
@@ -169,7 +177,7 @@ class SpectLine(object):
         if(verbose): print('Lorenz width = {}; Doppler width = {}'.format(lw,dw))
 
         #shape = MakeShape_py(wn_arr, self.Freq, lw, dw, Strength = Strength)
-        shape = MakeShape(wn_arr, self.Freq, lw, dw, Strength = Strength)
+        shape = MakeShape(grid, self.Freq, lw, dw, Strength = Strength)
 
         if keep_memory:
             self.shape = shape
@@ -184,7 +192,7 @@ class SpectLine(object):
 
         return S
 
-    def CalcStrength_from_Einstein(self, Temp, Q_part, iso_ab = 1.0, isomolec = None, T_vib_lower = None, T_vib_upper = None):
+    def CalcStrength_from_Einstein(self, Temp, Q_part = None, iso_ab = None, isomolec = None, T_vib_lower = None, T_vib_upper = None):
         """
         Calculates the line strength S in nonLTE conditions, starting from the Einstein A coeff.
         """
@@ -193,13 +201,27 @@ class SpectLine(object):
         if T_vib_upper is None:
             T_vib_upper = Temp
 
+        if Q_part is None:
+            Q_part = CalcPartitionSum(self.Mol, self.Iso, temp = Temp)
+
+        if iso_ab is None:
+            iso_ab = sbm.find_molec_metadata(self.Mol, self.Iso)['iso_ratio']
+
         G_coeffs = self.Calc_Gcoeffs(Temp, isomolec = isomolec)
 
-        S_ab = (G_coeffs['absorption']*Boltz_ratio_nodeg(self.E_vib_lo, Temp) - G_coeffs['ind_emission']*Boltz_ratio_nodeg(self.E_vib_up, Temp))/Q_part
+        try:
+            E_vib_lo = self.E_vib_lo
+            E_vib_up = self.E_vib_up
+        except:
+            E_vib_lo = 0.0
+            E_vib_up = 0.0
 
-        S_em = G_coeffs['sp_emission']*Boltz_ratio_nodeg(self.E_vib_up, Temp)/Q_part
+        S_ab = (G_coeffs['absorption']*Boltz_ratio_nodeg(E_vib_lo, T_vib_lower) - G_coeffs['ind_emission']*Boltz_ratio_nodeg(E_vib_up, T_vib_upper))/Q_part
+
+        S_em = G_coeffs['sp_emission']*Boltz_ratio_nodeg(E_vib_up, T_vib_upper)/Q_part
 
         return iso_ab*S_ab, iso_ab*S_em
+
 
     def Calc_Gcoeffs(self, Temp, isomolec = None):
         ctypes = ['sp_emission','ind_emission','absorption']
@@ -330,7 +352,7 @@ class SpectralObject(object):
 
     def __add__(self, obj2):
         coso = copy.deepcopy(self)
-        if type(obj2) is SpectralObject:
+        if isinstance(obj2, SpectralObject):
             if len(obj2.spectrum) == len(self.spectrum):
                 coso.spectrum += obj2.spectrum
             else:
@@ -341,7 +363,7 @@ class SpectralObject(object):
 
     def __sub__(self, obj2):
         coso = copy.deepcopy(self)
-        if type(obj2) is SpectralObject:
+        if isinstance(obj2, SpectralObject):
             if len(obj2.spectrum) == len(self.spectrum):
                 coso.spectrum -= obj2.spectrum
             else:
@@ -352,7 +374,7 @@ class SpectralObject(object):
 
     def __mul__(self, obj2):
         coso = copy.deepcopy(self)
-        if type(obj2) is SpectralObject:
+        if isinstance(obj2, SpectralObject):
             coso.spectrum *= obj2.spectrum
         else:
             coso.spectrum *= obj2
@@ -360,7 +382,7 @@ class SpectralObject(object):
 
     def __div__(self, obj2):
         coso = copy.deepcopy(self)
-        if type(obj2) is SpectralObject:
+        if isinstance(obj2, SpectralObject):
             coso.spectrum /= obj2.spectrum
         else:
             coso.spectrum /= obj2
@@ -749,8 +771,12 @@ class SpectralObject(object):
 
         return
 
-    def plot(self):
-        pl.plot(self.spectral_grid.grid, self.spectrum)
+    def plot(self, label = None):
+        pl.plot(self.spectral_grid.grid, self.spectrum, label = label)
+        return
+
+    def norm_plot(self, label = None):
+        pl.plot(self.spectral_grid.grid, self.spectrum/np.max(self.spectrum), label = label)
         return
 
 
@@ -1058,7 +1084,7 @@ def PrepareCalcShapes(wn_arr, linee_mol, Temp, Pres, isomolec):
         ind_ok, fr_grid_ok = closest_grid(wn_arr, lin.Freq)
         lin_grid_ok = SpectralGrid(lin_grid+fr_grid_ok, units = 'cm_1')
 
-        lin.MakeShapeLine(lin_grid_ok, Temp, Pres, isomolec.MM, keep_memory = True)
+        lin.MakeShapeLine(Temp, Pres, grid = lin_grid_ok, MM = isomolec.MM, keep_memory = True)
         lin.Calc_Gcoeffs(Temp, isomolec = isomolec)
 
     #print('Made {} lines in {} s'.format(len(linee_mol),time.time()-time0))
@@ -1272,8 +1298,6 @@ def Einstein_A_to_Gcoeff_abs(line, Temp, E_vib):
 
     G_co = h_cgs*c_cgs*line.Freq * rot_pop * B_12 / (4*np.pi)
 
-    #shape = line.MakeShapeLine(wn_arr, Temp, Pres, MM, Strength = G_co)
-
     return G_co
 
 
@@ -1287,8 +1311,6 @@ def Einstein_A_to_Gcoeff_indem(line, Temp, E_vib):
     rot_pop = line.g_up * Boltz_ratio_nodeg(line.E_lower+line.Freq-E_vib, Temp)
     G_co = h_cgs*c_cgs*line.Freq * rot_pop * B_21 / (4*np.pi)
 
-    #shape = line.MakeShapeLine(wn_arr, Temp, Pres, MM, Strength = G_co)
-
     return G_co
 
 
@@ -1299,8 +1321,6 @@ def Einstein_A_to_Gcoeff_spem(line, Temp, E_vib):
     """
     rot_pop = line.g_up * Boltz_ratio_nodeg(line.E_lower+line.Freq-E_vib, Temp)
     G_co = h_cgs*c_cgs*line.Freq * rot_pop * line.A_coeff / (4*np.pi)
-
-    #shape = line.MakeShapeLine(wn_arr, Temp, Pres, MM, Strength = G_co)
 
     return G_co
 

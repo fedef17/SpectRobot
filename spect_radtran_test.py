@@ -57,68 +57,68 @@ linee = spcl.read_line_database(db_file, freq_range = wn_range)
 
 ### LOADING PLANET
 print('Loading planet...')
-
-planet = sbm.Titan()
-
-### LOADING MOLECULES
-print('Loading molecules...')
-
-n_alt_max = 121
-
-temp_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_temp.dat', 'temp', n_alt_max = n_alt_max)
-pres_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_pres.dat', 'pres', n_alt_max = n_alt_max)
-zold = np.linspace(0.,10*(n_alt_max-1),n_alt_max)
-
-ch4 = sbm.Molec(6, 'CH4')
-
-#ch4.add_iso(1, LTE = True)
-alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(inputs['cart_molecs']+'vt_ch4__029_2006_t15_10.2s_29.9_vmrA2_v10_0061', n_alt_max = 2*n_alt_max-1)
-
-atm_old = sbm.AtmProfile(np.interp(alts_vib,zold,temp_old),np.array(alts_vib),profname='temp')
-atm_old.add_profile(np.exp(np.interp(alts_vib,zold,np.log(pres_old))), 'pres', interp = 'exp')
-
-planet.add_atmosphere(atm_old)
-
-atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_vmr_prof.dat', 'vmr', n_alt_max = n_alt_max)
-
-for gas in atm_gases_old:
-    atm_gases_old[gas] = sbm.AtmProfile(np.interp(alts_vib,zold,atm_gases_old[gas]),np.array(alts_vib),profname='vmr')
-print(atm_gases_old.viewitems())
-
-ch4.link_to_atmos(atm_old)
-ch4.add_clim(atm_gases_old['CH4'])
-
-print('qui')
-
-#ch4.iso_1.add_levels(levels, energies, vibtemps=vib_ok, add_fundamental = True, T_kin = atm_old.temp)
-#ch4.iso_1.add_simmetries_levels(linee)
-
-
-# ch4.add_iso(2, LTE = False)
-# alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(inputs['cart_molecs']+'vt_ch4__029_2006_t15_10.2s_29.9_vmrA2_v10_0062')
-# ch4.iso_2.add_levels(levels, energies, vibtemps=vib_ok, add_fundamental = True, T_kin = atm_old.temp)
-# ch4.iso_2.add_simmetries_levels(linee)
 #
-# print(levels, energies)
+# planet = sbm.Titan()
 #
-# #ch4.add_iso(3, MM = 17, ratio = 6.158e-4, LTE = True)
-ch4.add_all_iso_from_HITRAN(linee, n_max = 1)
-
-# hcn = sbm.Molec(23, 'HCN')
-# hcn.add_all_iso_from_HITRAN(linee)
-# hcn.link_to_atmos(atm_old)
-# hcn.add_clim(atm_gases_old['HCN'])
+# ### LOADING MOLECULES
+# print('Loading molecules...')
 #
-# c2h2 = sbm.Molec(26, 'C2H2')
-# c2h2.add_all_iso_from_HITRAN(linee)
-# c2h2.link_to_atmos(atm_old)
-# c2h2.add_clim(atm_gases_old['C2H2'])
-
-planet.add_gas(ch4)
-# planet.add_gas(hcn)
-# planet.add_gas(c2h2)
-
-linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1]]
+# n_alt_max = 121
+#
+# temp_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_temp.dat', 'temp', n_alt_max = n_alt_max)
+# pres_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_pres.dat', 'pres', n_alt_max = n_alt_max)
+# zold = np.linspace(0.,10*(n_alt_max-1),n_alt_max)
+#
+# ch4 = sbm.Molec(6, 'CH4')
+#
+# #ch4.add_iso(1, LTE = True)
+# alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(inputs['cart_molecs']+'vt_ch4__029_2006_t15_10.2s_29.9_vmrA2_v10_0061', n_alt_max = 2*n_alt_max-1)
+#
+# atm_old = sbm.AtmProfile(np.interp(alts_vib,zold,temp_old),np.array(alts_vib),profname='temp')
+# atm_old.add_profile(np.exp(np.interp(alts_vib,zold,np.log(pres_old))), 'pres', interp = 'exp')
+#
+# planet.add_atmosphere(atm_old)
+#
+# atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_vmr_prof.dat', 'vmr', n_alt_max = n_alt_max)
+#
+# for gas in atm_gases_old:
+#     atm_gases_old[gas] = sbm.AtmProfile(np.interp(alts_vib,zold,atm_gases_old[gas]),np.array(alts_vib),profname='vmr')
+# print(atm_gases_old.viewitems())
+#
+# ch4.link_to_atmos(atm_old)
+# ch4.add_clim(atm_gases_old['CH4'])
+#
+# print('qui')
+#
+# #ch4.iso_1.add_levels(levels, energies, vibtemps=vib_ok, add_fundamental = True, T_kin = atm_old.temp)
+# #ch4.iso_1.add_simmetries_levels(linee)
+#
+#
+# # ch4.add_iso(2, LTE = False)
+# # alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(inputs['cart_molecs']+'vt_ch4__029_2006_t15_10.2s_29.9_vmrA2_v10_0062')
+# # ch4.iso_2.add_levels(levels, energies, vibtemps=vib_ok, add_fundamental = True, T_kin = atm_old.temp)
+# # ch4.iso_2.add_simmetries_levels(linee)
+# #
+# # print(levels, energies)
+# #
+# # #ch4.add_iso(3, MM = 17, ratio = 6.158e-4, LTE = True)
+# ch4.add_all_iso_from_HITRAN(linee, n_max = 1)
+#
+# # hcn = sbm.Molec(23, 'HCN')
+# # hcn.add_all_iso_from_HITRAN(linee)
+# # hcn.link_to_atmos(atm_old)
+# # hcn.add_clim(atm_gases_old['HCN'])
+# #
+# # c2h2 = sbm.Molec(26, 'C2H2')
+# # c2h2.add_all_iso_from_HITRAN(linee)
+# # c2h2.link_to_atmos(atm_old)
+# # c2h2.add_clim(atm_gases_old['C2H2'])
+#
+# planet.add_gas(ch4)
+# # planet.add_gas(hcn)
+# # planet.add_gas(c2h2)
+#
+# linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1]]
 
 if inputs['test']:
     print('Keeping ONLY 100 strongest lines for testing')
@@ -127,7 +127,8 @@ if inputs['test']:
     linee_sel = [lin for lin in linee if lin.Strength >= essort]
     linee = linee_sel
 
-#planet = pickle.load(open(inputs['cart_molecs']+'ch4_old_ref.pic','r'))
+#pickle.dump(planet, open(inputs['cart_molecs']+'ch4_old_ref_LTE.pic','w'))
+planet = pickle.load(open(inputs['cart_molecs']+'ch4_old_ref_LTE.pic','r'))
 
 #sys.exit()
 ##########################################################
@@ -158,22 +159,37 @@ linea1.details()
 # Winter Solstice NORTH
 #ssp = sbm.Coords(np.array([-26.,90,0]),s_ref='Spherical')
 
-steplos = 1200.0 # km!
-point1 = linea1.calc_atm_intersections(planet, delta_x = steplos)
-print(len(point1))
-#psza1 = linea1.calc_SZA_along_los(planet,ssp)
 
-pt1 = linea1.calc_along_LOS(planet.atmosphere, profname = 'temp', set_attr = True)
-print(pt1)
-pp1 = linea1.calc_along_LOS(planet.atmosphere, profname = 'pres', set_attr = True)
-print(pp1)
+linea1.calc_radtran_steps(planet, linee)
 
-for gas in planet.gases:
-    for iso in planet.gases[gas].all_iso:
-        isomol = getattr(planet.gases[gas], iso)
-        print('Gas {}, iso {}, lev {}'.format(isomol.mol, isomol.iso, isomol.levels))
-    conc_gas = linea1.calc_abundance(planet, gas, set_attr = True)
+print('Ci sono {} steps'.format(len(linea1.radtran_steps['step'])))
 
+sys.exit()
+
+# steplos = 120.0 # km!
+# point1 = linea1.calc_atm_intersections(planet, delta_x = steplos)
+# print(len(point1))
+# #psza1 = linea1.calc_SZA_along_los(planet,ssp)
+#
+# pt1 = linea1.calc_along_LOS(planet.atmosphere, profname = 'temp', set_attr = True)
+# print(pt1)
+# pp1 = linea1.calc_along_LOS(planet.atmosphere, profname = 'pres', set_attr = True)
+# print(pp1)
+#
+# for gas in planet.gases:
+#     for iso in planet.gases[gas].all_iso:
+#         isomol = getattr(planet.gases[gas], iso)
+#         print('Gas {}, iso {}, lev {}'.format(isomol.mol, isomol.iso, isomol.levels))
+#     conc_gas = linea1.calc_abundance(planet, gas, set_attr = True)
+
+
+pl.ion()
 radtran_600 = linea1.radtran(wn_range, planet, linee, step = steplos, cartLUTs = inputs['cart_LUTS'])
+pl.legend()
 # opt_depth = linea1.calc_optical_depth(wn_range, planet, linee, step = steplos, cartLUTs = inputs['cart_LUTS'])
-pickle.dump(radtran_600, open('./radtran_600_CONFRONTO_LTE.pic','w'))
+pickle.dump(radtran_600, open('./radtran_600_adaptingSTEP_LTE.pic','w'))
+
+intens = radtran_600[0]
+pl.figure(42)
+intens.plot()
+pl.grid()
