@@ -1442,6 +1442,7 @@ def MakeShape(wn_arr, wn_0, lw, dw, Strength = 1.0):
     y = Strength*y/fac
 
     shape = SpectralObject(y, wn_arr)
+    #print('IIIIIIII ', shape.integrate())
 
     return shape
 

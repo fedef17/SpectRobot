@@ -51,6 +51,7 @@ time0 = time.time()
 
 db_file = inputs['hitran_db']
 wn_range = [2900.,3200.]
+#wn_range = [2000.,2500.]
 
 #linee = spcl.read_line_database(db_file)
 linee = spcl.read_line_database(db_file, freq_range = wn_range)
@@ -70,6 +71,7 @@ print('Loading planet...')
 # zold = np.linspace(0.,10*(n_alt_max-1),n_alt_max)
 #
 # ch4 = sbm.Molec(6, 'CH4')
+# #co = sbm.Molec(5, 'CO')
 #
 # #ch4.add_iso(1, LTE = True)
 # alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(inputs['cart_molecs']+'vt_ch4__029_2006_t15_10.2s_29.9_vmrA2_v10_0061', n_alt_max = 2*n_alt_max-1)
@@ -87,6 +89,8 @@ print('Loading planet...')
 #
 # ch4.link_to_atmos(atm_old)
 # ch4.add_clim(atm_gases_old['CH4'])
+# #co.link_to_atmos(atm_old)
+# #co.add_clim(atm_gases_old['CO'])
 #
 # print('qui')
 #
@@ -103,6 +107,7 @@ print('Loading planet...')
 # #
 # # #ch4.add_iso(3, MM = 17, ratio = 6.158e-4, LTE = True)
 # ch4.add_all_iso_from_HITRAN(linee, n_max = 1)
+# #co.add_all_iso_from_HITRAN(linee, n_max = 1)
 #
 # # hcn = sbm.Molec(23, 'HCN')
 # # hcn.add_all_iso_from_HITRAN(linee)
@@ -115,20 +120,27 @@ print('Loading planet...')
 # # c2h2.add_clim(atm_gases_old['C2H2'])
 #
 # planet.add_gas(ch4)
+# #planet.add_gas(co)
 # # planet.add_gas(hcn)
 # # planet.add_gas(c2h2)
-#
-# linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1]]
 
-if inputs['test']:
+planet = pickle.load(open(inputs['cart_molecs']+'ch4_old_ref_LTE.pic','r'))
+planet.gases['CH4'].iso_1.ratio = planet.gases['CH4'].iso_1.ratio[0]
+pickle.dump(planet, open(inputs['cart_molecs']+'ch4_old_ref_LTE.pic','w'))
+#planet = pickle.load(open(inputs['cart_molecs']+'co_old_ref_LTE.pic','r'))
+
+planetmols = [gas.mol for gas in planet.gases.values()]
+
+linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1] and lin.Mol in planetmols]
+
+max_lines = 50
+if inputs['test'] and len(linee) > max_lines:
     print('Keeping ONLY 100 strongest lines for testing')
     essesss = [lin.Strength for lin in linee]
-    essort = np.sort(np.array(essesss))[-100]
+    essort = np.sort(np.array(essesss))[-1*max_lines]
     linee_sel = [lin for lin in linee if lin.Strength >= essort]
     linee = linee_sel
 
-#pickle.dump(planet, open(inputs['cart_molecs']+'ch4_old_ref_LTE.pic','w'))
-planet = pickle.load(open(inputs['cart_molecs']+'ch4_old_ref_LTE.pic','r'))
 
 #sys.exit()
 ##########################################################
@@ -160,11 +172,36 @@ linea1.details()
 #ssp = sbm.Coords(np.array([-26.,90,0]),s_ref='Spherical')
 
 
-linea1.calc_radtran_steps(planet, linee)
+linea1.calc_radtran_steps(planet, linee, max_Plog_variation = 4.0, max_opt_depth = 100.0, max_T_variation = 15.0)
 
 print('Ci sono {} steps'.format(len(linea1.radtran_steps['step'])))
 
-sys.exit()
+# pl.ion()
+# pl.figure(37)
+# pl.plot(planet.atmosphere.pres, planet.atmosphere.grid[0])
+# pl.xscale('log')
+# pl.grid()
+#
+# pl.figure(38)
+# pl.plot(planet.gases['CO'].abundance.vmr, planet.gases['CO'].abundance.grid[0])
+# pl.grid()
+#
+# altlos = [p.Spherical()[2] for p in linea1.intersections]
+#
+# pl.figure(39)
+# pl.plot(linea1.atm_quantities['pres'], altlos)
+# pl.xscale('log')
+# pl.grid()
+#
+# pl.figure(30)
+# pl.plot(linea1.atm_quantities['CO'], altlos)
+# pl.xscale('log')
+# pl.grid()
+#
+# sys.exit()
+
+
+
 
 # steplos = 120.0 # km!
 # point1 = linea1.calc_atm_intersections(planet, delta_x = steplos)
@@ -184,10 +221,10 @@ sys.exit()
 
 
 pl.ion()
-radtran_600 = linea1.radtran(wn_range, planet, linee, step = steplos, cartLUTs = inputs['cart_LUTS'])
+radtran_600 = linea1.radtran(wn_range, planet, linee, cartLUTs = inputs['cart_LUTS'])
 pl.legend()
 # opt_depth = linea1.calc_optical_depth(wn_range, planet, linee, step = steplos, cartLUTs = inputs['cart_LUTS'])
-pickle.dump(radtran_600, open('./radtran_600_adaptingSTEP_LTE.pic','w'))
+pickle.dump(radtran_600, open('./radtran_CO_600_adaptingSTEP_LTE.pic','w'))
 
 intens = radtran_600[0]
 pl.figure(42)
