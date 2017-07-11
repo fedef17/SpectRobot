@@ -85,6 +85,12 @@ class RetSet(object):
             par.update_par(new)
         return
 
+    def profile(self):
+        """
+        Calculates the profile summing on the parameters.
+        """
+        pass
+
 
 def triangle(alt_grid, node_alt, step = None, node_low = None, node_up = None, first = False, last = False):
     if step is not None:
@@ -120,24 +126,29 @@ class LinearProfile(RetSet):
     """
 
     def __init__(self, name, atmosphere, alt_nodes, apriori_prof, apriori_prof_err, first_guess_prof = None):
-        pass
         self.name = name
         self.set = []
         self.n_par = len(alt_nodes)
         if first_guess_prof is None:
             first_guess_prof = apriori_prof
 
+        # First point
         maskgrid = triangle(atmosphere.grid, alt_nodes[0], node_up = alt_nodes[1], first = True)
         par = RetParam(name, maskgrid, apriori_prof[0], apriori_prof_err[0], first_guess = first_guess_prof[0])
         self.set.append(copy.deepcopy(par))
+
+        # Points in the middle
         for alo, alt, aup, ap, fi, er in zip(alt_nodes[:-2], alt_nodes[1:-1], alt_nodes[2:], apriori_prof, first_guess_prof, apriori_prof_err):
             maskgrid = triangle(atmosphere.grid, alt, node_up = aup, node_lo = alo)
             par = RetParam(name, maskgrid, ap, er, first_guess = fi)
             self.set.append(copy.deepcopy(par))
 
+        # Last point
         maskgrid = triangle(atmosphere.grid, alt_nodes[-1], node_lo = alt_nodes[-2], last = True)
         par = RetParam(name, maskgrid, apriori_prof[-1], apriori_prof_err[-1], first_guess = first_guess_prof[-1])
         self.set.append(copy.deepcopy(par))
+
+        self.orig_atmosphere = atmosphere
 
         return
 
@@ -818,8 +829,9 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
 
     if tagLOS is None:
         tagLOS = 'LOS'
-    abs_coeffs = AbsSetLOS(cartDROP+'abscoeff_'+tagLOS+'.pic')
-    emi_coeffs = AbsSetLOS(cartDROP+'emicoeff_'+tagLOS+'.pic')
+    tagg = tagLOS+'_mol_{}_iso_{}'.format(isomolec.mol, isomolec.iso)
+    abs_coeffs = AbsSetLOS(cartDROP+'abscoeff_'+tagg+'.pic')
+    emi_coeffs = AbsSetLOS(cartDROP+'emicoeff_'+tagg+'.pic')
     if store_in_memory:
         abs_coeffs.prepare_export()
         emi_coeffs.prepare_export()
