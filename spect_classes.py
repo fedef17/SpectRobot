@@ -19,6 +19,7 @@ import lineshape
 import time
 from multiprocessing import Process, Queue
 import cPickle as pickle
+from numba import jit
 
 n_threads = 8
 
@@ -350,6 +351,17 @@ class SpectralObject(object):
 
         return
 
+    def __getitem__(self, key):
+        #print(key[0], key[1])
+        cond = (self.spectral_grid.grid > key[0]-self.spectral_grid.step()/2.0) & (self.spectral_grid.grid < key[1]+self.spectral_grid.step()/2.0)
+        if not np.any(cond):
+            return None
+        spectral_grid = SpectralGrid(self.spectral_grid.grid[cond], units = self.units)
+        coso = copy.deepcopy(self)
+        coso.spectral_grid = spectral_grid
+        coso.spectrum = self.spectrum[cond]
+        return coso
+
     def __add__(self, obj2):
         coso = copy.deepcopy(self)
         if isinstance(obj2, SpectralObject):
@@ -540,7 +552,6 @@ class SpectralObject(object):
 
         return intt
 
-
     def convolve_to_grid(self, new_spectral_grid, spectral_widths = None, conv_type = 'gaussian', n_sigma = 5.):
         """
         Convolution of the spectrum to a different grid.
@@ -556,10 +567,19 @@ class SpectralObject(object):
         for num,freq in zip(range(len(spectrum)), new_spectral_grid.grid):
             ind_ok, fr_grid_ok = closest_grid(self.spectral_grid, freq)
             lin_grid_ok = SpectralGrid(lin_grid+fr_grid_ok, units = 'cm_1')
-            spect_old = self.spectrum[((self.spectral_grid.grid > lin_grid_ok.grid[0]-self.spectral_grid.step()/2.) & (self.spectral_grid.grid < lin_grid_ok.grid[-1]+self.spectral_grid.step()/2.))]
+            # spect_old = self.spectrum[((self.spectral_grid.grid > lin_grid_ok.grid[0]-self.spectral_grid.step()/2.) & (self.spectral_grid.grid < lin_grid_ok.grid[-1]+self.spectral_grid.step()/2.))]
 
-            for num2 in range(len(spect_old)):
-                spectrum[num] += spect_old[num2]*gigi[num2]*new_spectral_grid.step()
+            spect_old = self[lin_grid_ok.grid[0],lin_grid_ok.grid[-1]]
+
+            #print(len(spect_old), len(gigi), len(lin_grid))
+            if len(spect_old.spectrum) < len(gigi):
+                zero = SpectralObject(np.zeros(len(lin_grid_ok.grid)), lin_grid_ok)
+                zero.add_to_spectrum(spect_old)
+                spect_old = zero
+
+            spectrum[num] = conv_single(spect_old, gigi, new_spectral_grid.step())
+            # for num2 in range(len(spect_old)):
+            #     spectrum[num] += spect_old[num2]*gigi[num2]*new_spectral_grid.step()
 
         convolved = SpectralObject(spectrum, new_spectral_grid)
         return convolved
@@ -570,7 +590,8 @@ class SpectralObject(object):
         Spectrum2 is a SpectralObject with a spectral_grid which is entirely or partially included in the self.spectral_grid, with the SAME STEP.
         """
         if self.spectral_grid.step() != spectrum2.spectral_grid.step():
-            raise ValueError("Different steps {} and {}, can't add the two spectra, convolve first".format(self.spectral_grid.step(),spectrum2.spectral_grid.step()))
+            #raise ValueError("Different steps {} and {}, can't add the two spectra, convolve first".format(self.spectral_grid.step(),spectrum2.spectral_grid.step()))
+            print("Different steps {} and {}, can't add the two spectra, convolve first".format(self.spectral_grid.step(),spectrum2.spectral_grid.step()))
 
         len2 = len(spectrum2.spectrum)
         grid_intersect = np.intersect1d(self.spectral_grid.grid, spectrum2.spectral_grid.grid)
@@ -779,6 +800,10 @@ class SpectralObject(object):
         pl.plot(self.spectral_grid.grid, self.spectrum/np.max(self.spectrum), label = label)
         return
 
+@jit
+def conv_single(spect, window, step):
+    convolution = np.trapz(spect.spectrum*window, x = spect.spectral_grid.grid)
+    return convolution
 
 class SpectralIntensity(SpectralObject):
     """
