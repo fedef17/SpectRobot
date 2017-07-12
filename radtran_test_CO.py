@@ -26,10 +26,12 @@ with warnings.catch_warnings(record=True) as w:
 
 ### Program for CH4 HCN and C2H2 climatology on TITAN from VIMS spectra
 
+time0 = time.time()
+
 input_file = 'inputs_spect_robot.in'
 
-# cart_test = '/home/fedefab/Scrivania/Research/Dotto/Reports/Code_validation/INP_FILES_29_25s_sza30/'
-cart_test = '/home/fedefab/Scrivania/Research/Dotto/Reports/Code_validation/INP_FILES_29_25s_sza30/INP_HOMO/'
+cart_test = '/home/fedefab/Scrivania/Research/Dotto/Reports/Code_validation/INP_FILES_29_25s_sza30/'
+#cart_test = '/home/fedefab/Scrivania/Research/Dotto/Reports/Code_validation/INP_FILES_29_25s_sza30/INP_HOMO/'
 
 cart_LUTS = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/LUTs/'
 
@@ -49,7 +51,7 @@ print('Loading lines...')
 time0 = time.time()
 
 db_file = inputs['hitran_db']
-wn_range = [2110.,2120.]
+wn_range = [2050.,2250.]
 
 #linee = spcl.read_line_database(db_file)
 linee = spcl.read_line_database(db_file, freq_range = wn_range)
@@ -64,24 +66,35 @@ print('Loading molecules...')
 
 n_alt_max = 101
 
-# temp_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_temp_co_ref_07_25s.dat', 'temp', n_alt_max = n_alt_max)
-# pres_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_pres_co_ref_07_25s.dat', 'pres', n_alt_max = n_alt_max)
-temp_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_temp.dat', 'temp', n_alt_max = n_alt_max)
-pres_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_pres.dat', 'pres', n_alt_max = n_alt_max)
+temp_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_temp_co_ref_07_25s.dat', 'temp', n_alt_max = n_alt_max)
+pres_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_pres_co_ref_07_25s.dat', 'pres', n_alt_max = n_alt_max)
+
 zold = np.linspace(0.,10*(n_alt_max-1),n_alt_max)
 
 atm_old = sbm.AtmProfile(temp_old,zold,profname='temp')
 atm_old.add_profile(pres_old, 'pres', interp = 'exp')
 planet.add_atmosphere(atm_old)
 
-#filetvi = inputs['cart_molecs']+'vt_co__07_25s_sza30_vmr04_7.62.1_0050'
-filetvi = inputs['cart_molecs']+'vt_HOMO.dat'
+filetvi = inputs['cart_molecs']+'vt_co__07_25s_sza30_vmr04_7.62.1_0050'
+#filetvi = inputs['cart_molecs']+'vt_HOMO.dat'
 nlte_molecs = sbm.add_nLTE_molecs_from_tvibmanuel(planet, filetvi, linee = linee)#, extend_to_alt = 1500.)
 
 atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_vmr_prof.dat', 'vmr', n_alt_max = n_alt_max)
 
 for gas in atm_gases_old:
     atm_gases_old[gas] = sbm.AtmProfile(atm_gases_old[gas],zold,profname='vmr')
+
+hcn = sbm.Molec(23, 'HCN')
+hcn.add_all_iso_from_HITRAN(linee)
+hcn.link_to_atmos(atm_old)
+hcn.add_clim(atm_gases_old['HCN'])
+planet.add_gas(hcn)
+
+c2h2 = sbm.Molec(26, 'C2H2')
+c2h2.add_all_iso_from_HITRAN(linee)
+c2h2.link_to_atmos(atm_old)
+c2h2.add_clim(atm_gases_old['C2H2'])
+planet.add_gas(c2h2)
 
 print(' ')
 print(atm_gases_old.keys())
@@ -97,7 +110,7 @@ for molec in nlte_molecs.values():
         print('ATTENZZZZIONEEE: gas {} not found in input vmr profiles'.format(molec.name))
         time.sleep(5)
 
-pickle.dump(planet, open(inputs['cart_molecs']+'co_HOMO_ref_nonLTE.pic','w'))
+pickle.dump(planet, open(inputs['cart_molecs']+'co_old_ref_nonLTE.pic','w'))
 # planet = pickle.load(open(inputs['cart_molecs']+'co_old_ref_nonLTE.pic'))
 
 planetmols = [gas.mol for gas in planet.gases.values()]
@@ -113,7 +126,7 @@ linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_rang
 #     linee = linee_sel
 
 
-linee = [lin for lin in linee if lin.Iso <= 2 and lin.Mol == 5]
+#linee = [lin for lin in linee if lin.Iso <= 3 and lin.Mol == 5]
 
 for lin in linee:
     lin.Print()
@@ -122,18 +135,17 @@ print(len(linee))
 
 ####################### BUILDING ABS_COEFFFFF
 
-pixels = smm.read_input_observed(cart_test+'../')
-#pixels = smm.read_input_observed(cart_test)
+pixels = smm.read_input_observed(cart_test)
 loss = []
 pl.ion()
-for pix in pixels[:1]:
+for pix in pixels[:3]:
     linea1 = pix.LOS(verbose = True)
     loss.append(linea1)
 
     # linea1.calc_atm_intersections(planet)
     # pl.plot([p.Spherical()[2] for p in linea1.intersections])
 
-    linea1.calc_radtran_steps(planet, linee, max_Plog_variation = 2.0, max_opt_depth = 1.0, max_T_variation = 5.0)
+    linea1.calc_radtran_steps(planet, linee, max_Plog_variation = 2.0, max_opt_depth = 10.0, max_T_variation = 5.0)
 
     print('Tangent ALT! :' ,linea1.tangent_altitude)
     time.sleep(3)
@@ -145,12 +157,17 @@ for pix in pixels[:1]:
     radtran = linea1.radtran(wn_range, planet, linee, cartLUTs = inputs['cart_LUTS'])
     #pl.legend()
 
-    pickle.dump(radtran, open('./radtran_CO_test_LOSVERO{:04d}_alliso_HOMO_151.pic'.format(int(pix.limb_tg_alt)),'w'))
+    pickle.dump(radtran, open('./radtran_CO_test_LOSVERO{:04d}_intero_trueatm.pic'.format(int(pix.limb_tg_alt)),'w'))
 
-    intens = radtran[0]
-    pl.figure(42)
-    intens.plot()
-    pl.grid()
+    # intens = radtran[0]
+    # pl.figure(42)
+    # intens.plot()
+    # pl.grid()
+
+tot_time = time.time()-time0
+print('Tempo totale: {} min'.format(tot_time/60.))
+
+print('Tempo una LOS: {} min'.format(tot_time/180.))
 
     # new_grid = smm.prepare_spe_grid(wn_range, sp_step = 25.e-4)
     # spet = intens.convolve_to_grid(new_grid.spectral_grid)

@@ -217,9 +217,14 @@ class SpectLine(object):
             E_vib_lo = 0.0
             E_vib_up = 0.0
 
-        S_ab = (G_coeffs['absorption']*Boltz_ratio_nodeg(E_vib_lo, T_vib_lower) - G_coeffs['ind_emission']*Boltz_ratio_nodeg(E_vib_up, T_vib_upper))/Q_part
+        try:
+            S_ab = (G_coeffs['absorption']*Boltz_ratio_nodeg(E_vib_lo, T_vib_lower) - G_coeffs['ind_emission']*Boltz_ratio_nodeg(E_vib_up, T_vib_upper))/Q_part
 
-        S_em = G_coeffs['sp_emission']*Boltz_ratio_nodeg(E_vib_up, T_vib_upper)/Q_part
+            S_em = G_coeffs['sp_emission']*Boltz_ratio_nodeg(E_vib_up, T_vib_upper)/Q_part
+        except Exception as cazzillo:
+            self.Print()
+            print(self.E_vib_lo, self.E_vib_up, T_vib_upper, T_vib_lower)
+            raise cazzillo
 
         return iso_ab*S_ab, iso_ab*S_em
 
