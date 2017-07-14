@@ -89,8 +89,9 @@ temp_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_temp_co_ref_07_25
 pres_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_pres_co_ref_07_25s.dat', 'pres', n_alt_max = n_alt_max)
 
 zold = np.linspace(0.,10*(n_alt_max-1),n_alt_max)
+alt_gri = sbm.AtmGrid('alt', zold)
 
-atm_old = sbm.AtmProfile(temp_old,zold,profname='temp')
+atm_old = sbm.AtmProfile_new(alt_gri, temp_old, 'temp', 'lin')
 atm_old.add_profile(pres_old, 'pres', interp = 'exp')
 planet.add_atmosphere(atm_old)
 
@@ -101,7 +102,7 @@ nlte_molecs = sbm.add_nLTE_molecs_from_tvibmanuel(planet, filetvi, linee = linee
 atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_vmr_prof.dat', 'vmr', n_alt_max = n_alt_max)
 
 for gas in atm_gases_old:
-    atm_gases_old[gas] = sbm.AtmProfile(atm_gases_old[gas],zold,profname='vmr')
+    atm_gases_old[gas] = sbm.AtmProfile_new(alt_gri, atm_gases_old[gas], profname='vmr', interp = 'lin')
 
 # hcn = sbm.Molec(23, 'HCN')
 # hcn.add_all_iso_from_HITRAN(linee)

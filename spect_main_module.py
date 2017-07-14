@@ -114,7 +114,8 @@ def triangle(alt_grid, node_alt, step = None, node_low = None, node_up = None, f
             else:
                 cos[ii] = (1.0-(node_alt-alt))/(node_alt-node_lo)
 
-    cos = sbm.AtmProfile(cos, alt_grid)
+    alt_grid = sbm.AtmGrid('alt', alt_grid)
+    cos = sbm.AtmProfile(alt_grid, cos, 'mask', 'lin')
 
     return cos
 
