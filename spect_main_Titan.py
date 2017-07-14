@@ -122,12 +122,14 @@ alts_vib, molecs, levels, energies, vib_ok = sbm.read_tvib_manuel(inputs['cart_m
 ch4.iso_2.add_levels(levels, energies, vibtemps=vib_ok, add_fundamental = True, T_kin = atm_old.temp)
 ch4.iso_2.add_simmetries_levels(linee)
 
+ch4.add_all_iso_from_HITRAN(linee, n_max = 3)
+
 print(levels, energies)
 
 #ch4.add_iso(3, MM = 17, ratio = 6.158e-4, LTE = True)
 # ch4 = None
 # ch4 = sbm.Molec(6, 'CH4')
-# ch4.add_all_iso_from_HITRAN(linee)
+
 # ch4.link_to_atmos(atm_old)
 # ch4.add_clim(atm_gases_old['CH4'])
 

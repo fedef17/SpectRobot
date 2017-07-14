@@ -884,7 +884,9 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
 
     else:
         #read Gcoeffs from LUTS and attach to levels
-        LUTs = read_Gcoeffs_from_LUTs(cartLUTs, fileLUTs)
+        allLUTs = read_Gcoeffs_from_LUTs(cartLUTs, fileLUTs)
+        LUTs = allLUTs['{}_iso_{}'.format(isomolec.mol_name, isomolec.iso)]
+        #LUTs.check_cart(cartLUTs)
         for lev in isomolec.levels:
             levello = getattr(isomolec, lev)
             #print('Loading LutSet for level {}...'.format(lev))
