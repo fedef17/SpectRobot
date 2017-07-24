@@ -413,6 +413,12 @@ class SpectralObject(object):
     #         coso.spectrum /= obj2
     #     return coso
 
+    def max(self):
+        return np.max(self.spectrum)
+
+    def min(self):
+        return np.min(self.spectrum)
+
     def n_points(self):
         return len(self.spectrum)
 

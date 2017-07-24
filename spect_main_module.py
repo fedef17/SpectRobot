@@ -50,21 +50,15 @@ class BayesSet(object):
     """
     Class to represent the FULL parameters space that drive the forward model. One BayesSet may contain more RetSets and other single RetParams. Each RetSet contains more RetParams (e.g. a VMR profile contains more single values)
     """
-    def __init__(self, sets = None, params = None):
-        self.sets = []
-        self.params = []
+    def __init__(self, tag = None):
+        self.tag = tag
+        self.sets = dict()
         self.n_tot = 0
-        if sets is not None:
-            for set_ in sets:
-                self.sets.append(set_)
-                self.n_tot += set_.n_par
-        elif params is not None:
-            for par in params:
-                self.params.append(par)
-                self.n_tot += 1
-        else:
-            raise ValueError('Your parameter space contains no RetSets and no RetParams, set at least one to define the space!')
+        return
 
+    def add_set(self, set_):
+        self.sets[set_.name] = copy.deepcopy(set_)
+        self.n_tot += set_.n_par
         return
 
 
@@ -85,43 +79,95 @@ class RetSet(object):
             par.update_par(new)
         return
 
-    def profile(self):
-        """
-        Calculates the profile summing on the parameters.
-        """
-        pass
+    def items(self):
+        return zip([par.key for par in self.set], self.set)
+
+    def keys(self):
+        return [par.key for par in self.set]
+
+# class RetSet_vmr(RetSet):
+#     """
+#     RetSet for vmr.
+#     """
+#     def __init__(self, gas_name, params):
+#         RetSet.__init__(self, gas_name, params)
+#         return
+#
+#
+# class RetSet_temp(RetSet):
+#     """
+#     RetSet for temp.
+#     """
+#     def __init__(self, params):
+#         RetSet.__init__(self, 'temp', params)
+#         return
+#
+#
+# class RetSet_isoab(RetSet):
+#     """
+#     RetSet for iso abundance.
+#     """
+#     def __init__(self, gas_name, iso_num, params):
+#         RetSet.__init__(self, gas_name, params)
+#         self.iso = iso_num
+#         return
 
 
-def triangle(alt_grid, node_alt, step = None, node_low = None, node_up = None, first = False, last = False):
+def alt_triangle(alt_grid, node_alt, step = None, node_lo = None, node_up = None, first = False, last = False):
     if step is not None:
-        node_low = node_alt - step
+        node_lo = node_alt - step
         node_up = node_alt + step
     cos = np.zeros(len(alt_grid), dtype = float)
     for alt, ii in zip(alt_grid, range(len(alt_grid))):
-        if alt < node_lo:
-            if first:
+        if first:
+            if alt < node_alt:
                 cos[ii] = 1.0
+            elif alt < node_up:
+                cos[ii] = 1.0-(alt-node_alt)/(node_up-node_alt)
             else:
                 cos[ii] = 0.0
-        elif alt > node_up:
-            if last:
+        elif last:
+            if alt > node_alt:
                 cos[ii] = 1.0
+            elif alt > node_lo:
+                cos[ii] = 1.0-(node_alt-alt)/(node_alt-node_lo)
             else:
                 cos[ii] = 0.0
         else:
-            if alt >= node_alt:
-                cos[ii] = (1.0-(alt-node_alt))/(node_up-node_alt)
+            if alt < node_lo or alt > node_up:
+                cos[ii] = 0.0
+            elif alt >= node_alt:
+                cos[ii] = 1.0-(alt-node_alt)/(node_up-node_alt)
             else:
-                cos[ii] = (1.0-(node_alt-alt))/(node_alt-node_lo)
+                cos[ii] = 1.0-(node_alt-alt)/(node_alt-node_lo)
 
+    # pl.plot(cos, alt_grid, label = '{}'.format(node_alt))
     alt_grid = sbm.AtmGrid('alt', alt_grid)
     cos = sbm.AtmProfile(alt_grid, cos, 'mask', 'lin')
 
     return cos
 
 
+def lat_box(lat_limits, lat_ok):
+    """
+    Creates a lat mask grid with a box function. boxes are centred at the mean lat, lat_ok can be any lat contained in the box.
+    """
+    pass
 
-class LinearProfile(RetSet):
+
+def centre_boxes(lat_limits):
+    """
+    from the array of lat_limits [-90, -60, -30, 30, ..] to the array of box centres [-75, -45, 0, ..]. The box centres are used as grid values.
+    """
+    lat_centres = []
+    for la1, la2 in zip(lat_limits[:-1], lat_limits[1:]):
+        lat_centres.append((la1+la2)/2.0)
+
+    return lat_centres
+
+
+
+class LinearProfile_1D(RetSet):
     """
     A profile constructed through linear interpolation of a set of params.
     """
@@ -134,19 +180,19 @@ class LinearProfile(RetSet):
             first_guess_prof = apriori_prof
 
         # First point
-        maskgrid = triangle(atmosphere.grid, alt_nodes[0], node_up = alt_nodes[1], first = True)
-        par = RetParam(name, maskgrid, apriori_prof[0], apriori_prof_err[0], first_guess = first_guess_prof[0])
+        maskgrid = alt_triangle(atmosphere.grid.grid[0], alt_nodes[0], node_up = alt_nodes[1], first = True)
+        par = RetParam(name, alt_nodes[0], maskgrid, apriori_prof[0], apriori_prof_err[0], first_guess = first_guess_prof[0])
         self.set.append(copy.deepcopy(par))
 
         # Points in the middle
         for alo, alt, aup, ap, fi, er in zip(alt_nodes[:-2], alt_nodes[1:-1], alt_nodes[2:], apriori_prof, first_guess_prof, apriori_prof_err):
-            maskgrid = triangle(atmosphere.grid, alt, node_up = aup, node_lo = alo)
-            par = RetParam(name, maskgrid, ap, er, first_guess = fi)
+            maskgrid = alt_triangle(atmosphere.grid.grid[0], alt, node_up = aup, node_lo = alo)
+            par = RetParam(name, alt, maskgrid, ap, er, first_guess = fi)
             self.set.append(copy.deepcopy(par))
 
         # Last point
-        maskgrid = triangle(atmosphere.grid, alt_nodes[-1], node_lo = alt_nodes[-2], last = True)
-        par = RetParam(name, maskgrid, apriori_prof[-1], apriori_prof_err[-1], first_guess = first_guess_prof[-1])
+        maskgrid = alt_triangle(atmosphere.grid.grid[0], alt_nodes[-1], node_lo = alt_nodes[-2], last = True)
+        par = RetParam(name, alt_nodes[-1], maskgrid, apriori_prof[-1], apriori_prof_err[-1], first_guess = first_guess_prof[-1])
         self.set.append(copy.deepcopy(par))
 
         self.orig_atmosphere = atmosphere
@@ -154,27 +200,46 @@ class LinearProfile(RetSet):
         return
 
 
+    def profile(self):
+        """
+        Calculates the profile summing on the parameters.
+        """
+        prof = sbm.AtmProfZeros(self.set[0].maskgrid.grid, self.name, self.set[0].maskgrid.interp.values[0])
+        for par in self.set:
+            prof += par.maskgrid*par.value
+
+        return prof
+
+
+
 class RetParam(object):
     """
     A single parameter in the parameter space.
     """
 
-    def __init__(self, nameset, maskgrid, apriori, apriori_err, first_guess = None):
+    def __init__(self, nameset, key, maskgrid, apriori, apriori_err, first_guess = None):
         self.nameset = nameset
+        self.key = key
         self.maskgrid = copy.deepcopy(maskgrid)
         if first_guess is None:
             first_guess = apriori
         self.value = first_guess
         self.apriori = apriori
         self.apriori_err = apriori_err
+        self.derivatives = dict()
         return
 
     def update_par(self, new_value):
         self.value = new_value
         return
 
-    def add_jacset():
-        pass
+    def add_hires_deriv(self, derivative):
+        self.hires_deriv = copy.deepcopy(derivative)
+        return
+
+    def add_derivative(self, derivative, tag):
+        self.derivatives[tag] = copy.deepcopy(derivative)
+        return
 
 
 class LookUpTable(object):
