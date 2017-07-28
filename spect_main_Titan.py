@@ -58,7 +58,6 @@ print('Loading planet...')
 
 planet = sbm.Titan()
 
-"""
 lat_bands = ['SP','subPS','TS','EQ','TN','subPN','NP']
 lat_ext = [-90.,-75.,-60.,-30.,30.,60.,75.,90.]
 lat_c = [(cos+cos2)/2.0 for cos,cos2 in zip(lat_ext[:-1],lat_ext[1:])]
@@ -71,15 +70,27 @@ for i,band,minl,maxl in zip(range(len(lat_bands)),lat_bands,lat_ext[:-1],lat_ext
     temps.append(T)
     press.append(P)
 
-grid = np.meshgrid(lat_c,z2)
+grid = np.meshgrid(lat_ext[:-1],z2)
 
 TT = np.vstack(temps)
 PP = np.vstack(press)
 
-Atm = sbm.AtmProfile(TT, grid, gridname=['Lat','Alt (km)'], interp = ['box','lin'], profname='temp')
-Atm.add_profile(PP, 'pres', interp = ['box','exp'])
+atmgrid = sbm.AtmGrid(['alt', 'lat'], [z2, lat_ext[:-1]])
+
+Atm = sbm.AtmProfile(atmgrid, TT.T, 'temp', ['lin','box'])
+Atm.add_profile(PP.T, 'pres', ['exp','box'])
 
 planet.add_atmosphere(Atm)
+
+
+DEVO AGGIUNGERE:
+- lettura delle temp di Maya con dipendenza SZA
+- switch al calc_along_LOS per dirgli di cambiare o meno il SZA
+- testare tutto a testate
+- bellaaaaaaaaa
+- lo so che mi odi ma non si poteva fare altrimenti, converrai
+- :*
+
 
 """
 

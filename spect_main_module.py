@@ -3,6 +3,7 @@
 
 import decimal
 import numpy as np
+from numpy.linalg import inv
 import sys
 import os.path
 import matplotlib.pyplot as pl
@@ -20,6 +21,7 @@ import lineshape
 from multiprocessing import Process, Queue
 import copy
 import subprocess
+from scipy.interpolate import RectBivariateSpline as spline2D
 
 n_threads = 8
 
@@ -54,11 +56,64 @@ class BayesSet(object):
         self.tag = tag
         self.sets = dict()
         self.n_tot = 0
+        self.order = []
+        self.old_params = []
         return
 
     def add_set(self, set_):
         self.sets[set_.name] = copy.deepcopy(set_)
         self.n_tot += set_.n_par
+        self.order.append(set_.name)
+        return
+
+    def values(self):
+        return [par.value for par in self.params()]
+
+    def params(self):
+        pars = []
+        for cos in self.order:
+            for par in self.sets[cos].set:
+                pars.append(par)
+        return pars
+
+    def build_jacobian(self):
+        jac = []
+        for nam in self.order:
+            for par in self.sets[nam].set:
+                dertot = []
+                for der in par.derivatives:
+                    dertot += list(der.spectrum)
+                jac.append(dertot)
+
+        jac = np.array(jac)
+        jac = jac.T # n x m: n is len(y), m is self.n_tot
+        self.jacobian = jac
+        return jac
+
+    def update_params(self, delta_x):
+        self.old_params.append([par.value for par in self.params()])
+        for par, val in zip(self.params(), delta_x):
+            par.update_par(val)
+        return
+
+    def VCM_apriori(self):
+        S_ap = np.identity(self.n_tot)
+        for i, aper in zip(range(self.n_tot), [par.apriori_err for par in self.params()]):
+            S_ap[i,i] = aper**2
+        return S_ap
+
+    def apriori_vector(self):
+        return np.array([par.apriori for par in self.params()])
+
+    def param_vector(self):
+        return np.array([par.value for par in self.params()])
+
+    def store_avk(self, av_kernel):
+        self.av_kernel = copy.deepcopy(av_kernel)
+        return
+
+    def store_VCM(self, VCM):
+        self.VCM = copy.deepcopy(VCM)
         return
 
 
@@ -74,10 +129,10 @@ class RetSet(object):
             self.set.append(copy.deepcopy(par))
         return
 
-    def update_params(self, new_values):
-        for par, new in zip(self.set, new_values):
-            par.update_par(new)
-        return
+    # def update_params(self, new_values):
+    #     for par, new in zip(self.set, new_values):
+    #         par.update_par(new)
+    #     return
 
     def items(self):
         return zip([par.key for par in self.set], self.set)
@@ -143,7 +198,8 @@ def alt_triangle(alt_grid, node_alt, step = None, node_lo = None, node_up = None
 
     # pl.plot(cos, alt_grid, label = '{}'.format(node_alt))
     alt_grid = sbm.AtmGrid('alt', alt_grid)
-    cos = sbm.AtmProfile(alt_grid, cos, 'mask', 'lin')
+    #cos = sbm.AtmProfile(alt_grid, cos, 'mask', 'lin')
+    cos = sbm.AtmGridMask(alt_grid, cos, 'lin')
 
     return cos
 
@@ -151,8 +207,24 @@ def alt_triangle(alt_grid, node_alt, step = None, node_lo = None, node_up = None
 def lat_box(lat_limits, lat_ok):
     """
     Creates a lat mask grid with a box function. boxes are centred at the mean lat, lat_ok can be any lat contained in the box.
+    ATTENZIONEEEE: lat_limits sono i punti di inizio dei box lat, andando da nord a sud. Per box lat distribuiti 10 gradi ogni dieci da polo a polo, lat_limits = [-90,-80,...,70,80]. certamente bisogna pensarsi qualcosa di meglio.
     """
-    pass
+    lat_grid = sbm.AtmGrid('lat', lat_limits)
+    cos = []
+    for lat1, lat2 in zip(lat_limits[:-1], lat_limits[1:]):
+        if lat_ok >= lat1 and lat_ok < lat2:
+            cos.append(1.0)
+        else:
+            cos.append(0.0)
+
+    if lat_ok > lat_limits[-1]:
+        cos.append(1.0)
+    else:
+        cos.append(0.0)
+
+    cos = sbm.AtmGridMask(lat_grid, np.array(cos), 'box')
+
+    return cos
 
 
 def centre_boxes(lat_limits):
@@ -165,6 +237,84 @@ def centre_boxes(lat_limits):
 
     return lat_centres
 
+
+class LinearProfile_2D(RetSet):
+    """
+    A profile constructed through linear interpolation of a set of params, with horizontal (i.e. latitudinal) boxes.
+    """
+
+    def __init__(self, name, atmosphere, alt_nodes, lat_limits, apriori_profs, apriori_prof_errs, first_guess_profs = None):
+        self.name = name
+        self.set = []
+        self.n_par = len(alt_nodes)*len(lat_limits)
+
+        alt_grid = sbm.AtmGrid('alt', atmosphere.grid.coords['alt'])
+
+        if first_guess_profs is None:
+            first_guess_profs = apriori_profs
+
+        for apriori_prof, apriori_prof_err, first_guess_prof, lat in zip(apriori_profs, apriori_prof_errs, first_guess_profs, lat_limits):
+            coso = LinearProfile_1D_new(name, alt_grid, alt_nodes, apriori_prof, apriori_prof_err)
+
+            latbox = lat_box(lat_limits, lat)
+            for cos in coso.set:
+                numask = cos.maskgrid.merge(latbox)
+                par = RetParam(name, [lat, cos.key], numask, cos.apriori, cos.apriori_err)
+                self.set.append(copy.deepcopy(par))
+
+        return
+
+
+    def profile(self):
+        """
+        Calculates the profile summing on the parameters.
+        """
+        prof = sbm.AtmProfZeros(self.set[0].maskgrid.grid, self.name, self.set[0].maskgrid.interp.values()[0])
+        for par in self.set:
+            prof += par.maskgrid*par.value
+
+        return prof
+
+
+class LinearProfile_1D_new(RetSet):
+    """
+    A profile constructed through linear interpolation of a set of params.
+    """
+
+    def __init__(self, name, alt_grid, alt_nodes, apriori_prof, apriori_prof_err, first_guess_prof = None):
+        self.name = name
+        self.set = []
+        self.n_par = len(alt_nodes)
+        if first_guess_prof is None:
+            first_guess_prof = apriori_prof
+
+        # First point
+        maskgrid = alt_triangle(alt_grid.grid[0], alt_nodes[0], node_up = alt_nodes[1], first = True)
+        par = RetParam(name, alt_nodes[0], maskgrid, apriori_prof[0], apriori_prof_err[0], first_guess = first_guess_prof[0])
+        self.set.append(copy.deepcopy(par))
+
+        # Points in the middle
+        for alo, alt, aup, ap, fi, er in zip(alt_nodes[:-2], alt_nodes[1:-1], alt_nodes[2:], apriori_prof, first_guess_prof, apriori_prof_err):
+            maskgrid = alt_triangle(alt_grid.grid[0], alt, node_up = aup, node_lo = alo)
+            par = RetParam(name, alt, maskgrid, ap, er, first_guess = fi)
+            self.set.append(copy.deepcopy(par))
+
+        # Last point
+        maskgrid = alt_triangle(alt_grid.grid[0], alt_nodes[-1], node_lo = alt_nodes[-2], last = True)
+        par = RetParam(name, alt_nodes[-1], maskgrid, apriori_prof[-1], apriori_prof_err[-1], first_guess = first_guess_prof[-1])
+        self.set.append(copy.deepcopy(par))
+
+        return
+
+    def profile(self):
+        """
+        Calculates the profile summing on the parameters.
+        """
+        prof = sbm.AtmProfZeros(self.set[0].maskgrid.grid, self.name, self.set[0].maskgrid.interp.values()[0])
+        for par in self.set:
+            prof += par.maskgrid*par.value
+
+        return prof
 
 
 class LinearProfile_1D(RetSet):
@@ -204,7 +354,7 @@ class LinearProfile_1D(RetSet):
         """
         Calculates the profile summing on the parameters.
         """
-        prof = sbm.AtmProfZeros(self.set[0].maskgrid.grid, self.name, self.set[0].maskgrid.interp.values[0])
+        prof = sbm.AtmProfZeros(self.set[0].maskgrid.grid, self.name, self.set[0].maskgrid.interp.values()[0])
         for par in self.set:
             prof += par.maskgrid*par.value
 
@@ -217,7 +367,7 @@ class RetParam(object):
     A single parameter in the parameter space.
     """
 
-    def __init__(self, nameset, key, maskgrid, apriori, apriori_err, first_guess = None):
+    def __init__(self, nameset, key, maskgrid, apriori, apriori_err, first_guess = None, constrain_positive = True):
         self.nameset = nameset
         self.key = key
         self.maskgrid = copy.deepcopy(maskgrid)
@@ -226,10 +376,18 @@ class RetParam(object):
         self.value = first_guess
         self.apriori = apriori
         self.apriori_err = apriori_err
-        self.derivatives = dict()
+        self.derivatives = []
+        self.old_values = []
+        self.constrain_positive = constrain_positive
         return
 
-    def update_par(self, new_value):
+    def update_par(self, delta_par):
+        self.old_values.append(self.value)
+        new_value = self.value+delta_par
+        if self.constrain_positive:
+            while new_value <= 0.0:
+                delta_par /= 2
+                new_value = self.value+delta_par
         self.value = new_value
         return
 
@@ -237,8 +395,11 @@ class RetParam(object):
         self.hires_deriv = copy.deepcopy(derivative)
         return
 
-    def add_derivative(self, derivative, tag):
-        self.derivatives[tag] = copy.deepcopy(derivative)
+    def store_deriv(self, derivative, num):
+        try:
+            self.derivatives[num] = copy.deepcopy(derivative)
+        except:
+            self.derivatives.append(copy.deepcopy(derivative))
         return
 
 
@@ -434,6 +595,23 @@ class LutSet(object):
         Ps = np.array([PT[0] for PT in PTcouples])
         Ts = np.array([PT[1] for PT in PTcouples])
 
+        #casi:
+        if Pres < np.min(Ps):
+            closest_P1 = np.min(Ps)
+            closest_TA = np.min(np.abs(Ts-Temp))
+            closest_TB = np.sort(np.unique(np.abs(Ts-Temp)))[1]
+
+            ok1 = self.find(closest_P1,closest_TA)
+            coeff_ok1 = self.sets[ok1]
+            ok2 = self.find(closest_P1,closest_TB)
+            coeff_ok2 = self.sets[ok2]
+            set_ = dict()
+            for ctype in ctypes:
+                set_[ctype] = coeff_ok1.interpolate(coeff_ok2, Temp = Temp)
+
+            return set_
+
+
         closest_P1 = np.min(np.unique(np.abs(Ps-Pres)))
         closest_P2 = np.sort(np.unique(np.abs(Ps-Pres)))[1]
 
@@ -446,7 +624,6 @@ class LutSet(object):
         closest_TB = np.sort(np.unique(np.abs(Ts-Temp)))[1]
 
         # I'm doing first the P interpolation
-        set_ = []
         ok1 = self.find(closest_P1,closest_TA)
         coeff_ok1 = self.sets[ok1]
         ok2 = self.find(closest_P1,closest_TB)
@@ -456,7 +633,7 @@ class LutSet(object):
         ok4 = self.find(closest_P2,closest_TB)
         coeff_ok4 = self.sets[ok4]
 
-        set_ = []
+        set_ = dict()
         for ctype in ctypes:
             coeff_ok13 = coeff_ok1[ctype].interpolate(coeff_ok3[ctype], Pres = Pres)
             coeff_ok24 = coeff_ok2[ctype].interpolate(coeff_ok4[ctype], Pres = Pres)
@@ -534,7 +711,7 @@ class LutSet(object):
             gigi = spcl.SpectralGcoeff(ctype, spectral_grid, self.mol, self.iso, self.MM, minimal_level_string, unidentified_lines = self.unidentified_lines)
             gigi.BuildCoeff(lines, Temp, Pres, preCalc_shapes = True)
 
-            print('iiiii add_PT iiiiii {} {} {}'.format(ctype, np.max(gigi.spectrum),np.min(gigi.spectrum)))
+            #print('iiiii add_PT iiiiii {} {} {}'.format(ctype, np.max(gigi.spectrum),np.min(gigi.spectrum)))
 
             #print(np.max(gigi.spectrum))
 
@@ -589,7 +766,7 @@ class AbsSetLOS(object):
         return
 
     def prepare_read(self):
-        print('{} coefficients to be read sequentially..'.format(self.counter))
+        #print('{} coefficients to be read sequentially..'.format(self.counter))
         if self.filename is None:
             raise ValueError('ERROR!: NO filename set for LutSet.')
         else:
@@ -766,15 +943,18 @@ def read_Gcoeffs_from_LUTs(cartLUTs, fileLUTs):
     return LUTs
 
 
-def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = None, tagLUTs = 'LUT_', n_pres_levels = None, pres_step_log = 0.1, temp_step = 5.0, save_LUTs = True, n_threads = n_threads, test = False, thres = 0.01):
+def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = None, tagLUTs = 'LUT_', n_pres_levels = None, pres_step_log = 0.4, temp_step = 5.0, save_LUTs = True, n_threads = n_threads, test = False, thres = 0.01, max_pres = None, check_num_couples = False):
     """
     Calculates the G_coeffs for the isomolec_levels at Temp and Pres.
     :param isomolecs: A list of isomolecs objects or a single one.
     """
 
     # Define pressure levels, for each pres check which temps are needed for the full atm and define a set of temperatures to be used at that pressure. Build something to be given as input to make LUTs.
+
     logpres0 = np.log(np.max(atmosphere.pres))
     logpresMIN = np.log(np.min(atmosphere.pres))
+    if max_pres is not None:
+        logpres0 = np.log(max_pres)
     log_pressures = logpresMIN + np.arange(0,(logpres0-logpresMIN)+0.5*pres_step_log,pres_step_log)
     #print('Built set of {} pressure levels from {} to {} with logstep = {}.'.format(len(log_pressures),logpresMIN,logpres0,pres_step_log))
 
@@ -782,10 +962,12 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
 
     pressures = np.exp(log_pressures)
 
-    n_dim = len(atmosphere.grid)
+    #n_dim = atmosphere.grid.n_dim
 
     temps = []
     #### QUI c'è un problema se il passo di pressures è più fitto di quello di atmosphere.pres.............. DA RISOLVERE!
+    ## mi sembra abbastanza una cazzata
+    # grazie fede, molto utile
     okke = (atmosphere.pres <= pressures[1])
     #print(np.any(okke))
     temps_pres = atmosphere.temp[okke]
@@ -827,7 +1009,7 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
     for [Pres, Temp] in PTcouples:
         dw, lw, wsh = lines[airbr].CheckWidths(Temp, Pres, min(mms))
         if lw < thres*dw:
-            print('Skippo pressure level: {} << {}'.format(lw,dw))
+            #print('Skippo pressure level: {} << {}'.format(lw,dw))
             if Temp not in temps_lowpres:
                 temps_lowpres.append(Temp)
         else:
@@ -838,6 +1020,9 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
         PTcouples_ok.insert(0, [Pres_0, Temp])
 
     PTcouples = PTcouples_ok
+
+    if check_num_couples:
+        return len(PTcouples)
 
     if test:
         print('Keeping ONLY 10 PTcouples for testing')
@@ -863,11 +1048,12 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
             LUTS.append(LUT)
 
     LUTs_wnames = dict(zip(names,LUTS))
+    pickle.dump(LUTs_wnames, open(cart_LUTS+tagLUTs+'_all_'+date_stamp()+'.pic','w') )
 
     return LUTs_wnames
 
 
-def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUTs = None, cartLUTs = None, useLUTs = False, lines = None, store_in_memory = False, tagLOS = None, cartDROP = None):
+def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, allLUTs = None, useLUTs = False, lines = None, store_in_memory = False, tagLOS = None, cartDROP = None):
     """
     Builds the absorption and emission coefficients for isomolec, both in LTE and non-LTE. If in non-LTE, isomolec levels have to contain the attribute local_vibtemp, produced by calling level.add_local_vibtemp(). If LTE is set to True, LTE populations are used.
     LUT is the object created by makeLUT_nonLTE_Gcoeffs(). Contains
@@ -950,7 +1136,7 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
 
     else:
         #read Gcoeffs from LUTS and attach to levels
-        allLUTs = read_Gcoeffs_from_LUTs(cartLUTs, fileLUTs)
+        #allLUTs = read_Gcoeffs_from_LUTs(cartLUTs, fileLUTs)
         LUTs = allLUTs['{}_iso_{}'.format(isomolec.mol_name, isomolec.iso)]
         #LUTs.check_cart(cartLUTs)
         for lev in isomolec.levels:
@@ -993,8 +1179,8 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
                     vibt = levello.local_vibtemp[num]
                 #Gco = levello.Gcoeffs[num]
                 Gco = set_tot[lev].load_singlePT_from_file(spectral_grid)
-                for key, val in zip(Gco.keys(), Gco.values()):
-                    print('iiiii make_abs iiiiii {} {} {}'.format(key, np.max(val.spectrum),np.min(val.spectrum)))
+                #for key, val in zip(Gco.keys(), Gco.values()):
+                    #print('iiiii make_abs iiiiii {} {} {}'.format(key, np.max(val.spectrum),np.min(val.spectrum)))
 
                 pop = spcl.Boltz_ratio_nodeg(levello.energy, vibt) / Q_part
                 abs_coeff.add_to_spectrum(Gco['absorption'], Strength = pop)
@@ -1005,9 +1191,9 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
             abs_coeffs.add_set(abs_coeff)
             emi_coeffs.add_set(emi_coeff)
         else:
-            print(pop)
-            print('iiiii make_abs 2 iiiiii {} {} {}'.format('absorb-ind_emiss', np.max(abs_coeff.spectrum),np.min(abs_coeff.spectrum)))
-            print('iiiii make_abs 2 iiiiii {} {} {}'.format('sp_emiss', np.max(emi_coeff.spectrum),np.min(emi_coeff.spectrum)))
+            #print(pop)
+            #print('iiiii make_abs 2 iiiiii {} {} {}'.format('absorb-ind_emiss', np.max(abs_coeff.spectrum),np.min(abs_coeff.spectrum)))
+            #print('iiiii make_abs 2 iiiiii {} {} {}'.format('sp_emiss', np.max(emi_coeff.spectrum),np.min(emi_coeff.spectrum)))
             abs_coeffs.add_dump(abs_coeff)
             emi_coeffs.add_dump(emi_coeff)
 
@@ -1018,15 +1204,22 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, fileLUT
     return abs_coeffs, emi_coeffs
 
 
-def read_obs(filename, formato = 'gbb'):
+def read_obs(filename, formato = 'gbb', wn_range = None):
     if formato == 'gbb':
         outs = sbm.read_obs(filename)
         spectra = outs[-2].T
         flags = outs[-1].T
         wn_arr = outs[-3]
+        if wn_range is not None:
+            cond = (wn_arr >= wn_range[0]) & (wn_arr <= wn_range[1])
+            wn_arr = wn_arr[cond]
+
         gri = spcl.SpectralGrid(wn_arr, units = 'nm')
         obss = []
         for col,zol in zip(spectra, flags):
+            if wn_range is not None:
+                col = col[cond]
+                zol = zol[cond]
             spet = spcl.SpectralIntensity(col, gri, units = 'Wm2')
             spet.add_mask(zol)
             obss.append(spet)
@@ -1058,7 +1251,7 @@ def read_orbits(filename, formato = 'VIMSselect', tag = None):
         return orbits
 
 
-def read_input_observed(observed_cart):
+def read_input_observed(observed_cart, wn_range = None):
     """
     Reads inputs regarding observations. The folder observed_cart has to contain an "orbit_***.dat", an "observ_***.dat". If more files are found inside, all observations are read.
     """
@@ -1071,13 +1264,258 @@ def read_input_observed(observed_cart):
     obs_tot = []
     orbit_tot = []
 
+    for nomee in os.listdir(observed_cart):
+        if 'band_titano' in nomee:
+            bands = sbm.read_bands(observed_cart+nomee, wn_range = wn_range)
+            break
+
+    for nomee in os.listdir(observed_cart):
+        if 'error' in nomee:
+            print(observed_cart+nomee)
+            noise = sbm.read_noise(observed_cart+nomee, wn_range = wn_range)
+            break
+
     for tag in tag_observ:
         orbit_tot += read_orbits(observed_cart+'orbit_'+tag, formato = 'VIMSselect', tag = tag)
-        obs_tot += read_obs(observed_cart+'observ_'+tag, formato = 'gbb')
+        obs_tot += read_obs(observed_cart+'observ_'+tag, formato = 'gbb', wn_range = wn_range)
 
     for ob, orb in zip(obs_tot, orbit_tot):
+        ob.add_noise(noise)
+        ob.add_bands(bands)
         orb['observation'] = copy.deepcopy(ob)
-        pix = sbm.Pixel(orb.keys(), orb.values())
+        pix = sbm.VIMSPixel(orb.keys(), orb.values())
         set_pixels.append(pix)
 
     return set_pixels
+
+
+def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = None, useLUTs = True, debugfile = None):
+    """
+    Main routine for retrieval.
+    """
+
+    print('inside')
+    cartOUT = inputs['out_dir']
+
+    if wn_range is None:
+        sp_gri = pixels[0].observation.spectral_grid
+        sp_gri.grid[0] -= 2*pixels[0].observation.bands.spectrum[0]
+        sp_gri.grid[-1] += 2*pixels[0].observation.bands.spectrum[-1]
+        sp_gri.convertto_cm_1()
+        wn_range = [sp_gri.grid[0], sp_gri.grid[-1]]
+        print(wn_range)
+        sys.exit()
+        sp_gri = prepare_spe_grid(wn_range)
+    else:
+        sp_gri = prepare_spe_grid(wn_range)
+
+    # Update the VMRs of the retrieved gases with the a priori
+    for gas in bayes_set.sets.keys():
+        planet.gases[gas].add_clim(bayes_set.sets[gas].profile())
+
+    #LOSs = []
+    n_step_tot = 0
+    alt_tg = []
+    pres_max = []
+    for pix in pixels:
+        linea_0 = pix.low_LOS()
+        print('Calc LOS tangent at {}'.format(pix.limb_tg_alt))
+        # linea_su = pix.up_LOS()
+        # linea_giu = pix.low_LOS()
+        if radtran_opt is not None:
+            linea_0.calc_radtran_steps(planet, lines, verbose = True, **radtran_opt)
+        else:
+            linea_0.calc_radtran_steps(planet, lines, verbose = True)
+        alt_tg.append(linea_0.tangent_altitude)
+        pres_max.append(max([max(cos) for cos in linea_0.radtran_steps['pres'].values()]))
+        n_step_tot += len(linea_0.radtran_steps['step'])
+        #LOSs.append(linea)
+
+    #alt_min = min(alt_tg)-50.
+    #pres_max = planet.atmosphere.calc(alt_min, profname = 'pres')
+    pres_max = max(pres_max)
+
+    # check if it is convenient to produce LUTs.
+    n_lut_tot = makeLUT_nonLTE_Gcoeffs(sp_gri, lines, planet.gases.values(), planet.atmosphere, cartLUTs = inputs['cart_LUTS'], tagLUTs = 'provaLUT_', n_threads = inputs['n_threads'], max_pres = pres_max, check_num_couples = True)
+
+    print('{} steps vs {} PT couples'.format(n_step_tot, n_lut_tot))
+
+    tagLUTs = 'provaLUT_'
+    LUTS = None
+    if n_lut_tot < (n_step_tot*3) and useLUTs:
+        LUTS = makeLUT_nonLTE_Gcoeffs(sp_gri, lines, planet.gases.values(), planet.atmosphere, cartLUTs = inputs['cart_LUTS'], tagLUTs = tagLUTs, n_threads = inputs['n_threads'], max_pres = pres_max)
+
+    sims = []
+    obs = [pix.observation for pix in pixels]
+    masks = [pix.observation.mask for pix in pixels]
+    noise = [pix.observation.noise for pix in pixels]
+    for noi, mask in zip(noise, masks):
+        noi.spectrum[mask] *= 1.e5
+
+    for num_it in range(max_it):
+        print('we are at iteration: {}'.format(num_it))
+        for pix, num in zip(pixels, range(len(pixels))):
+            linea0 = pix.LOS()
+
+            radtran = linea0.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
+
+            """
+            linea_up = pix.up_LOS()
+            linea_low = pix.low_LOS()
+
+            radtran_up = linea_up.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
+
+            radtran_low = linea_low.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
+
+            radtrans = []
+            radtrans.append(radtran_low)
+            radtrans.append(radtran)
+            radtrans.append(radtran_up)
+
+            x_FOV = np.array([linea_low.tangent_altitude, linea_0.tangent_altitude, linea_up.tangent_altitude])
+
+            intens_FOV = [rad[0] for rad in radtrans]
+            intens_FOV_lowres = []
+            for towl in intens_FOV:
+                intens_FOV_lowres.append(tolowres(towl, pix.observation))
+            intens_FOV_lowres = np.array(intens_FOV_lowres)
+
+            sarg = np.argsort(x_FOV)
+            x_FOV = x_FOV[sarg]
+            intens_FOV_lowres = intens_FOV_lowres[sarg]
+
+            intens_spl = spline2D(x_FOV, pix.observation.spectral_grid.grid, intens_FOV_lowres)
+
+            quuiiiiiiiiiiiiiiiiiiiiiiiiii
+            devi integrare la funzione intens_spl sul fov
+            e poi fare lo stesso per le deriv nei params
+
+            #intens_FOV = np.array([radtran_low[0].spectrum, radtran[0].spectrum, radtran_up[0].spectrum])
+            for par in bayes_set.params():
+                towl = par.hires_deriv
+                towl.convertto_nm()
+                towl.interp_to_regular_grid()
+                lowres = towl.convolve_to_grid(pix.observation.spectral_grid, spectral_widths = pix.observation.bands.spectrum)
+                lowres.convertto('Wm2')
+                par.store_deriv(lowres, num = num)
+
+            """
+
+            # DA QUI TUTTO OK
+
+            intens = radtran[0]
+            towl = intens
+            towl.convertto_nm()
+            towl.interp_to_regular_grid()
+            lowres = towl.convolve_to_grid(pix.observation.spectral_grid, spectral_widths = pix.observation.bands.spectrum)
+            lowres.convertto('Wm2')
+
+            try:
+                sims[num] = copy.deepcopy(lowres)
+            except:
+                sims.append(copy.deepcopy(lowres))
+
+            for set_ in bayes_set.sets.values():
+                for par in set_.set:
+                    towl = par.hires_deriv
+                    towl.convertto_nm()
+                    towl.interp_to_regular_grid()
+                    lowres = towl.convolve_to_grid(pix.observation.spectral_grid, spectral_widths = pix.observation.bands.spectrum)
+                    lowres.convertto('Wm2')
+                    par.store_deriv(lowres, num = num)
+
+        #INVERSIONE
+        chi = chicalc(obs, sims, noise, bayes_set.n_tot)
+        print('chi is: {}'.format(chi))
+        if num_it > 0:
+            if abs(chi-chi_old)/chi_old < chi_threshold:
+                print('FINISHEDDDD!! :D', chi)
+                return
+            elif chi > chi_old:
+                print('mmm chi is raised', chi)
+                return
+        chi_old = chi
+        print('old', [par.value for par in bayes_set.params()])
+        inversion_algebra(obs, sims, noise, bayes_set, lambda_LM = lambda_LM, L1_reg = L1_reg)
+        print('new', [par.value for par in bayes_set.params()])
+
+        if debugfile is not None:
+            pickle.dump([num_it, obs, sims, bayes_set], debugfile)
+        # Update the VMRs of the retrieved gases with the new values
+        for gas in bayes_set.sets.keys():
+            planet.gases[gas].add_clim(bayes_set.sets[gas].profile())
+
+    return
+
+
+def chicalc(obs, sims, noise, n_ret):
+    obs_vec = []
+    sim_vec = []
+    noi_vec = []
+    for ob, noi, sim in zip(obs, noise, sims):
+        obs_vec += list(ob.spectrum)
+        sim_vec += list(sim.spectrum)
+        noi_vec += list(noi.spectrum)
+
+    obs_vec = np.array(obs_vec)
+    sim_vec = np.array(sim_vec)
+    noi_vec = np.array(noi_vec)
+    chi = np.sqrt(np.sum(((obs_vec-sim_vec)/noi_vec)**2))
+    chi = chi/(len(obs_vec)-n_ret)
+    return chi
+
+def inversion_algebra(obs, sims, noise, bayes_set, lambda_LM = 0.1, L1_reg = False):
+    """
+    Bayesian optimal estimation. Levenberg-Marquardt iteration scheme.
+    """
+
+    jac = bayes_set.build_jacobian()
+    xi = bayes_set.param_vector()
+
+    obs_vec = []
+    sim_vec = []
+    noi_vec = []
+    for ob, noi, sim in zip(obs, noise, sims):
+        obs_vec += list(ob.spectrum)
+        sim_vec += list(sim.spectrum)
+        noi_vec += list(noi.spectrum)
+
+    obs_vec = np.array(obs_vec)
+    sim_vec = np.array(sim_vec)
+    noi_vec = np.array(noi_vec)
+
+    n_obs = len(obs_vec)
+    S_y = np.identity(n_obs)
+    for i,noi in zip(range(n_obs), noi_vec):
+        S_y[i,i] = noi**2.0
+
+    S_ap = bayes_set.VCM_apriori() #[par.apriori_err for par in bayes_set.params()]
+    x_ap = bayes_set.apriori_vector()
+    # S_ap = np.identity(n_params)
+    # for i, noi in zip(range(bayes_set.n_tot), )
+
+    KtSy = np.dot(jac.T, inv(S_y))
+    G_inv = np.dot(KtSy, jac)
+    S_inv = G_inv + inv(S_ap)
+    LM = np.identity(S_ap.shape[0])*np.diag(S_inv)
+    SxLM =  inv(S_inv + lambda_LM*LM)
+    S_x = inv(S_inv)
+    AVK = np.dot(S_x, G_inv)
+    py = np.dot(KtSy, obs_vec-sim_vec)
+    pa = np.dot(inv(S_ap), x_ap-xi)
+
+    deltax = np.dot(SxLM, py+pa)
+
+    bayes_set.update_params(deltax)
+    bayes_set.store_avk(AVK)
+    bayes_set.store_VCM(S_x)
+
+    return
+
+
+def tolowres(hires, obs):
+    hires.convertto_nm()
+    hires.interp_to_regular_grid()
+    lowres = hires.convolve_to_grid(obs.spectral_grid, spectral_widths = obs.bands.spectrum)
+    lowres.convertto('Wm2')
+    return lowres

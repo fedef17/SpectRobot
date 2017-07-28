@@ -236,7 +236,7 @@ class SpectLine(object):
         ok = self.LinkToMolec(isomolec)
 
         if not ok:
-            print('Line is unidentified! setting 0.0 as level_energy')
+            #raise RuntimeWarning('Line is unidentified! setting 0.0 as level_energy')
             lev_energy_lo = 0.0
             lev_energy_up = 0.0
         else:
@@ -567,34 +567,51 @@ class SpectralObject(object):
         """
         Convolution of the spectrum to a different grid.
         """
-        #print('eja')
+        new_len = len(new_spectral_grid.grid)
+        if spectral_widths is None:
+            weed = new_spectral_grid.step()
+        else:
+            weed = max(spectral_widths)
+
         sp_step_old = self.spectral_grid.step()
-        n_points = n_sigma*new_spectral_grid.step()/sp_step_old
+        n_points = int(n_sigma*weed/sp_step_old)
         lin_grid = np.arange(-n_points*sp_step_old,n_points*sp_step_old,sp_step_old, dtype = float)
 
-        spectrum = np.zeros(len(new_spectral_grid.grid), dtype = float)
-        gigi = gaussian(lin_grid, 0.0, new_spectral_grid.step())
+        if spectral_widths is None:
+            gigi = gaussian(lin_grid, 0.0, new_spectral_grid.step())
+            spectral_widths = [None]*new_len
 
-        for num,freq in zip(range(len(spectrum)), new_spectral_grid.grid):
+        spectrum = np.zeros(new_len, dtype = float)
+
+        for num, freq, wid in zip(range(new_len), new_spectral_grid.grid, spectral_widths):
+            if wid is not None:
+                gigi = gaussian(lin_grid, 0.0, wid)
+
             ind_ok, fr_grid_ok = closest_grid(self.spectral_grid, freq)
             lin_grid_ok = SpectralGrid(lin_grid+fr_grid_ok, units = 'cm_1')
-            # spect_old = self.spectrum[((self.spectral_grid.grid > lin_grid_ok.grid[0]-self.spectral_grid.step()/2.) & (self.spectral_grid.grid < lin_grid_ok.grid[-1]+self.spectral_grid.step()/2.))]
 
             spect_old = self[lin_grid_ok.grid[0],lin_grid_ok.grid[-1]]
 
-            #print(len(spect_old), len(gigi), len(lin_grid))
             if len(spect_old.spectrum) < len(gigi):
                 zero = SpectralObject(np.zeros(len(lin_grid_ok.grid)), lin_grid_ok)
                 zero.add_to_spectrum(spect_old)
                 spect_old = zero
 
             spectrum[num] = conv_single(spect_old, gigi, new_spectral_grid.step())
-            # for num2 in range(len(spect_old)):
-            #     spectrum[num] += spect_old[num2]*gigi[num2]*new_spectral_grid.step()
-
-        convolved = SpectralObject(spectrum, new_spectral_grid)
+        convolved = copy.deepcopy(self)
+        convolved.spectral_grid = copy.deepcopy(new_spectral_grid)
+        convolved.spectrum = copy.deepcopy(spectrum)
+        #convolved = SpectralObject(spectrum, new_spectral_grid)
         return convolved
 
+    def interp_to_regular_grid(self):
+        n_po = len(self.spectral_grid.grid)
+        griniu = np.linspace(np.min(self.spectral_grid.grid), np.max(self.spectral_grid.grid), n_po)
+        griniu = SpectralGrid(griniu, units = self.spectral_grid.units)
+        niuspe = np.interp(griniu.grid, self.spectral_grid.grid, self.spectrum)
+        self.spectrum = niuspe
+        self.spectral_grid = griniu
+        return
 
     def add_to_spectrum(self, spectrum2, Strength = None, sumcheck = 10.):
         """
@@ -620,12 +637,24 @@ class SpectralObject(object):
             if Strength is not None:
                 self.spectrum[ok] += Strength*spectrum2.spectrum[ok2]
             else:
+                # print(np.sum(ok))
+                # print(np.sum(ok2))
+                # print(len(self.spectrum))
+                # print(len(spectrum2.spectrum))
+                # print(len(self.spectral_grid.grid))
+                # print(len(spectrum2.spectral_grid.grid))
+                #sys.exit()
                 self.spectrum[ok] += spectrum2.spectrum[ok2]
 
             check_grid_diff = self.spectral_grid.grid[ok]-spectrum2.spectral_grid.grid[ok2]
             griddifsum = np.sum(np.abs(check_grid_diff))
-            if griddifsum > self.spectral_grid.step()/sumcheck:
-                raise ValueError("Problem with the spectral grids! Check or lower the threshold for sumcheck")
+            #if griddifsum > self.spectral_grid.step()/sumcheck:
+                #print(griddifsum, len(self.spectral_grid.grid))
+                # pl.ion()
+                # pl.figure(78)
+                # pl.plot(self.spectral_grid.grid[ok], spectrum2.spectral_grid.grid[ok2])
+                # pl.plot(self.spectral_grid.grid[ok], self.spectral_grid.grid[ok])
+                #print("Problem with the spectral grids! Check or lower the threshold for sumcheck")
 
             return griddifsum
 
@@ -821,7 +850,7 @@ class SpectralIntensity(SpectralObject):
     This is the spectral intensity. Some useful methods (conversions, integration, convolution, ..).
     """
 
-    def __init__(self, intensity, spectral_grid, direction = None, units = 'Wm2'):
+    def __init__(self, intensity, spectral_grid, direction = None, units = 'ergscm2'):
         self.spectrum = copy.deepcopy(intensity)
         self.direction = copy.deepcopy(direction)
         self.spectral_grid = copy.deepcopy(spectral_grid)
@@ -865,6 +894,14 @@ class SpectralIntensity(SpectralObject):
         self.spectrum = spectrum*1.e5
         self.units = 'nWcm2'
         return self.spectrum
+
+    def add_noise(self, noise):
+        self.noise = copy.deepcopy(noise)
+        return
+
+    def add_bands(self, bands):
+        self.bands = copy.deepcopy(bands)
+        return
 
 
 
@@ -925,7 +962,7 @@ class SpectralGcoeff(SpectralObject):
             lines_new = self.calc_shapes(lines, Temp, Pres)
 
         #print(len(lines_new))
-        print('aaaaaaaaaaazzzulegnaaaaaaaaaaaaaaaa')
+        #print('aaaaaaaaaaazzzulegnaaaaaaaaaaaaaaaa')
 
         if not self.unidentified_lines:
             if self.ctype == 'sp_emission' or self.ctype == 'ind_emission':
@@ -999,11 +1036,11 @@ class SpectralGcoeff(SpectralObject):
         if len(shapes_tot) > 0:
             maxi = [np.max(hap.spectrum*gco) for hap,gco in zip(shapes_tot, G_coeffs_tot)]
             mini = [np.min(hap.spectrum*gco) for hap,gco in zip(shapes_tot, G_coeffs_tot)]
-            print('cazzzzuuuuuuuuuuuuuuuu {} {}'.format(max(maxi),min(mini)))
+            #print('cazzzzuuuuuuuuuuuuuuuu {} {}'.format(max(maxi),min(mini)))
             self.add_lines_to_spectrum(shapes_tot, Strengths = G_coeffs_tot)
             maxi = [np.max(hap.spectrum*gco) for hap,gco in zip(shapes_tot, G_coeffs_tot)]
             mini = [np.min(hap.spectrum*gco) for hap,gco in zip(shapes_tot, G_coeffs_tot)]
-            print('cazzzzuuuuuuuuuuuuuuuu {} {}'.format(max(maxi),min(mini)))
+            #print('cazzzzuuuuuuuuuuuuuuuu {} {}'.format(max(maxi),min(mini)))
 
             print('iiiiiiiiiiiiiiiiiiiiii {} {} {}'.format(self.ctype, np.max(self.spectrum),np.min(self.spectrum)))
 

@@ -20,9 +20,7 @@ import time
 import spect_main_module as smm
 from multiprocessing import Process, Queue
 
-with warnings.catch_warnings(record=True) as w:
-    # Cause all warnings to always be triggered.
-    warnings.simplefilter("error")
+#warnings.simplefilter("error")
 
 ### Program for CH4 HCN and C2H2 climatology on TITAN from VIMS spectra
 
@@ -71,6 +69,8 @@ time0 = time.time()
 
 db_file = inputs['hitran_db']
 wn_range = [2050.,2250.]
+wn_range_obs = [spcl.convertto_nm(wn_range[1], 'cm_1')+10., spcl.convertto_nm(wn_range[0], 'cm_1')-10.]
+print(wn_range_obs)
 
 linee = spcl.read_line_database(db_file)
 #linee = spcl.read_line_database(db_file, freq_range = wn_range)
@@ -115,6 +115,12 @@ for gas in atm_gases_old:
 # c2h2.link_to_atmos(atm_old)
 # c2h2.add_clim(atm_gases_old['C2H2'])
 # planet.add_gas(c2h2)
+#
+# ch4 = sbm.Molec(6, 'CH4')
+# ch4.add_all_iso_from_HITRAN(linee)
+# ch4.link_to_atmos(atm_old)
+# ch4.add_clim(atm_gases_old['CH4'])
+# planet.add_gas(ch4)
 
 print(' ')
 print(atm_gases_old.keys())
@@ -137,8 +143,8 @@ planetmols = [gas.mol for gas in planet.gases.values()]
 
 linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1] and lin.Mol in planetmols]
 
-# max_lines = 100
-# if inputs['test'] and len(linee) > max_lines:
+# max_lines = 10
+# if len(linee) > max_lines:
 #     print('Keeping ONLY 50 strongest lines for testing')
 #     essesss = [lin.Strength for lin in linee]
 #     essort = np.sort(np.array(essesss))[-1*max_lines]
@@ -154,47 +160,31 @@ for lin in linee:
 print(len(linee))
 print(planet.gases)
 
-####################### BUILDING ABS_COEFFFFF
+##### SETTING THE BAYESSET:
+baybau = smm.BayesSet(tag = 'test_CO_vero')
+alt_nodes = np.arange(200., 501., 50.)
+apriori_prof = np.ones(7)*50.0*1.e-6
+apriori_prof_err = 0.7*apriori_prof
+set_ = smm.LinearProfile_1D('CO', planet.atmosphere, alt_nodes, apriori_prof, apriori_prof_err)
+baybau.add_set(set_)
 
-pixels = smm.read_input_observed(cart_test)
-loss = []
-pl.ion()
-for pix in pixels[:1]:
-    linea1 = pix.LOS(verbose = True)
-    loss.append(linea1)
+### updating the profile of gases in bayesset
+for gas in baybau.sets.keys():
+    planet.gases[gas].add_clim(baybau.sets[gas].profile())
 
-    # linea1.calc_atm_intersections(planet)
-    # pl.plot([p.Spherical()[2] for p in linea1.intersections])
+pixels = smm.read_input_observed(cart_test, wn_range = wn_range_obs)
 
-    linea1.calc_radtran_steps(planet, linee, max_Plog_variation = 2.0, max_opt_depth = 10.0, max_T_variation = 5.0)
+dampa = open('./debuh_yeah.pic','wb')
 
-    print('Tangent ALT! :' ,linea1.tangent_altitude)
-    time.sleep(3)
+radtran_opt = dict()
+radtran_opt['max_T_variation'] = 50.
+radtran_opt['max_Plog_variation'] = 10.
 
-    print('Ci sono {} steps'.format(len(linea1.radtran_steps['step'])))
-    time.sleep(7)
+result = smm.inversion(inputs, planet, linee, baybau, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, useLUTs = False)
 
-    #pl.ion()
-    radtran = linea1.radtran(wn_range, planet, linee, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'])
-    #pl.legend()
-
-    pickle.dump(radtran, open('./radtran_CO_test_LOSVERO{:04d}_intero_trueatm_newCurGod.pic'.format(int(pix.limb_tg_alt)),'w'))
-
-    # intens = radtran[0]
-    # pl.figure(42)
-    # intens.plot()
-    # pl.grid()
+dampa.close()
 
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
 print('Tempo una LOS: {} min'.format(tot_time/180.))
-
-    # new_grid = smm.prepare_spe_grid(wn_range, sp_step = 25.e-4)
-    # spet = intens.convolve_to_grid(new_grid.spectral_grid)
-    #
-    # pickle.dump(spet, open('./radtran_CO_test_LOSVERO{:04d}_lowres.pic'.format(int(pix.limb_tg_alt)),'w'))
-    #
-    # pl.figure(892)
-    # spet.plot()
-    # pl.grid()
