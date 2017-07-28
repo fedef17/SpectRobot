@@ -19,7 +19,7 @@ import lineshape
 import time
 from multiprocessing import Process, Queue
 import cPickle as pickle
-from numba import jit
+#from numba import jit
 
 n_threads = 8
 
@@ -840,7 +840,7 @@ class SpectralObject(object):
         pl.plot(self.spectral_grid.grid, self.spectrum/np.max(self.spectrum), label = label)
         return
 
-@jit
+#@jit
 def conv_single(spect, window, step):
     convolution = np.trapz(spect.spectrum*window, x = spect.spectral_grid.grid)
     return convolution
