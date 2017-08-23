@@ -502,6 +502,20 @@ class SpectralObject(object):
         self.spectrum = scipy.sparse.csr_matrix(coso)
         return
 
+    def convert_grid_to(self, units):
+        if units == 'nm':
+            out = self.convertto_nm()
+        elif units == 'mum':
+            out = self.convertto_mum()
+        elif units == 'cm_1':
+            out = self.convertto_cm_1()
+        elif units == 'hz':
+            out = self.convertto_hz()
+        else:
+            raise ValueError('Cannot recognize units {}'.format(units))
+
+        return out
+
     def convertto_nm(self):
         if self.spectral_grid.units == 'nm':
             return self.spectral_grid.grid, self.spectrum
@@ -845,6 +859,7 @@ def conv_single(spect, window, step):
     convolution = np.trapz(spect.spectrum*window, x = spect.spectral_grid.grid)
     return convolution
 
+
 class SpectralIntensity(SpectralObject):
     """
     This is the spectral intensity. Some useful methods (conversions, integration, convolution, ..).
@@ -857,6 +872,13 @@ class SpectralIntensity(SpectralObject):
         self.units = units
 
         return
+
+    def hires_to_lowres(self, lowres_obs, spectral_widths = None):
+        self.convert_grid_to(lowres_obs.spectral_grid.units)
+        self.interp_to_regular_grid()
+        lowres = self.convolve_to_grid(lowres_obs.spectral_grid, spectral_widths = spectral_widths)
+        lowres.convertto(lowres_obs.units)
+        return lowres
 
     def convertto(self, new_units):
         if new_units == 'Wm2':

@@ -76,14 +76,24 @@ class BayesSet(object):
                 pars.append(par)
         return pars
 
-    def build_jacobian(self):
+    def build_jacobian(self, masks = None):
         jac = []
+        if masks is not None:
+            masktot = []
+            for mas in masks:
+                masktot += list(mas)
+            masktot = np.array(masktot, dtype = bool)
+
         for nam in self.order:
             for par in self.sets[nam].set:
                 dertot = []
                 for der in par.derivatives:
                     dertot += list(der.spectrum)
-                jac.append(dertot)
+                if masks is None:
+                    jac.append(dertot)
+                else:
+                    dertot = np.array(dertot)
+                    jac.append(dertot[masktot])
 
         jac = np.array(jac)
         jac = jac.T # n x m: n is len(y), m is self.n_tot
@@ -1256,9 +1266,8 @@ def read_input_observed(observed_cart, wn_range = None):
     Reads inputs regarding observations. The folder observed_cart has to contain an "orbit_***.dat", an "observ_***.dat". If more files are found inside, all observations are read.
     """
 
-    lss = subprocess.check_output(['ls', observed_cart])
-    #files_orbit = [fil for fil in lss.split('\n') if 'orbit_' in fil]
-    tag_observ = [fil[7:] for fil in lss.split('\n') if 'observ_' in fil]
+    print(os.listdir(observed_cart))
+    tag_observ = [fil[7:] for fil in os.listdir(observed_cart) if 'observ_' in fil]
 
     set_pixels = []
     obs_tot = []
@@ -1304,10 +1313,11 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
         sp_gri.convertto_cm_1()
         wn_range = [sp_gri.grid[0], sp_gri.grid[-1]]
         print(wn_range)
-        sys.exit()
         sp_gri = prepare_spe_grid(wn_range)
+        sp_gri = sp_gri.spectral_grid
     else:
         sp_gri = prepare_spe_grid(wn_range)
+        sp_gri = sp_gri.spectral_grid
 
     # Update the VMRs of the retrieved gases with the a priori
     for gas in bayes_set.sets.keys():
@@ -1349,83 +1359,67 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     obs = [pix.observation for pix in pixels]
     masks = [pix.observation.mask for pix in pixels]
     noise = [pix.observation.noise for pix in pixels]
-    for noi, mask in zip(noise, masks):
-        noi.spectrum[mask] *= 1.e5
 
     for num_it in range(max_it):
         print('we are at iteration: {}'.format(num_it))
         for pix, num in zip(pixels, range(len(pixels))):
-            linea0 = pix.LOS()
+            radtrans = []
+            derivs = []
 
-            radtran = linea0.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
-
-            """
-            linea_up = pix.up_LOS()
             linea_low = pix.low_LOS()
+            linea0 = pix.LOS()
+            linea_up = pix.up_LOS()
 
-            radtran_up = linea_up.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
+            # Using 1D interpolation scheme for FOV integration
+            x_FOV = np.array([linea_low.tangent_altitude, linea_0.tangent_altitude, linea_up.tangent_altitude])
 
             radtran_low = linea_low.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
-
-            radtrans = []
             radtrans.append(radtran_low)
-            radtrans.append(radtran)
-            radtrans.append(radtran_up)
+            deriv_ok = []
+            for par in bayes_set.params():
+                towl = par.hires_deriv
+                lowres = towl.hires_to_lowres(pix.observation, spectral_widths = pix.observation.bands.spectrum)
+                deriv_ok.append(lowres)
+            derivs.append(deriv_ok)
 
-            x_FOV = np.array([linea_low.tangent_altitude, linea_0.tangent_altitude, linea_up.tangent_altitude])
+            radtran = linea0.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
+            radtrans.append(radtran)
+            deriv_ok = []
+            for par in bayes_set.params():
+                towl = par.hires_deriv
+                lowres = towl.hires_to_lowres(pix.observation, spectral_widths = pix.observation.bands.spectrum)
+                deriv_ok.append(lowres)
+            derivs.append(deriv_ok)
+
+            radtran_up = linea_up.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
+            radtrans.append(radtran_up)
+            deriv_ok = []
+            for par in bayes_set.params():
+                towl = par.hires_deriv
+                lowres = towl.hires_to_lowres(pix.observation, spectral_widths = pix.observation.bands.spectrum)
+                deriv_ok.append(lowres)
+            derivs.append(deriv_ok)
 
             intens_FOV = [rad[0] for rad in radtrans]
             intens_FOV_lowres = []
             for towl in intens_FOV:
-                intens_FOV_lowres.append(tolowres(towl, pix.observation))
+                intens_FOV_lowres.append(towl.hires_to_lowres(pix.observation, spectral_widths = pix.observation.bands.spectrum))
+                #intens_FOV_lowres.append(tolowres(towl, pix.observation))
             intens_FOV_lowres = np.array(intens_FOV_lowres)
 
-            sarg = np.argsort(x_FOV)
-            x_FOV = x_FOV[sarg]
-            intens_FOV_lowres = intens_FOV_lowres[sarg]
-
-            intens_spl = spline2D(x_FOV, pix.observation.spectral_grid.grid, intens_FOV_lowres)
-
-            quuiiiiiiiiiiiiiiiiiiiiiiiiii
-            devi integrare la funzione intens_spl sul fov
-            e poi fare lo stesso per le deriv nei params
-
-            #intens_FOV = np.array([radtran_low[0].spectrum, radtran[0].spectrum, radtran_up[0].spectrum])
-            for par in bayes_set.params():
-                towl = par.hires_deriv
-                towl.convertto_nm()
-                towl.interp_to_regular_grid()
-                lowres = towl.convolve_to_grid(pix.observation.spectral_grid, spectral_widths = pix.observation.bands.spectrum)
-                lowres.convertto('Wm2')
-                par.store_deriv(lowres, num = num)
-
-            """
-
-            # DA QUI TUTTO OK
-
-            intens = radtran[0]
-            towl = intens
-            towl.convertto_nm()
-            towl.interp_to_regular_grid()
-            lowres = towl.convolve_to_grid(pix.observation.spectral_grid, spectral_widths = pix.observation.bands.spectrum)
-            lowres.convertto('Wm2')
-
+            sim_FOV_ok = FOV_integr_1D(x_FOV, intens_FOV_lowres)
             try:
-                sims[num] = copy.deepcopy(lowres)
+                sims[num] = copy.deepcopy(sim_FOV_ok)
             except:
-                sims.append(copy.deepcopy(lowres))
+                sims.append(copy.deepcopy(sim_FOV_ok))
 
-            for set_ in bayes_set.sets.values():
-                for par in set_.set:
-                    towl = par.hires_deriv
-                    towl.convertto_nm()
-                    towl.interp_to_regular_grid()
-                    lowres = towl.convolve_to_grid(pix.observation.spectral_grid, spectral_widths = pix.observation.bands.spectrum)
-                    lowres.convertto('Wm2')
-                    par.store_deriv(lowres, num = num)
+            for par, der_low, der, der_up in zip(bayes_set.params(), derivs[0], derivs[1], derivs[2]):
+                ders = np.array([der_low, der, der_up])
+                der_FOV_ok = FOV_integr_1D(x_FOV, ders)
+                par.store_deriv(der_FOV_ok, num = num)
 
         #INVERSIONE
-        chi = chicalc(obs, sims, noise, bayes_set.n_tot)
+        chi = chicalc(obs, sims, noise, bayes_set.n_tot, masks = masks)
         print('chi is: {}'.format(chi))
         if num_it > 0:
             if abs(chi-chi_old)/chi_old < chi_threshold:
@@ -1436,7 +1430,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
                 return
         chi_old = chi
         print('old', [par.value for par in bayes_set.params()])
-        inversion_algebra(obs, sims, noise, bayes_set, lambda_LM = lambda_LM, L1_reg = L1_reg)
+        inversion_algebra(obs, sims, noise, bayes_set, lambda_LM = lambda_LM, L1_reg = L1_reg, masks = masks)
         print('new', [par.value for par in bayes_set.params()])
 
         if debugfile is not None:
@@ -1448,7 +1442,44 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     return
 
 
-def chicalc(obs, sims, noise, n_ret):
+def FOV_integr_1D(radtrans, pixel_rot = 0.0):
+    """
+    FOV integration interpolating with a spline the spectrum between the external los.
+    """
+    from scipy import integrate
+
+    dmax = np.sqrt(2.)/2.*np.cos(np.pi/4-pixel_rot)
+    delta = dmax-np.sin(pixel_rot)
+    esse = 1/np.cos(pixel_rot)
+    x_integ = np.array([-dmax, 0, dmax])
+    spectrums = np.array([rad.spectrum for rad in radtrans])
+
+    intens_spl = spline2D(x_integ, radtrans[0].spectral_grid.grid, spectrums, kx=2)
+
+    def integrand(x, ww, funz = intens_spl, delta = delta, dmax = dmax, esse = esse):
+        if abs(x) <= delta:
+            fu = intens_spl(x, ww)*esse
+        else:
+            fu = intens_spl(x, ww)*esse*abs(dmax-abs(x))/(dmax-delta)
+        return fu
+
+    integ_rad = copy.deepcopy(radtrans[0])
+    spet_fov = []
+    for ww in integ_rad.spectral_grid.grid:
+        spint = integrate.quad(integrand, -dmax, dmax, args=(ww))[0]
+        spet_fov.append(spint)
+
+    integ_rad.spectrum = spet_fov
+    return integ_rad
+
+
+def genvec(obs, sims, noise, masks = None):
+    if masks is not None:
+        masktot = []
+        for mas in masks:
+            masktot += list(mas)
+        masktot = np.array(masktot, dtype = bool)
+
     obs_vec = []
     sim_vec = []
     noi_vec = []
@@ -1460,29 +1491,31 @@ def chicalc(obs, sims, noise, n_ret):
     obs_vec = np.array(obs_vec)
     sim_vec = np.array(sim_vec)
     noi_vec = np.array(noi_vec)
+
+    if masks is not None:
+        obs_vec = obs_vec[masktot]
+        sim_vec = sim_vec[masktot]
+        noi_vec = noi_vec[masktot]
+
+    return obs_vec, sim_vec, noi_vec
+
+
+def chicalc(obs, sims, noise, masks, n_ret):
+    obs_vec, sim_vec, noi_vec = genvec(obs, sims, noise, masks = masks)
+
     chi = np.sqrt(np.sum(((obs_vec-sim_vec)/noi_vec)**2))
     chi = chi/(len(obs_vec)-n_ret)
     return chi
 
-def inversion_algebra(obs, sims, noise, bayes_set, lambda_LM = 0.1, L1_reg = False):
+def inversion_algebra(obs, sims, noise, bayes_set, lambda_LM = 0.1, L1_reg = False, masks = None):
     """
     Bayesian optimal estimation. Levenberg-Marquardt iteration scheme.
     """
 
-    jac = bayes_set.build_jacobian()
+    jac = bayes_set.build_jacobian(masks = masks)
     xi = bayes_set.param_vector()
 
-    obs_vec = []
-    sim_vec = []
-    noi_vec = []
-    for ob, noi, sim in zip(obs, noise, sims):
-        obs_vec += list(ob.spectrum)
-        sim_vec += list(sim.spectrum)
-        noi_vec += list(noi.spectrum)
-
-    obs_vec = np.array(obs_vec)
-    sim_vec = np.array(sim_vec)
-    noi_vec = np.array(noi_vec)
+    obs_vec, sim_vec, noi_vec = genvec(obs, sims, noise, masks = masks)
 
     n_obs = len(obs_vec)
     S_y = np.identity(n_obs)

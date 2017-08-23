@@ -34,14 +34,14 @@ cart_test = '/home/fedefab/Scrivania/Research/Dotto/Reports/Code_validation/INP_
 
 cart_LUTS = '/media/hd_B/Spect_data/LUTs/'
 
-cart = '/media/hd_B/Spect_data/Stuff/'
-if not os.path.exists(cart):
-    raise MemoryError('Disk not mounted or wrong path: '+cart)
-
-out_dir = cart+'stuff_'+smm.date_stamp()
-if not os.path.exists(out_dir):
-    os.mkdir(out_dir)
-out_dir += '/'
+# cart = '/media/hd_B/Spect_data/Stuff/'
+# if not os.path.exists(cart):
+#     raise MemoryError('Disk not mounted or wrong path: '+cart)
+#
+# out_dir = cart+'stuff_'+smm.date_stamp()
+# if not os.path.exists(out_dir):
+#     os.mkdir(out_dir)
+# out_dir += '/'
 
 hit08_25 = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/HITRAN/HITRAN08_2-5mu.par'
 
@@ -50,14 +50,14 @@ hit12_25 = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/HITRAN/HITRAN2012_
 keys = 'cart_atm cart_molecs cart_LUTS out_dir hitran_db n_threads test'
 keys = keys.split()
 itype = [str, str, str, str, str, int, bool]
-defaults = [cart_test, cart_test, cart_LUTS, out_dir, hit12_25, 8, False]
+defaults = [cart_test, cart_test, cart_LUTS, None, hit12_25, 8, False]
 inputs = sbm.read_inputs(input_file, keys, itype = itype, defaults = defaults)
 
 if not os.path.exists(inputs['cart_LUTS']):
-    raise MemoryError('Disk not mounted or wrong path: '+cart)
+    raise MemoryError('Disk not mounted or wrong path: '+inputs['cart_LUTS'])
 
 if not os.path.exists(inputs['out_dir']):
-    raise MemoryError('Disk not mounted or wrong path: '+cart)
+    raise MemoryError('Disk not mounted or wrong path: '+inputs['out_dir'])
 
 sbm.check_free_space(inputs['cart_LUTS'])
 sbm.check_free_space(inputs['out_dir'])
@@ -177,10 +177,10 @@ pixels = smm.read_input_observed(cart_test, wn_range = wn_range_obs)
 dampa = open('./debuh_yeah.pic','wb')
 
 radtran_opt = dict()
-radtran_opt['max_T_variation'] = 50.
-radtran_opt['max_Plog_variation'] = 10.
+radtran_opt['max_T_variation'] = 5.
+radtran_opt['max_Plog_variation'] = 2.
 
-result = smm.inversion(inputs, planet, linee, baybau, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, useLUTs = False)
+result = smm.inversion(inputs, planet, linee, baybau, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, useLUTs = True)
 
 dampa.close()
 
