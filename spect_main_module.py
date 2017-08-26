@@ -429,6 +429,7 @@ class LookUpTable(object):
         self.MM = isomolec.MM
         self.isomolec = copy.deepcopy(isomolec)
         self.sets = dict()
+        self.PTcouples = []
         return
 
     def make(self, spectral_grid, lines, PTcouples, export_levels = True, cartLUTs = None, control = True):
@@ -436,6 +437,7 @@ class LookUpTable(object):
         Builds the LUT for isomolec in nonLTE: one LutSet for each level, vibrational population is left outside to be added later.
         """
 
+        self.PTcouples = copy.deepcopy(PTcouples)
         self.spectral_grid = copy.deepcopy(spectral_grid)
 
         if cartLUTs is None:
@@ -530,6 +532,7 @@ class LutSet(object):
             self.unidentified_lines = True
         self.filename = filename
         self.sets = []
+        self.spectral_grid = None
         return
 
     def prepare_read(self):
@@ -557,25 +560,32 @@ class LutSet(object):
         self.temp_file = None
         return
 
-    def load_from_file(self):
+    def load_from_file(self, load_just_PT = False, spectral_grid = None):
         """
         Loads from file just the data regarding level's LutSet. Better not to load all levels together due to memory limits.
         """
         fileo = open(self.filename,'rb')
         self.PTcouples = pickle.load(fileo)
 
-        for PT in PTcouples:
+        if load_just_PT:
+            fileo.close()
+            return
+
+        for PT in self.PTcouples:
             gigi = pickle.load(fileo)
             for pig in gigi.values():
                 pig.double_precision()
-                pig.restore_grid(spectral_grid)
+                try:
+                    pig.restore_grid(self.spectral_grid)
+                except: # for compatibility
+                    pig.restore_grid(spectral_grid)
             self.sets.append(gigi)
 
         fileo.close()
 
         return
 
-    def load_singlePT_from_file(self, spectral_grid):
+    def load_singlePT_from_file(self, spectral_grid = None):
         """
         Loads from file just the data regarding level's LutSet, for a single PT. Better not to load all the LOS together due to memory limits.
         """
@@ -586,7 +596,10 @@ class LutSet(object):
 
         for pig in gigi.values():
             pig.double_precision()
-            pig.restore_grid(spectral_grid)
+            try:
+                pig.restore_grid(self.spectral_grid)
+            except: # for compatibility
+                pig.restore_grid(spectral_grid)
 
         return gigi
 
@@ -665,6 +678,8 @@ class LutSet(object):
         """
         Produces the full set for PTcouples.
         """
+        self.spectral_grid = copy.deepcopy(spectral_grid)
+
         ctypes = ['sp_emission','ind_emission','absorption']
         set_ = dict(zip(ctypes,[[],[],[]]))
 
@@ -716,6 +731,8 @@ class LutSet(object):
         """
         Adds a single PT couple to the set. If keep_memory is set to True, the resulting G coeffs are stored in the set, instead are just dumped in the pickle file.
         """
+        if self.spectral_grid is None:
+            self.spectral_grid = copy.deepcopy(spectral_grid)
 
         ctypes = ['sp_emission','ind_emission','absorption']
         set_ = dict()
@@ -983,7 +1000,13 @@ def check_LUT_exists(PTcouples, cartLUTs, molname, isoname, LTE = True):
     for fil in fileok:
         print(cartLUTs+fil)
         fio = open(cartLUTs+fil, 'rb')
-        pt_fil = pickle.load(fio)
+        lut_fil = pickle.load(fio)
+        try:
+            pt_fil = lut_fil.PTcouples
+        except: # for compatibility with old LUTS
+            lutset_fil = lut_fil.sets.values()[0]
+            lutset_fil.load_from_file(load_just_PT = True)
+            pt_fil = lutset_fil.PTcouples
         pt_done += pt_fil
         pt_map.append([cartLUTs+fil, pt_fil])
         fio.close()
