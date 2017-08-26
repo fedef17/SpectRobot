@@ -418,11 +418,12 @@ class LookUpTable(object):
     This class represent a look-up table for a specific molecule/isotope.
     """
 
-    def __init__(self, isomolec, tag = None):
+    def __init__(self, isomolec, wn_range, tag = None):
         if tag is not None:
             self.tag = tag
         else:
             self.tag = 'LUT_mol{0:02d}_iso{:1d}'.format(isomolec.mol,isomolec.iso)
+        self.wn_range = copy.deepcopy(wn_range)
         self.mol = isomolec.mol
         self.iso = isomolec.iso
         self.MM = isomolec.MM
@@ -501,6 +502,14 @@ class LookUpTable(object):
     def export(self, filename):
         pickle.dump(self, open(filename,'w'), protocol = -1)
         return
+
+    def find_lev(self, lev_string):
+        for lev in self.sets.keys():
+            if self.sets[lev].level.equiv(lev_string):
+                ok = True
+                return ok, lev
+
+        return False, None
 
 
 
@@ -953,18 +962,102 @@ def read_Gcoeffs_from_LUTs(cartLUTs, fileLUTs):
     return LUTs
 
 
-def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = None, tagLUTs = 'LUT_', n_pres_levels = None, pres_step_log = 0.4, temp_step = 5.0, save_LUTs = True, n_threads = n_threads, test = False, thres = 0.01, max_pres = None, check_num_couples = False):
+def check_LUT_exists(PTcouples, cartLUTs, molname, isoname, LTE = True):
     """
-    Calculates the G_coeffs for the isomolec_levels at Temp and Pres.
-    :param isomolecs: A list of isomolecs objects or a single one.
+    Checks if a LUT is already present in cartLUTs for molname (Molec.name), isoname (iso_1, iso_2, ..) and if it is non-LTE ready (with levels) or not. Returns the PTcouples for which the LUT has not yet been calculated.
     """
+    stringa = molname+'_'+isoname
+    fileok = [fil for fil in os.listdir(cartLUTs) if stringa in fil and not 'lev' in fil]
 
-    # Define pressure levels, for each pres check which temps are needed for the full atm and define a set of temperatures to be used at that pressure. Build something to be given as input to make LUTs.
+    if len(fileok) == 0:
+        print('LUT does not exist at all')
+        return False, PTcouples, None
+
+    fileoklev = [fil for fil in os.listdir(cartLUTs) if stringa in fil and 'lev' in fil]
+    if len(fileoklev) == 0 and not LTE:
+        print('LUT exists just for LTE')
+        return False, PTcouples, None
+
+    pt_done = []
+    pt_map = []
+    for fil in fileok:
+        fio = open(fileok, 'rb')
+        pt_fil = pickle.load(fio)
+        pt_done += pt_fil
+        pt_map.append([fil, pt_fil])
+        fio.close()
+
+    pt_to_do = []
+    for pt in PTcouples:
+        trovato = []
+        for ptd in pt_done:
+            trovato.append(np.all(sbm.isclose(np.array(pt),np.array(ptd))))
+        if not np.any(np.array(trovato)):
+            pt_to_do.append(pt)
+
+    if len(pt_to_do) == 0:
+        print('LUT exists and is complete')
+    elif len(pt_to_do) > 0 and len(pt_done) > 0:
+        print('LUT exists but {} PTcouples are missing'.format(len(pt_to_do)))
+    else:
+        print('LUT does not exist at all')
+
+    return True, pt_to_do, pt_map
+
+
+def check_and_build_allluts(inputs, sp_grid, lines, molecs, atmosphere = None, PTcouples = None, LUTopt = dict()):
+    """
+    Given the molecs in molecs, checks in the folder and builds the list of LUTS. If LUTS are missing runs the lut calculation?
+    """
+    allLUTs = dict()
+
+    for molec in molecs:
+        for isoname in molec.all_iso:
+            isomol = getattr(molec, isoname)
+            exists, pt_to_do, pt_map = check_LUT_exists(PTcouples, inputs['cart_LUTS'], molec.name, isoname, isomol.is_in_LTE)
+
+            if exists and len(pt_to_do) == 0:
+                #leggi (hai solo una entry nel pt_map nel caso base)
+                filos = pt_map[0][0]
+                coso = open(filos, 'r')
+                LUT_isomol = pickle.load(coso)
+                coso.close()
+                if len(pt_map) > 1:
+                    raise ValueError('Scrivi codice mancante')
+                    #ed eventualmente appiccica i contributi dei diversi files
+            elif exists and len(pt_to_do) != 0:
+                pass
+                raise ValueError('Scrivi codice mancante', len(pt_to_do))
+                #completa la LUT con una nuova
+                #leggi quelle vecchie e quella nuova
+            else:
+                # fai la lut da zero
+                # find_wnrange(sp_grid, isomol)
+                # DA AGGIUNGEGERRERERE
+                LUT_isomol = makeLUT_nonLTE_Gcoeffs(sp_grid, lines, molecs, PTcouples = PTcouples, atmosphere = atmosphere, cartLUTs = inputs['cart_LUTS'], n_threads = inputs['n_threads'], **LUTopt)
+
+            allLUTs['{}_{}'.format(molec.name, isoname)] = LUT_isomol
+
+    return allLUTs
+
+
+def calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, temp_step = 5.0, max_pres = None, thres = 0.01):
+    """
+    Define pressure levels, for each pres check which temps are needed for the full atm and define a set of temperatures to be used at that pressure. Build something to be given as input to make LUTs.
+    """
 
     logpres0 = np.log(np.max(atmosphere.pres))
     logpresMIN = np.log(np.min(atmosphere.pres))
     if max_pres is not None:
         logpres0 = np.log(max_pres)
+
+    #fixing at grid
+    n0 = mt.ceil(logpres0/pres_step_log)
+    logpres0 = n0*pres_step_log
+    nMIN = mt.floor(logpresMIN/pres_step_log)
+    logpresMIN = nMIN*pres_step_log
+
+
     log_pressures = logpresMIN + np.arange(0,(logpres0-logpresMIN)+0.5*pres_step_log,pres_step_log)
     #print('Built set of {} pressure levels from {} to {} with logstep = {}.'.format(len(log_pressures),logpresMIN,logpres0,pres_step_log))
 
@@ -1031,8 +1124,20 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
 
     PTcouples = PTcouples_ok
 
+    return PTcouples
+
+
+def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere = None, PTcouples = None, cartLUTs = None, tagLUTs = 'LUT_', pres_step_log = 0.4, temp_step = 5.0, save_LUTs = True, n_threads = n_threads, test = False, thres = 0.01, max_pres = None, check_num_couples = False):
+    """
+    Calculates the G_coeffs for the isomolec_levels at Temp and Pres.
+    :param isomolecs: A list of isomolecs objects or a single one.
+    """
+
+    if PTcouples is None:
+        PTcouples = calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, temp_step = 5.0, max_pres = None, thres = 0.01)
+
     if check_num_couples:
-        return len(PTcouples)
+        return PTcouples
 
     if test:
         print('Keeping ONLY 10 PTcouples for testing')
@@ -1049,7 +1154,7 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
                 continue
             taggg = tagLUTs + '_' + molec.name + '_' + isoname
             names.append(molec.name+'_'+isoname)
-            LUT = LookUpTable(tag = taggg, isomolec = isomol)
+            LUT = LookUpTable(isomol, spectral_grid.wn_range(), tag = taggg)
             #print(time.ctime())
             print("Hopefully this calculation will take about {} minutes, but actually I really don't know, take your time :)".format(LUT.CPU_time_estimate(lines, PTcouples)))
             LUT.make(spectral_grid, lines, PTcouples, export_levels = True, cartLUTs = cartLUTs)
@@ -1058,12 +1163,12 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere, cartLUTs = 
             LUTS.append(LUT)
 
     LUTs_wnames = dict(zip(names,LUTS))
-    pickle.dump(LUTs_wnames, open(cart_LUTS+tagLUTs+'_all_'+date_stamp()+'.pic','w') )
+    pickle.dump(LUTs_wnames, open(cartLUTs+tagLUTs+'_all_'+date_stamp()+'.pic','w') )
 
     return LUTs_wnames
 
 
-def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, allLUTs = None, useLUTs = False, lines = None, store_in_memory = False, tagLOS = None, cartDROP = None):
+def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, allLUTs = None, useLUTs = False, lines = None, store_in_memory = False, tagLOS = None, cartDROP = None):
     """
     Builds the absorption and emission coefficients for isomolec, both in LTE and non-LTE. If in non-LTE, isomolec levels have to contain the attribute local_vibtemp, produced by calling level.add_local_vibtemp(). If LTE is set to True, LTE populations are used.
     LUT is the object created by makeLUT_nonLTE_Gcoeffs(). Contains
@@ -1086,8 +1191,19 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, allLUTs
         cartDROP += '/'
 
     #print('Sto entrandooooooooooooo, mol {}, iso {}'.format(isomolec.mol, isomolec.iso))
-    abs_coeff = prepare_spe_grid(wn_range)
-    spectral_grid = abs_coeff.spectral_grid
+    """
+    Qui ci sono due wn_range, uno per le LUTs (wn_range) e uno per gli abs_coeff ed emi_coeff in output (wn_range_tot). Senza LUT i due sono uguali. Non so se vale la pena lasciare anche abs ed emi coeff a wn_range ridotta, risparmierei tempo di calcolo ma si incasina radtran.
+    """
+    if useLUTs:
+        LUTs = allLUTs['{}_iso_{}'.format(isomolec.mol_name, isomolec.iso)]
+        wn_range = LUTs.wn_range
+
+        coso = prepare_spe_grid(wn_range)
+        spectral_grid = coso.spectral_grid
+    else:
+        wn_range = wn_range_tot
+        coso = prepare_spe_grid(wn_range_tot)
+        spectral_grid = coso.spectral_grid
 
     if tagLOS is None:
         tagLOS = 'LOS'
@@ -1145,19 +1261,21 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, allLUTs
                 set_tot['all'].add_PT(spectral_grid, lines_proc, Pres, Temp)
 
     else:
-        #read Gcoeffs from LUTS and attach to levels
-        #allLUTs = read_Gcoeffs_from_LUTs(cartLUTs, fileLUTs)
-        LUTs = allLUTs['{}_iso_{}'.format(isomolec.mol_name, isomolec.iso)]
-        #LUTs.check_cart(cartLUTs)
-        for lev in isomolec.levels:
-            levello = getattr(isomolec, lev)
-            #print('Loading LutSet for level {}...'.format(lev))
-            LUTs.sets[lev].load_from_file()
+        if not unidentified_lines:
+            for lev in isomolec.levels:
+                levello = getattr(isomolec, lev)
+                lev_lut = LUTs.find_lev(levello.lev_string)
+                LUTs.sets[lev_lut].load_from_file()
+                for Pres, Temp in zip(Press,Temps):
+                    set_ = LUTs.sets[lev_lut].calculate(Pres, Temp)
+                    set_tot[lev].add_dump(set_)
+                LUTs.sets[lev_lut].free_memory()
+        else:
+            LUTs.sets['all'].load_from_file()
             for Pres, Temp in zip(Press,Temps):
-                set_ = LUTs.sets[lev].calculate(Pres, Temp)
-                set_tot[lev].add_dump(set_)
-            LUTs.sets[lev].free_memory()
-            #print('Added')
+                set_ = LUTs.sets['all'].calculate(Pres, Temp)
+                set_tot['all'].add_dump(set_)
+            LUTs.sets['all'].free_memory()
 
     for val in set_tot.values():
         val.finalize_IO()
@@ -1169,8 +1287,8 @@ def make_abscoeff_isomolec(wn_range, isomolec, Temps, Press, LTE = True, allLUTs
 
     for num in range(len(Temps)):
         #print('oyeeeeeeeeeee ', num)
-        abs_coeff = prepare_spe_grid(wn_range)
-        emi_coeff = prepare_spe_grid(wn_range)
+        abs_coeff = prepare_spe_grid(wn_range_tot)
+        emi_coeff = prepare_spe_grid(wn_range_tot)
             # THIS IS WITH LTE PARTITION FUNCTION!!
         Q_part = spcl.CalcPartitionSum(isomolec.mol, isomolec.iso, temp = Temps[num])
 
@@ -1298,7 +1416,7 @@ def read_input_observed(observed_cart, wn_range = None):
     return set_pixels
 
 
-def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = None, useLUTs = True, debugfile = None):
+def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = None, useLUTs = True, debugfile = None, LUTopt = dict()):
     """
     Main routine for retrieval.
     """
@@ -1323,37 +1441,27 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     for gas in bayes_set.sets.keys():
         planet.gases[gas].add_clim(bayes_set.sets[gas].profile())
 
-    #LOSs = []
-    n_step_tot = 0
-    alt_tg = []
-    pres_max = []
-    for pix in pixels:
-        linea_0 = pix.low_LOS()
-        print('Calc LOS tangent at {}'.format(pix.limb_tg_alt))
-        # linea_su = pix.up_LOS()
-        # linea_giu = pix.low_LOS()
-        if radtran_opt is not None:
-            linea_0.calc_radtran_steps(planet, lines, verbose = True, **radtran_opt)
-        else:
-            linea_0.calc_radtran_steps(planet, lines, verbose = True)
-        alt_tg.append(linea_0.tangent_altitude)
-        pres_max.append(max([max(cos) for cos in linea_0.radtran_steps['pres'].values()]))
-        n_step_tot += len(linea_0.radtran_steps['step'])
-        #LOSs.append(linea)
-
-    #alt_min = min(alt_tg)-50.
-    #pres_max = planet.atmosphere.calc(alt_min, profname = 'pres')
-    pres_max = max(pres_max)
 
     # check if it is convenient to produce LUTs.
-    n_lut_tot = makeLUT_nonLTE_Gcoeffs(sp_gri, lines, planet.gases.values(), planet.atmosphere, cartLUTs = inputs['cart_LUTS'], tagLUTs = 'provaLUT_', n_threads = inputs['n_threads'], max_pres = pres_max, check_num_couples = True)
+    # check if the LUTs have to be calculated or are already present. In case they are not, they'll be calculated
+    if useLUTs:
+        # finds max pressure
+        alt_tg = []
+        pres_max = []
+        for pix in pixels:
+            linea_0 = pix.low_LOS()
+            press = linea_0.calc_along_LOS(planet.atmosphere, profname = 'pres', set_attr = False)
+            alt_tg.append(linea_0.tangent_altitude)
+            pres_max.append(max([max(cos) for cos in press]))
 
-    print('{} steps vs {} PT couples'.format(n_step_tot, n_lut_tot))
+        pres_max = max(pres_max)
+        PTcoup_needed = calc_PT_couples_atmosphere(lines, planet.gases.values(), planet.atmosphere, **LUTopt)
 
-    tagLUTs = 'provaLUT_'
-    LUTS = None
-    if n_lut_tot < (n_step_tot*3) and useLUTs:
-        LUTS = makeLUT_nonLTE_Gcoeffs(sp_gri, lines, planet.gases.values(), planet.atmosphere, cartLUTs = inputs['cart_LUTS'], tagLUTs = tagLUTs, n_threads = inputs['n_threads'], max_pres = pres_max)
+        LUTS = check_and_build_allluts(inputs, sp_grid, lines, molecs, PTcouples = PTcoup_needed, LUTopt = LUTopt)
+        n_lut_tot = len(PTcoup_needed)
+        print('{} PT couples needed'.format(n_lut_tot))
+    else:
+        LUTS = None
 
     sims = []
     obs = [pix.observation for pix in pixels]

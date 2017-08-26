@@ -283,6 +283,9 @@ class SpectralGrid(object):
     def len_wn(self):
         return len(self.grid)
 
+    def wn_range(self):
+        return [self.min_wn(), self.max_wn()]
+
     def min_wn(self):
         return min(self.grid)
 

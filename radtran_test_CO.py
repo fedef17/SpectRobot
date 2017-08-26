@@ -51,7 +51,7 @@ keys = 'cart_atm cart_molecs cart_LUTS out_dir hitran_db n_threads test'
 keys = keys.split()
 itype = [str, str, str, str, str, int, bool]
 defaults = [cart_test, cart_test, cart_LUTS, None, hit12_25, 8, False]
-inputs = sbm.read_inputs(input_file, keys, itype = itype, defaults = defaults)
+inputs = sbm.read_inputs(input_file, keys, itype = itype, defaults = defaults, verbose = True)
 
 if not os.path.exists(inputs['cart_LUTS']):
     raise MemoryError('Disk not mounted or wrong path: '+inputs['cart_LUTS'])
@@ -172,7 +172,7 @@ baybau.add_set(set_)
 for gas in baybau.sets.keys():
     planet.gases[gas].add_clim(baybau.sets[gas].profile())
 
-pixels = smm.read_input_observed(cart_test, wn_range = wn_range_obs)
+pixels = smm.read_input_observed(inputs['cart_molecs'], wn_range = wn_range_obs)
 
 dampa = open('./debuh_yeah.pic','wb')
 
