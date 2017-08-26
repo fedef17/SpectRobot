@@ -1450,14 +1450,15 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
         pres_max = []
         for pix in pixels:
             linea_0 = pix.low_LOS()
+            linea_0.calc_atm_intersections(planet)
             press = linea_0.calc_along_LOS(planet.atmosphere, profname = 'pres', set_attr = False)
             alt_tg.append(linea_0.tangent_altitude)
-            pres_max.append(max([max(cos) for cos in press]))
+            pres_max.append(max(press.ravel()))
 
         pres_max = max(pres_max)
         PTcoup_needed = calc_PT_couples_atmosphere(lines, planet.gases.values(), planet.atmosphere, **LUTopt)
 
-        LUTS = check_and_build_allluts(inputs, sp_grid, lines, molecs, PTcouples = PTcoup_needed, LUTopt = LUTopt)
+        LUTS = check_and_build_allluts(inputs, sp_gri, lines, planet.gases.values(), PTcouples = PTcoup_needed, LUTopt = LUTopt)
         n_lut_tot = len(PTcoup_needed)
         print('{} PT couples needed'.format(n_lut_tot))
     else:

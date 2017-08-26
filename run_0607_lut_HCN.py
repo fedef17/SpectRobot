@@ -38,8 +38,6 @@ inputs = sbm.read_inputs(input_file, keys, itype = itype, defaults = defaults)
 
 time0 = time.time()
 
-inputs['test'] = True
-
 ### LOADING PLANET
 print('Loading planet...')
 
