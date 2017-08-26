@@ -981,10 +981,11 @@ def check_LUT_exists(PTcouples, cartLUTs, molname, isoname, LTE = True):
     pt_done = []
     pt_map = []
     for fil in fileok:
-        fio = open(fileok, 'rb')
+        print(cartLUTs+fil)
+        fio = open(cartLUTs+fil, 'rb')
         pt_fil = pickle.load(fio)
         pt_done += pt_fil
-        pt_map.append([fil, pt_fil])
+        pt_map.append([cartLUTs+fil, pt_fil])
         fio.close()
 
     pt_to_do = []
