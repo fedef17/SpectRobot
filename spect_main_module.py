@@ -986,6 +986,9 @@ def check_LUT_exists(PTcouples, cartLUTs, molname, isoname, LTE = True):
     stringa = molname+'_'+isoname
     fileok = [fil for fil in os.listdir(cartLUTs) if stringa in fil and not 'lev' in fil]
 
+    print(stringa)
+    print(fileok)
+
     if len(fileok) == 0:
         print('LUT does not exist at all')
         return False, PTcouples, None
@@ -1024,6 +1027,9 @@ def check_LUT_exists(PTcouples, cartLUTs, molname, isoname, LTE = True):
     elif len(pt_to_do) > 0 and len(pt_done) > 0:
         print('LUT exists but {} PTcouples are missing'.format(len(pt_to_do)))
     else:
+        print(pt_to_do)
+        print(pt_done)
+        print(molname, isoname)
         print('LUT does not exist at all')
 
     return True, pt_to_do, pt_map
@@ -1034,6 +1040,11 @@ def check_and_build_allluts(inputs, sp_grid, lines, molecs, atmosphere = None, P
     Given the molecs in molecs, checks in the folder and builds the list of LUTS. If LUTS are missing runs the lut calculation?
     """
     allLUTs = dict()
+
+    if PTcouples is None:
+        if atmosphere is None:
+            raise ValueError('Give either atmosphere or PTcouples in input as kwargs')
+        PTcouples = calc_PT_couples_atmosphere(lines, molecs, atmosphere)
 
     for molec in molecs:
         for isoname in molec.all_iso:
@@ -1047,10 +1058,13 @@ def check_and_build_allluts(inputs, sp_grid, lines, molecs, atmosphere = None, P
                 LUT_isomol = pickle.load(coso)
                 coso.close()
                 if len(pt_map) > 1:
+                    print(pt_map)
                     raise ValueError('Scrivi codice mancante')
                     #ed eventualmente appiccica i contributi dei diversi files
             elif exists and len(pt_to_do) != 0:
                 pass
+                print(pt_done)
+                print(pt_to_do)
                 raise ValueError('Scrivi codice mancante', len(pt_to_do))
                 #completa la LUT con una nuova
                 #leggi quelle vecchie e quella nuova
@@ -1058,7 +1072,7 @@ def check_and_build_allluts(inputs, sp_grid, lines, molecs, atmosphere = None, P
                 # fai la lut da zero
                 # find_wnrange(sp_grid, isomol)
                 # DA AGGIUNGEGERRERERE
-                LUT_isomol = makeLUT_nonLTE_Gcoeffs(sp_grid, lines, molecs, PTcouples = PTcouples, atmosphere = atmosphere, cartLUTs = inputs['cart_LUTS'], n_threads = inputs['n_threads'], **LUTopt)
+                LUT_isomol = makeLUT_nonLTE_Gcoeffs(sp_grid, lines, [molec], PTcouples = PTcouples, atmosphere = atmosphere, cartLUTs = inputs['cart_LUTS'], n_threads = inputs['n_threads'], solo_isoname = isoname, **LUTopt)
 
             allLUTs['{}_{}'.format(molec.name, isoname)] = LUT_isomol
 
@@ -1151,7 +1165,7 @@ def calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, t
     return PTcouples
 
 
-def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere = None, PTcouples = None, cartLUTs = None, tagLUTs = 'LUT_', pres_step_log = 0.4, temp_step = 5.0, save_LUTs = True, n_threads = n_threads, test = False, thres = 0.01, max_pres = None, check_num_couples = False):
+def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere = None, PTcouples = None, cartLUTs = None, tagLUTs = 'LUT_', pres_step_log = 0.4, temp_step = 5.0, save_LUTs = True, n_threads = n_threads, test = False, thres = 0.01, max_pres = None, check_num_couples = False, solo_isoname = None):
     """
     Calculates the G_coeffs for the isomolec_levels at Temp and Pres.
     :param isomolecs: A list of isomolecs objects or a single one.
@@ -1173,6 +1187,9 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere = None, PTco
     names = []
     for molec in molecs:
         for isoname in molec.all_iso:
+            if solo_isoname is not None:
+                if isoname != solo_isoname:
+                    continue
             isomol = getattr(molec, isoname)
             if len(isomol.levels) == 0:
                 continue

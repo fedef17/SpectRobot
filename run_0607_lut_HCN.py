@@ -109,8 +109,6 @@ planet.add_gas(c2h2)
 
 linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1]]
 
-inputs['test'] = True
-
 if inputs['test']:
     print('Keeping ONLY 10 linee for testing')
     linee = linee[:10]
