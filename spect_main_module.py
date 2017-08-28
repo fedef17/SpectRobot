@@ -598,7 +598,9 @@ class LutSet(object):
             pig.double_precision()
             try:
                 pig.restore_grid(self.spectral_grid)
-            except: # for compatibility
+            except Exception as cazzillo: # for compatibility
+                if spectral_grid is None:
+                    raise cazzillo
                 pig.restore_grid(spectral_grid)
 
         return gigi
@@ -1063,7 +1065,7 @@ def check_and_build_allluts(inputs, sp_grid, lines, molecs, atmosphere = None, P
                     #ed eventualmente appiccica i contributi dei diversi files
             elif exists and len(pt_to_do) != 0:
                 pass
-                print(pt_done)
+                print(pt_map)
                 print(pt_to_do)
                 raise ValueError('Scrivi codice mancante', len(pt_to_do))
                 #completa la LUT con una nuova
