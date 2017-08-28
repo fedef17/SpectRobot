@@ -26,7 +26,7 @@ from multiprocessing import Process, Queue
 
 time0 = time.time()
 
-input_file = 'inputs_spect_robot.in'
+input_file = 'inputs_spect_robot_3D.in'
 
 cart_atm = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/Tit_atm/climat_0607_manuel/p-T_clima2_07-07/'
 

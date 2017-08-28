@@ -1307,7 +1307,9 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
         if not unidentified_lines:
             for lev in isomolec.levels:
                 levello = getattr(isomolec, lev)
-                lev_lut = LUTs.find_lev(levello.lev_string)
+                ok, lev_lut = LUTs.find_lev(levello.lev_string)
+                if not ok:
+                    raise ValueError('mol {} iso {} Level {} not found'.format(isomolec.mol, isomolec.iso, levello.lev_string))
                 LUTs.sets[lev_lut].load_from_file()
                 for Pres, Temp in zip(Press,Temps):
                     set_ = LUTs.sets[lev_lut].calculate(Pres, Temp)
