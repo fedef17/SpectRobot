@@ -121,9 +121,9 @@ LUTopt['max_pres'] = 5.0 # hPa circa 120 km
 abs_coeff = smm.prepare_spe_grid(wn_range)
 sp_grid = abs_coeff.spectral_grid
 
-# LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, planet.gases.values(), atmosphere = planet.atmosphere, LUTopt = LUTopt)
-PTtest = [[3.0, 170.], [4.0, 160.]]
-LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, planet.gases.values(), PTcouples = PTtest, LUTopt = LUTopt)
+LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, planet.gases.values(), atmosphere = planet.atmosphere, LUTopt = LUTopt)
+#PTtest = [[3.0, 170.], [4.0, 160.]]
+#LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, planet.gases.values(), PTcouples = PTtest, LUTopt = LUTopt)
 
 print(time.ctime())
 print('CIAO!')

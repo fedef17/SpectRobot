@@ -1512,6 +1512,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     masks = [pix.observation.mask for pix in pixels]
     noise = [pix.observation.noise for pix in pixels]
 
+    time0 = time.time()
     for num_it in range(max_it):
         print('we are at iteration: {}'.format(num_it))
         for pix, num in zip(pixels, range(len(pixels))):
@@ -1523,7 +1524,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
             linea_up = pix.up_LOS()
 
             # Using 1D interpolation scheme for FOV integration
-            x_FOV = np.array([linea_low.tangent_altitude, linea_0.tangent_altitude, linea_up.tangent_altitude])
+            # x_FOV = np.array([linea_low.tangent_altitude, linea_0.tangent_altitude, linea_up.tangent_altitude])
 
             radtran_low = linea_low.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
             radtrans.append(radtran_low)
@@ -1559,7 +1560,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
                 #intens_FOV_lowres.append(tolowres(towl, pix.observation))
             intens_FOV_lowres = np.array(intens_FOV_lowres)
 
-            sim_FOV_ok = FOV_integr_1D(x_FOV, intens_FOV_lowres)
+            sim_FOV_ok = FOV_integr_1D(intens_FOV_lowres, pix.pixel_rot)
             try:
                 sims[num] = copy.deepcopy(sim_FOV_ok)
             except:
@@ -1567,8 +1568,10 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
 
             for par, der_low, der, der_up in zip(bayes_set.params(), derivs[0], derivs[1], derivs[2]):
                 ders = np.array([der_low, der, der_up])
-                der_FOV_ok = FOV_integr_1D(x_FOV, ders)
+                der_FOV_ok = FOV_integr_1D(ders, pix.pixel_rot)
                 par.store_deriv(der_FOV_ok, num = num)
+
+        print('{} pixels done in {:5.1f} min'.format(num, (time.time()-time0)/60.))
 
         #INVERSIONE
         chi = chicalc(obs, sims, noise, bayes_set.n_tot, masks = masks)

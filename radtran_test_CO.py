@@ -104,23 +104,23 @@ atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_vmr_prof.dat
 for gas in atm_gases_old:
     atm_gases_old[gas] = sbm.AtmProfile(alt_gri, atm_gases_old[gas], profname='vmr', interp = 'lin')
 
-hcn = sbm.Molec(23, 'HCN')
-hcn.add_all_iso_from_HITRAN(linee, add_levels = False)
-hcn.link_to_atmos(atm_old)
-hcn.add_clim(atm_gases_old['HCN'])
-planet.add_gas(hcn)
-
-c2h2 = sbm.Molec(26, 'C2H2')
-c2h2.add_all_iso_from_HITRAN(linee, add_levels = False)
-c2h2.link_to_atmos(atm_old)
-c2h2.add_clim(atm_gases_old['C2H2'])
-planet.add_gas(c2h2)
-
-ch4 = sbm.Molec(6, 'CH4')
-ch4.add_all_iso_from_HITRAN(linee, add_levels = False)
-ch4.link_to_atmos(atm_old)
-ch4.add_clim(atm_gases_old['CH4'])
-planet.add_gas(ch4)
+# hcn = sbm.Molec(23, 'HCN')
+# hcn.add_all_iso_from_HITRAN(linee, add_levels = False)
+# hcn.link_to_atmos(atm_old)
+# hcn.add_clim(atm_gases_old['HCN'])
+# planet.add_gas(hcn)
+#
+# c2h2 = sbm.Molec(26, 'C2H2')
+# c2h2.add_all_iso_from_HITRAN(linee, add_levels = False)
+# c2h2.link_to_atmos(atm_old)
+# c2h2.add_clim(atm_gases_old['C2H2'])
+# planet.add_gas(c2h2)
+#
+# ch4 = sbm.Molec(6, 'CH4')
+# ch4.add_all_iso_from_HITRAN(linee, add_levels = False)
+# ch4.link_to_atmos(atm_old)
+# ch4.add_clim(atm_gases_old['CH4'])
+# planet.add_gas(ch4)
 
 print(' ')
 print(atm_gases_old.keys())
