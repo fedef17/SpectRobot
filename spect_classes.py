@@ -634,7 +634,7 @@ class SpectralObject(object):
         """
         Spectrum2 is a SpectralObject with a spectral_grid which is entirely or partially included in the self.spectral_grid, with the SAME STEP.
         """
-        if self.spectral_grid.step() != spectrum2.spectral_grid.step():
+        if not sbm.isclose(self.spectral_grid.step(), spectrum2.spectral_grid.step()):
             #raise ValueError("Different steps {} and {}, can't add the two spectra, convolve first".format(self.spectral_grid.step(),spectrum2.spectral_grid.step()))
             print("Different steps {} and {}, can't add the two spectra, convolve first".format(self.spectral_grid.step(),spectrum2.spectral_grid.step()))
 
@@ -1088,17 +1088,17 @@ class SpectralGcoeff(SpectralObject):
         """
         Interpolates self with another Gcoeff coeff2, considering the parameters given. The two coeffs should either have the same pressure (and in this case the desired Temp is given in the call) or the same temperature (Pres is given in the call).
         """
-        if self.temp != coeff2.temp and self.pres != coeff2.pres:
+        if not sbm.isclose(self.temp, coeff2.temp) and not sbm.isclose(self.pres, coeff2.pres):
             raise ValueError('The two coeffs have both different temperatures and pressures! cannot interpolate')
 
         if Pres is not None:
-            if self.temp != coeff2.temp:
+            if not sbm.isclose(self.temp, coeff2.temp):
                 raise ValueError('The two coeffs have different temperatures! You should specify the interpolation temperature, not the pressure')
             w1, w2 = sbm.weight(Pres, self.pres, coeff2.pres, itype='exp')
             new_spect = w1 * self.spectrum + w2 * coeff2.spectrum
             gigi = SpectralGcoeff(self.ctype, self.spectral_grid, self.mol, self.iso, self.MM, self.lev_string, spectrum = new_spect, Pres = Pres, Temp = self.temp)
         elif Temp is not None:
-            if self.pres != coeff2.pres:
+            if not sbm.isclose(self.pres, coeff2.pres):
                 raise ValueError('The two coeffs have different pressures! You should specify the interpolation pressure, not the temperature')
             w1, w2 = sbm.weight(Temp, self.temp, coeff2.temp, itype='lin')
             new_spect = w1 * self.spectrum + w2 * coeff2.spectrum

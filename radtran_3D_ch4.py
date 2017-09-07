@@ -110,9 +110,10 @@ pickle.dump(planet, open(inputs['cart_tvibs']+'planet.pic','w'))
 
 
 ##### SETTING THE BAYESSET:
-baybau = smm.BayesSet(tag = 'test_CH4_3D')
+baybau = smm.BayesSet(tag = 'test_CH4_HCN_C2H2_3D')
 alt_nodes = np.arange(350., 1050., 100.)
 lat_limits = lat_ext[:-1]
+
 apriori_profs = []
 cososo = atm_gases_old['CH4']
 for lat in lat_limits:
@@ -126,6 +127,35 @@ apriori_prof_errs = 0.7*apriori_profs
 set_ = smm.LinearProfile_2D('CH4', planet.atmosphere, alt_nodes, lat_limits, apriori_profs, apriori_prof_errs)
 baybau.add_set(set_)
 
+
+apriori_profs = []
+cososo = atm_gases_old['HCN']
+for lat in lat_limits:
+    prf = []
+    for alt in alt_nodes:
+        prf.append(cososo.calc([lat,alt]))
+    apriori_profs.append(prf)
+apriori_profs = np.array(apriori_profs)
+#apriori_profs = atm_gases_old['CH4'].vmr
+apriori_prof_errs = 0.7*apriori_profs
+set_ = smm.LinearProfile_2D('HCN', planet.atmosphere, alt_nodes, lat_limits, apriori_profs, apriori_prof_errs)
+baybau.add_set(set_)
+
+
+apriori_profs = []
+cososo = atm_gases_old['C2H2']
+for lat in lat_limits:
+    prf = []
+    for alt in alt_nodes:
+        prf.append(cososo.calc([lat,alt]))
+    apriori_profs.append(prf)
+apriori_profs = np.array(apriori_profs)
+#apriori_profs = atm_gases_old['CH4'].vmr
+apriori_prof_errs = 0.7*apriori_profs
+set_ = smm.LinearProfile_2D('C2H2', planet.atmosphere, alt_nodes, lat_limits, apriori_profs, apriori_prof_errs)
+baybau.add_set(set_)
+
+
 ### updating the profile of gases in bayesset
 for gas in baybau.sets.keys():
     planet.gases[gas].add_clim(baybau.sets[gas].profile())
@@ -134,7 +164,7 @@ for gas in baybau.sets.keys():
 print('Loading lines...')
 
 db_file = inputs['hitran_db']
-wn_range = [2850.,3175.]
+wn_range = [2850.,3450.]
 wn_range_obs = [spcl.convertto_nm(wn_range[1], 'cm_1')+10., spcl.convertto_nm(wn_range[0], 'cm_1')-10.]
 print(wn_range_obs)
 
@@ -145,7 +175,7 @@ linee = spcl.read_line_database(db_file, freq_range = wn_range)
 
 planetmols = [gas.mol for gas in planet.gases.values()]
 
-linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1] and lin.Mol in planetmols]
+linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1]]
 
 max_lines = 10
 if len(linee) > max_lines:

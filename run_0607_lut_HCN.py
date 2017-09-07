@@ -41,7 +41,7 @@ time0 = time.time()
 ### LOADING PLANET
 print('Loading planet...')
 
-planet = sbm.Titan()
+planet = sbm.Titan(1500.)
 
 lat_bands = ['SP','subPS','TS','EQ','TN','subPN','NP']
 lat_ext = [-90.,-75.,-60.,-30.,30.,60.,75.,90.]
@@ -121,9 +121,10 @@ LUTopt['max_pres'] = 5.0 # hPa circa 120 km
 abs_coeff = smm.prepare_spe_grid(wn_range)
 sp_grid = abs_coeff.spectral_grid
 
-LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, planet.gases.values(), atmosphere = planet.atmosphere, LUTopt = LUTopt)
-#PTtest = [[3.0, 170.], [4.0, 160.]]
-#LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, planet.gases.values(), PTcouples = PTtest, LUTopt = LUTopt)
+# LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, planet.gases.values(), atmosphere = planet.atmosphere, LUTopt = LUTopt)
+PTtest = [[3.0, 170.], [4.0, 160.], [2.0, 110.]]
+# PTtest = [[3.0, 170.], [4.0, 160.]]
+LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, planet.gases.values(), PTcouples = PTtest, LUTopt = LUTopt)
 
 print(time.ctime())
 print('CIAO!')

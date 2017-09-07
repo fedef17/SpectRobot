@@ -14,6 +14,7 @@ import scipy.stats as stats
 
 import scipy.stats as stats
 import time
+from matplotlib.ticker import FormatStrFormatter
 
 
 # def integr(wl,spe,Range,sol_lim):
@@ -50,30 +51,114 @@ print('STARTED AT {}\n'.format(time.ctime()))
 time.sleep(2)
 
 cart_orig = '/home/federico/VIMS_data/NEW_COLL_HCN-CH4-C2H2_season_sza80/'
-cub = 'PIXs_HCN-CH4-C2H2_season_sza80.sav'
+cub = 'PIXs_HCN-CH4-C2H2_season_szaall.sav'
 cart = '/home/federico/VIMS_data/NEW_COLL_HCN-CH4-C2H2_season_sza80/Pre/'
 
+cart = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/DATA/'
+cart_orig = cart
 cubo = io.readsav(cart_orig+cub)
 
 pixs = cubo.compPIX
 pixs = pixs[1:]
 
+print(dir(pixs))
+pixs[0].phang
+
+filtro = []
+print('FILTRO')
+for pix in pixs:
+    if np.sum(pix.spet < -3.e-8) > 2 or np.sum(np.abs(pix.spet) < 1e-10) > 5:
+        filtro.append(False)
+    else:
+        filtro.append(True)
+filtro = np.array(filtro)
+print('END_filtro')
+print(len(filtro), np.sum(filtro))
+
 cbarform = '%.1f'
 cbarlabel = r'Integrated intensity ({}$W\, m^{{-2}}\, sr^{{-1}}$)'
 cbarlabel2 = 'Ratio R_band/P_band'
 
+stp = 100.
+alts = np.arange(300.,1101.,stp)
 
-nome = cart + 'Coverage.pdf'
+nome = cart + 'Coverage_80-120.pdf'
 fig = pl.figure(figsize=(8, 6), dpi=150)
-sca = pl.scatter(pixs.year,pixs.lat,c=pixs.sza,cmap='jet',s=4,edgecolor='none')
+sca = pl.scatter(pixs.year,pixs.lat,c=pixs.sza,cmap='jet_r',s=4,edgecolor='none',vmax = 120, vmin = 80)
 cb = pl.colorbar()
 cb.set_label('SZA')
 pl.xlabel('Time of measurement (year)')
 pl.ylabel('Latitude')
 pl.grid()
-pl.title('Coverage of measurements (SZA < 80)')
+pl.title('Coverage of measurements')
 fig.savefig(nome, format='pdf', dpi=150)
 pl.close(fig)
+
+nome = cart + 'Coverage_80.pdf'
+fig = pl.figure(figsize=(8, 6), dpi=150)
+sca = pl.scatter(pixs.year,pixs.lat,c=pixs.sza,cmap='jet_r',s=4,edgecolor='none',vmax = 80)
+cb = pl.colorbar()
+cb.set_label('SZA')
+pl.xlabel('Time of measurement (year)')
+pl.ylabel('Latitude')
+pl.grid()
+pl.title('Coverage of measurements')
+fig.savefig(nome, format='pdf', dpi=150)
+pl.close(fig)
+
+sza_maxs = [0.,40.,60.,80.,120.,180.]
+
+mean_spets = dict()
+
+for sza_min, sza_max in zip(sza_maxs[:-1], sza_maxs[1:]):
+    nome = cart + 'Spettri_medi_{:03d}.pdf'.format(int(sza_max))
+    fig = pl.figure(figsize=(8, 6), dpi=150)
+    ax1 = pl.subplot()
+    ax1.yaxis.set_major_formatter(FormatStrFormatter('%.1e'))
+    pl.xlabel('Wavelength (nm)')
+    pl.ylabel('Radiance (W m$^{-2}$ nm$^{-1}$ sr$^{-1}$)')
+    pl.title('Mean spectra at {:3d} < SZA < {:3d}'.format(int(sza_min), int(sza_max)))
+
+    spemed = dict()
+    for alt in alts:
+        cond = (pixs.alt > alt-stp/2.) & (pixs.alt < alt+stp/2.) & (pixs.sza < sza_max) & (pixs.sza > sza_min) & (filtro) & (pixs.phang < 120.)
+        print(sza_max,alt,len(pixs[cond]))
+        spe = np.nanmean(np.vstack(pixs[cond].spet), axis = 0)
+        #print(spe.shape)
+        #spe = np.mean(pixs[cond].spet)
+        #print(spe.shape)
+        spemed[alt] = spe
+        try:
+            pl.plot(pixs[100].wl,spe,label='{:5.0f} km'.format(alt))
+        except:
+            print('EXCEPTION : not plotted')
+            continue
+
+    pl.legend()
+    fig.savefig(nome, format='pdf', dpi=150)
+    mean_spets[(sza_min,sza_max)] = spemed
+
+
+for alt in alts:
+    nome = cart + 'Spettri_medi_varsza_{:03d}.pdf'.format(int(alt))
+    fig = pl.figure(figsize=(8, 6), dpi=150)
+    ax1 = pl.subplot()
+    ax1.yaxis.set_major_formatter(FormatStrFormatter('%.1e'))
+    pl.xlabel('Wavelength (nm)')
+    pl.ylabel('Radiance (W m$^{-2}$ nm$^{-1}$ sr$^{-1}$)')
+    pl.title('Mean spectra at different SZA. Alt: {:3.0f} km'.format(alt))
+    for cos in mean_spets.keys():
+        spe = mean_spets[cos][alt]
+        pl.plot(pixs[100].wl,spe,label='{:3.0f}-{:3.0f}'.format(*cos))
+
+    pl.legend()
+    fig.savefig(nome, format='pdf', dpi=150)
+
+pickle.dump(mean_spets, open(cart+'mean_spectra.pic','w'))
+
+sys.exit()
+
+
 
 n_sza = 10
 n_lats = 5
@@ -149,19 +234,7 @@ pl.close(fig)
 limits = [[2970,3090],[3170,3290],[3290,3350],[3350,3470]]
 sol_limits = [[2960,2980],[3120,3160],[3480,3500]]
 
-nome = cart + 'Spettri_medi.pdf'
-fig = pl.figure(figsize=(8, 6), dpi=150)
-ax = pl.subplot()
-spemed = []
-for alt in alts:
-    cond = (pixs.alt > alt-25) & (pixs.alt < alt+25) & (pixs.sza < 40)
-    spe = np.mean(pixs[cond].spet)
-    spemed.append(spe)
-    try:
-        pl.plot(pixs[100].wl,spe,label='{:5.0f} km'.format(alt))
-    except:
-        print('EXCEPTION : not plotted')
-        continue
+
 #sca = pl.scatter(pixs.year,pixs.lat,c=pixs.sza,cmap='jet',s=4,edgecolor='none')
 #
 

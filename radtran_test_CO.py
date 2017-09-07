@@ -78,7 +78,7 @@ linee = spcl.read_line_database(db_file)
 ### LOADING PLANET
 print('Loading planet...')
 
-planet = sbm.Titan()
+planet = sbm.Titan(1000.)
 
 ### LOADING MOLECULES
 print('Loading molecules...')

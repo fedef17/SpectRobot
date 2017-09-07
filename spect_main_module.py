@@ -30,6 +30,25 @@ def date_stamp():
     strin = '_'+time.ctime().split()[2]+'-'+time.ctime().split()[1]+'-'+time.ctime().split()[4]
     return strin
 
+def find_free_name(filename, maxnum = 1000, split_at = '.'):
+    if maxnum <= 100:
+        form = '_{:02d}'
+    elif maxnum <= 1000:
+        form = '_{:03d}'
+    else:
+        form = '_{:05d}'
+
+    num = 1
+    fileorig = filename
+    ind = fileorig.index(split_at)
+    while os.path.isfile(filename):
+        filename = fileorig[:ind]+form.format(num)+fileorig[ind:]
+        num +=1
+        if num > maxnum:
+            raise ValueError('Check filenames! More than {} with the same name'.format(maxnum))
+
+    return filename
+
 def equiv(num1, num2, thres = 1e-8):
     """
     Tells if two float numbers are to be considered equivalent.
@@ -44,6 +63,24 @@ def equiv(num1, num2, thres = 1e-8):
         return True
 
     return False
+
+
+def check_lines_mols(lines, molecs):
+    """
+    Returns just the lines that involve molecs and molecs levels if set.
+    """
+
+    lines_ok = []
+    for mol in molecs:
+        for iso in mol.all_iso:
+            isomol = getattr(mol, iso)
+            if len(isomol.levels) > 0:
+                lines_ok += [lin for lin in lines if lin.Mol == isomol.mol and lin.Iso == isomol.iso and isomol.has_level(lin.Lo_lev_str)[0] and isomol.has_level(lin.Up_lev_str)[0]]
+            else:
+                lines_ok += [lin for lin in lines if lin.Mol == isomol.mol and lin.Iso == isomol.iso]
+
+    return lines_ok
+
 
 
 # CLASSES
@@ -413,16 +450,21 @@ class RetParam(object):
         return
 
 
+def lut_name(mol, iso, LTE):
+    if LTE:
+        name = 'LUT_mol{:02d}_iso{:1d}_LTE'.format(mol,iso)
+    else:
+        name = 'LUT_mol{:02d}_iso{:1d}_nonLTE'.format(mol,iso)
+    return name
+
+
 class LookUpTable(object):
     """
     This class represent a look-up table for a specific molecule/isotope.
     """
 
-    def __init__(self, isomolec, wn_range, tag = None):
-        if tag is not None:
-            self.tag = tag
-        else:
-            self.tag = 'LUT_mol{0:02d}_iso{:1d}'.format(isomolec.mol,isomolec.iso)
+    def __init__(self, isomolec, wn_range, LTE):
+        self.tag = lut_name(isomolec.mol, isomolec.iso, LTE)
         self.wn_range = copy.deepcopy(wn_range)
         self.mol = isomolec.mol
         self.iso = isomolec.iso
@@ -430,6 +472,22 @@ class LookUpTable(object):
         self.isomolec = copy.deepcopy(isomolec)
         self.sets = dict()
         self.PTcouples = []
+        self.LTE = LTE
+        return
+
+    def merge(self, LUT):
+        """
+        To make a single lut from two luts with different ptcouples but same levels.
+        """
+        for lev_name in self.sets.keys():
+            lev1 = self.sets[lev_name]
+            lev2 = LUT.sets[lev_name]
+            if not self.LTE:
+                if not lev1.level.equiv(lev2.level.lev_string):
+                    raise ValueError('Levels are different, cannot merge LUTs')
+            lev1.add_file(lev2.filename, lev2.PTcouples)
+
+        self.PTcouples += LUT.PTcouples
         return
 
     def make(self, spectral_grid, lines, PTcouples, export_levels = True, cartLUTs = None, control = True):
@@ -448,12 +506,21 @@ class LookUpTable(object):
 
         lines = [lin for lin in lines if (lin.Mol == self.mol and lin.Iso == self.iso)]
 
-        for lev in self.isomolec.levels:
-            print('Building LutSet for level {} of mol {}, iso {}'.format(lev,self.mol,self.iso))
-            filename = cartLUTs + self.tag + '_' + lev + date_stamp() + '.pic'
-            set1 = LutSet(self.mol, self.iso, self.MM, level = getattr(self.isomolec, lev), filename = filename)
-            self.sets[lev] = copy.deepcopy(set1)
-            self.sets[lev].prepare_export(PTcouples)
+        if not self.LTE:
+            for lev in self.isomolec.levels:
+                print('Building LutSet for level {} of mol {}, iso {}'.format(lev,self.mol,self.iso))
+                filename = cartLUTs + self.tag + '_' + lev + date_stamp() + '.pic'
+                filename = find_free_name(filename, maxnum = 10)
+                set1 = LutSet(self.mol, self.iso, self.MM, level = getattr(self.isomolec, lev), filename = filename)
+                self.sets[lev] = copy.deepcopy(set1)
+                self.sets[lev].prepare_export(PTcouples, self.spectral_grid)
+        else:
+            print('Building LTE LutSet for mol {}, iso {}'.format(self.mol,self.iso))
+            filename = cartLUTs + self.tag + '_alllev' + date_stamp() + '.pic'
+            filename = find_free_name(filename, maxnum = 10)
+            set1 = LutSet(self.mol, self.iso, self.MM, level = None, filename = filename)
+            self.sets['all'] = copy.deepcopy(set1)
+            self.sets['all'].prepare_export(PTcouples, self.spectral_grid)
 
 
         num=0
@@ -473,9 +540,12 @@ class LookUpTable(object):
 
             time1 = time.time()
 
-            for lev in self.isomolec.levels:
-                #print('Building LutSet for level {} of mol {}, iso {}'.format(lev,self.mol,self.iso))
-                self.sets[lev].add_PT(spectral_grid, lines_proc, Pres, Temp, keep_memory = False)
+            if not self.LTE:
+                for lev in self.isomolec.levels:
+                    #print('Building LutSet for level {} of mol {}, iso {}'.format(lev,self.mol,self.iso))
+                    self.sets[lev].add_PT(spectral_grid, lines_proc, Pres, Temp, keep_memory = False)
+            else:
+                self.sets['all'].add_PT(spectral_grid, lines_proc, Pres, Temp, keep_memory = False)
 
             mess = "Extracted single levels G_coeffs in {:5.1f} s. PT couple completed. Saving..".format(time.time()-time1)
             #print(mess)
@@ -483,8 +553,11 @@ class LookUpTable(object):
                 comm = 'echo '+mess+' >> control_spectrobot'
                 os.system(comm)
 
-        for lev in self.isomolec.levels:
+        if not self.LTE:
+            for lev in self.isomolec.levels:
                 self.sets[lev].finalize_IO()
+        else:
+            self.sets['all'].finalize_IO()
 
         return
 
@@ -530,9 +603,19 @@ class LutSet(object):
         else:
             self.level = None
             self.unidentified_lines = True
-        self.filename = filename
+        self.filename = filename # Actual file in use
+        self.filenames = [filename] # All files that refer to the same lutset. Used in case of incomplete PTcouples.
         self.sets = []
         self.spectral_grid = None
+        self.PTcouples = None
+        return
+
+    def add_file(self, filename, PTcouples):
+        """
+        To complete the set, this is to allow reading from files made at different times.
+        """
+        self.filenames.append(filename)
+        self.PTcouples += PTcouples
         return
 
     def prepare_read(self):
@@ -543,7 +626,7 @@ class LutSet(object):
         PTcouples = pickle.load(self.temp_file)
         return PTcouples
 
-    def prepare_export(self, PTcouples):
+    def prepare_export(self, PTcouples, spectral_grid):
         """
         Opens the pic file for export, dumps PTcouples on top.
         """
@@ -551,6 +634,8 @@ class LutSet(object):
             raise ValueError('ERROR!: NO filename set for LutSet.')
         else:
             self.temp_file = open(self.filename, 'wb')
+        self.PTcouples = copy.deepcopy(PTcouples)
+        self.spectral_grid = spectral_grid
         pickle.dump(PTcouples, self.temp_file, protocol = -1)
 
         return
@@ -585,6 +670,36 @@ class LutSet(object):
 
         return
 
+    def load_from_files(self, load_just_PT = False, spectral_grid = None):
+        """
+        Loads from file just the data regarding level's LutSet. Better not to load all levels together due to memory limits.
+        Adapted for more than one file.
+        """
+
+        self.PTcouples = []
+        for filename in self.filenames:
+            fileo = open(filename,'rb')
+            self.PTcouples += pickle.load(fileo)
+
+            if load_just_PT:
+                fileo.close()
+            else:
+                for PT in self.PTcouples:
+                    gigi = pickle.load(fileo)
+                    for pig in gigi.values():
+                        pig.double_precision()
+                        try:
+                            pig.restore_grid(self.spectral_grid)
+                        except: # for compatibility
+                            pig.restore_grid(spectral_grid)
+                            if spectral_grid is None:
+                                raise ValueError('No spectral grid given.')
+                    self.sets.append(gigi)
+
+                fileo.close()
+
+        return
+
     def load_singlePT_from_file(self, spectral_grid = None):
         """
         Loads from file just the data regarding level's LutSet, for a single PT. Better not to load all the LOS together due to memory limits.
@@ -614,6 +729,7 @@ class LutSet(object):
         Looks for [Pres,Temp] in PTcouples and returns the corresponding list index.
         """
         if [Pres,Temp] not in self.PTcouples:
+            print(self.PTcouples)
             raise ValueError('{} couple not found!'.format([Pres,Temp]))
         else:
             ok = self.PTcouples.index([Pres,Temp])
@@ -626,52 +742,57 @@ class LutSet(object):
         """
         ctypes = ['sp_emission','ind_emission','absorption']
 
-        Ps = np.array([PT[0] for PT in PTcouples])
-        Ts = np.array([PT[1] for PT in PTcouples])
+        Ps = np.unique(np.array([PT[0] for PT in self.PTcouples]))
+        Ts = np.unique(np.array([PT[1] for PT in self.PTcouples]))
 
-        #casi:
-        if Pres < np.min(Ps):
-            closest_P1 = np.min(Ps)
-            closest_TA = np.min(np.abs(Ts-Temp))
-            closest_TB = np.sort(np.unique(np.abs(Ts-Temp)))[1]
+        try:
+            if Pres <= np.min(Ps):
+                closest_P1 = np.min(Ps)
+                closest_TA_ind = np.argmin(np.abs(Ts-Temp))
+                closest_TB_ind = np.argsort(np.abs(Ts-Temp))[1]
+                closest_TA = Ts[closest_TA_ind]
+                closest_TB = Ts[closest_TB_ind]
 
-            ok1 = self.find(closest_P1,closest_TA)
-            coeff_ok1 = self.sets[ok1]
-            ok2 = self.find(closest_P1,closest_TB)
-            coeff_ok2 = self.sets[ok2]
-            set_ = dict()
-            for ctype in ctypes:
-                set_[ctype] = coeff_ok1.interpolate(coeff_ok2, Temp = Temp)
+                ok1 = self.find(closest_P1,closest_TA)
+                coeff_ok1 = self.sets[ok1]
+                ok2 = self.find(closest_P1,closest_TB)
+                coeff_ok2 = self.sets[ok2]
+                set_ = dict()
+                for ctype in ctypes:
+                    set_[ctype] = coeff_ok1.interpolate(coeff_ok2, Temp = Temp)
+            else:
+                closest_P1_ind = np.argmin(np.abs(Ps-Pres))
+                closest_P2_ind = np.argsort(np.abs(Ps-Pres))[1]
+                closest_P1 = Ps[closest_P1_ind]
+                closest_P2 = Ps[closest_P2_ind]
 
-            return set_
+                # Now that I found the two closest Ps, I check which temps are closer to my case
 
+                closest_T1_ind = np.argmin(np.abs(Ts-Temp))
+                closest_T2_ind = np.argsort(np.abs(Ts-Temp))[1]
+                closest_T1 = Ts[closest_T1_ind]
+                closest_T2 = Ts[closest_T2_ind]
 
-        closest_P1 = np.min(np.unique(np.abs(Ps-Pres)))
-        closest_P2 = np.sort(np.unique(np.abs(Ps-Pres)))[1]
+                # I'm doing first the P interpolation
+                ok1 = self.find(closest_P1,closest_T1)
+                coeff_ok1 = self.sets[ok1]
+                ok2 = self.find(closest_P1,closest_T2)
+                coeff_ok2 = self.sets[ok2]
+                ok3 = self.find(closest_P2,closest_T1)
+                coeff_ok3 = self.sets[ok3]
+                ok4 = self.find(closest_P2,closest_T2)
+                coeff_ok4 = self.sets[ok4]
 
-        # Now that I found the two closest Ps, I check which temps are closer to my case
-
-        T_P1 = np.array([PT[1] for PT in PTcouples if PT[0] == closest_P1])
-        T_P2 = np.array([PT[1] for PT in PTcouples if PT[0] == closest_P2])
-
-        closest_TA = np.min(np.abs(Ts-Temp))
-        closest_TB = np.sort(np.unique(np.abs(Ts-Temp)))[1]
-
-        # I'm doing first the P interpolation
-        ok1 = self.find(closest_P1,closest_TA)
-        coeff_ok1 = self.sets[ok1]
-        ok2 = self.find(closest_P1,closest_TB)
-        coeff_ok2 = self.sets[ok2]
-        ok3 = self.find(closest_P2,closest_TA)
-        coeff_ok3 = self.sets[ok3]
-        ok4 = self.find(closest_P2,closest_TB)
-        coeff_ok4 = self.sets[ok4]
-
-        set_ = dict()
-        for ctype in ctypes:
-            coeff_ok13 = coeff_ok1[ctype].interpolate(coeff_ok3[ctype], Pres = Pres)
-            coeff_ok24 = coeff_ok2[ctype].interpolate(coeff_ok4[ctype], Pres = Pres)
-            set_[ctype] = coeff_ok13.interpolate(coeff_ok24, Temp = Temp)
+                set_ = dict()
+                for ctype in ctypes:
+                    coeff_ok13 = coeff_ok1[ctype].interpolate(coeff_ok3[ctype], Pres = Pres)
+                    coeff_ok24 = coeff_ok2[ctype].interpolate(coeff_ok4[ctype], Pres = Pres)
+                    set_[ctype] = coeff_ok13.interpolate(coeff_ok24, Temp = Temp)
+        except Exception as cazzillo:
+            print('Unable to interpolate to pt couple {}'.format((Pres,Temp)))
+            print('T set: {}'.format(Ts))
+            print('P set: {}'.format(Ps))
+            raise ValueError('cazzillo')
 
         return set_
 
@@ -981,11 +1102,11 @@ def read_Gcoeffs_from_LUTs(cartLUTs, fileLUTs):
     return LUTs
 
 
-def check_LUT_exists(PTcouples, cartLUTs, molname, isoname, LTE = True):
+def check_LUT_exists(PTcouples, cartLUTs, mol, iso, LTE):
     """
     Checks if a LUT is already present in cartLUTs for molname (Molec.name), isoname (iso_1, iso_2, ..) and if it is non-LTE ready (with levels) or not. Returns the PTcouples for which the LUT has not yet been calculated.
     """
-    stringa = molname+'_'+isoname
+    stringa = lut_name(mol, iso, LTE)
     fileok = [fil for fil in os.listdir(cartLUTs) if stringa in fil and not 'lev' in fil]
 
     print(stringa)
@@ -994,11 +1115,8 @@ def check_LUT_exists(PTcouples, cartLUTs, molname, isoname, LTE = True):
     if len(fileok) == 0:
         print('LUT does not exist at all')
         return False, PTcouples, None
-
-    fileoklev = [fil for fil in os.listdir(cartLUTs) if stringa in fil and 'lev' in fil]
-    if len(fileoklev) == 0 and not LTE:
-        print('LUT exists just for LTE')
-        return False, PTcouples, None
+    else:
+        print('Found {} LUT files matching'.format(len(fileok)))
 
     pt_done = []
     pt_map = []
@@ -1031,7 +1149,7 @@ def check_LUT_exists(PTcouples, cartLUTs, molname, isoname, LTE = True):
     else:
         print(pt_to_do)
         print(pt_done)
-        print(molname, isoname)
+        print(mol, iso)
         print('LUT does not exist at all')
 
     return True, pt_to_do, pt_map
@@ -1046,37 +1164,41 @@ def check_and_build_allluts(inputs, sp_grid, lines, molecs, atmosphere = None, P
     if PTcouples is None:
         if atmosphere is None:
             raise ValueError('Give either atmosphere or PTcouples in input as kwargs')
-        PTcouples = calc_PT_couples_atmosphere(lines, molecs, atmosphere)
+        PTcouples = calc_PT_couples_atmosphere(lines, molecs, atmosphere, **LUTopt)
 
     for molec in molecs:
         for isoname in molec.all_iso:
             isomol = getattr(molec, isoname)
-            exists, pt_to_do, pt_map = check_LUT_exists(PTcouples, inputs['cart_LUTS'], molec.name, isoname, isomol.is_in_LTE)
+            exists, pt_to_do, pt_map = check_LUT_exists(PTcouples, inputs['cart_LUTS'], isomol.mol, isomol.iso, isomol.is_in_LTE)
 
             if exists and len(pt_to_do) == 0:
                 #leggi (hai solo una entry nel pt_map nel caso base)
+                # caricare solo le PT couples giuste?
                 filos = pt_map[0][0]
-                coso = open(filos, 'r')
-                LUT_isomol = pickle.load(coso)
-                coso.close()
+                with open(filos, 'r') as coso:
+                    LUT_isomol = pickle.load(coso)
                 if len(pt_map) > 1:
-                    print(pt_map)
-                    raise ValueError('Scrivi codice mancante')
-                    #ed eventualmente appiccica i contributi dei diversi files
+                    for [fi,ptfi] in pt_map[1:]:
+                        with open(fi, 'r') as coso:
+                            LUT_isomol.merge(pickle.load(coso))
             elif exists and len(pt_to_do) != 0:
-                pass
-                print(pt_map)
-                print(pt_to_do)
-                raise ValueError('Scrivi codice mancante', len(pt_to_do))
-                #completa la LUT con una nuova
-                #leggi quelle vecchie e quella nuova
+                filos = pt_map[0][0]
+                with open(filos, 'r') as coso:
+                    LUT_isomol = pickle.load(coso)
+                if len(pt_map) > 1:
+                    for [fi,ptfi] in pt_map[1:]:
+                        with open(fi, 'r') as coso:
+                            LUT_isomol.merge(pickle.load(coso))
+                print('Loaded {} existing PTcouples, producing new LUTs for {} PTcouples'.format(len(PTcouples)-len(pt_to_do), len(pt_to_do)))
+                LUT_isomol_new = makeLUT_nonLTE_Gcoeffs(sp_grid, lines, isomol, isomol.is_in_LTE, PTcouples = pt_to_do, cartLUTs = inputs['cart_LUTS'], n_threads = inputs['n_threads'], **LUTopt)
+
+                LUT_isomol.merge(LUT_isomol_new)
             else:
                 # fai la lut da zero
                 # find_wnrange(sp_grid, isomol)
-                # DA AGGIUNGEGERRERERE
-                LUT_isomol = makeLUT_nonLTE_Gcoeffs(sp_grid, lines, [molec], PTcouples = PTcouples, atmosphere = atmosphere, cartLUTs = inputs['cart_LUTS'], n_threads = inputs['n_threads'], solo_isoname = isoname, **LUTopt)
+                LUT_isomol = makeLUT_nonLTE_Gcoeffs(sp_grid, lines, isomol, isomol.is_in_LTE, PTcouples = PTcouples, cartLUTs = inputs['cart_LUTS'], n_threads = inputs['n_threads'], **LUTopt)
 
-            allLUTs['{}_{}'.format(molec.name, isoname)] = LUT_isomol
+            allLUTs[(molec.name, isomol.iso)] = LUT_isomol
 
     return allLUTs
 
@@ -1091,14 +1213,17 @@ def calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, t
     if max_pres is not None:
         logpres0 = np.log(max_pres)
 
+    #print(logpresMIN, logpres0)
     #fixing at grid
     n0 = mt.ceil(logpres0/pres_step_log)
     logpres0 = n0*pres_step_log
     nMIN = mt.floor(logpresMIN/pres_step_log)
     logpresMIN = nMIN*pres_step_log
-
+    #print(logpresMIN, logpres0)
 
     log_pressures = logpresMIN + np.arange(0,(logpres0-logpresMIN)+0.5*pres_step_log,pres_step_log)
+
+    #print(log_pressures)
     #print('Built set of {} pressure levels from {} to {} with logstep = {}.'.format(len(log_pressures),logpresMIN,logpres0,pres_step_log))
 
     airbr = np.argmax(np.array([lin.Air_broad for lin in lines]))
@@ -1144,8 +1269,13 @@ def calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, t
             PTcouples.append([pres,temp])
 
     mms = []
+    if type(molecs) is not list:
+        molecs = [molecs]
     for mol in molecs:
-        mms += [getattr(mol,isom).MM for isom in mol.all_iso]
+        if isinstance(mol, sbm.Molec):
+            mms += [getattr(mol,isom).MM for isom in mol.all_iso]
+        elif isinstance(mol, sbm.IsoMolec):
+            mms.append(mol.MM)
 
     PTcouples_ok = []
     temps_lowpres = []
@@ -1167,14 +1297,14 @@ def calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, t
     return PTcouples
 
 
-def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere = None, PTcouples = None, cartLUTs = None, tagLUTs = 'LUT_', pres_step_log = 0.4, temp_step = 5.0, save_LUTs = True, n_threads = n_threads, test = False, thres = 0.01, max_pres = None, check_num_couples = False, solo_isoname = None):
+def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, isomol, LTE, atmosphere = None, PTcouples = None, cartLUTs = None, pres_step_log = 0.4, temp_step = 5.0, save_LUTs = True, n_threads = n_threads, test = False, thres = 0.01, max_pres = None, check_num_couples = False):
     """
     Calculates the G_coeffs for the isomolec_levels at Temp and Pres.
     :param isomolecs: A list of isomolecs objects or a single one.
     """
 
     if PTcouples is None:
-        PTcouples = calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, temp_step = 5.0, max_pres = None, thres = 0.01)
+        PTcouples = calc_PT_couples_atmosphere(lines, isomol, atmosphere, pres_step_log = pres_step_log, temp_step = temp_step, max_pres = max_pres, thres = thres)
 
     if check_num_couples:
         return PTcouples
@@ -1185,30 +1315,19 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, molecs, atmosphere = None, PTco
 
     print('Building LUTs for {} pres/temp couples... This may take some time... like {} minutes, maybe, not sure at all. Good luck ;)'.format(len(PTcouples),3.*len(PTcouples)))
 
-    LUTS = []
-    names = []
-    for molec in molecs:
-        for isoname in molec.all_iso:
-            if solo_isoname is not None:
-                if isoname != solo_isoname:
-                    continue
-            isomol = getattr(molec, isoname)
-            if len(isomol.levels) == 0:
-                continue
-            taggg = tagLUTs + '_' + molec.name + '_' + isoname
-            names.append(molec.name+'_'+isoname)
-            LUT = LookUpTable(isomol, spectral_grid.wn_range(), tag = taggg)
-            #print(time.ctime())
-            print("Hopefully this calculation will take about {} minutes, but actually I really don't know, take your time :)".format(LUT.CPU_time_estimate(lines, PTcouples)))
-            LUT.make(spectral_grid, lines, PTcouples, export_levels = True, cartLUTs = cartLUTs)
-            print(time.ctime())
-            LUT.export(filename = cartLUTs+taggg+date_stamp()+'.pic')
-            LUTS.append(LUT)
+    LUT = LookUpTable(isomol, spectral_grid.wn_range(), LTE)
 
-    LUTs_wnames = dict(zip(names,LUTS))
-    pickle.dump(LUTs_wnames, open(cartLUTs+tagLUTs+'_all_'+date_stamp()+'.pic','w') )
+    print(time.ctime())
+    print("Hopefully this calculation will take about {} minutes, but actually I really don't know, take your time :)".format(LUT.CPU_time_estimate(lines, PTcouples)))
 
-    return LUTs_wnames
+    LUT.make(spectral_grid, lines, PTcouples, export_levels = True, cartLUTs = cartLUTs)
+    print(time.ctime())
+
+    filename = cartLUTs+LUT.tag+date_stamp()+'.pic'
+    filename = find_free_name(filename, maxnum = 10)
+    LUT.export(filename)
+
+    return LUT
 
 
 def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, allLUTs = None, useLUTs = False, lines = None, store_in_memory = False, tagLOS = None, cartDROP = None):
@@ -1238,11 +1357,9 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
     Qui ci sono due wn_range, uno per le LUTs (wn_range) e uno per gli abs_coeff ed emi_coeff in output (wn_range_tot). Senza LUT i due sono uguali. Non so se vale la pena lasciare anche abs ed emi coeff a wn_range ridotta, risparmierei tempo di calcolo ma si incasina radtran.
     """
     if useLUTs:
-        LUTs = allLUTs['{}_iso_{}'.format(isomolec.mol_name, isomolec.iso)]
+        LUTs = allLUTs[(isomolec.mol_name, isomolec.iso)]
         wn_range = LUTs.wn_range
-
-        coso = prepare_spe_grid(wn_range)
-        spectral_grid = coso.spectral_grid
+        spectral_grid = LUTs.spectral_grid
     else:
         wn_range = wn_range_tot
         coso = prepare_spe_grid(wn_range_tot)
@@ -1268,12 +1385,12 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
             levvo = getattr(isomolec, lev)
             strin = cartDROP+'LUTLOS_mol_{}_iso_{}_{}.pic'.format(isomolec.mol, isomolec.iso, lev)
             set_tot[lev] = LutSet(isomolec.mol, isomolec.iso, isomolec.MM, level = levvo, filename = strin)
-            set_tot[lev].prepare_export([zui for zui in zip(Press,Temps)])
+            set_tot[lev].prepare_export([zui for zui in zip(Press,Temps)], spectral_grid)
     else:
         #print('siamo quaaaA')
         strin = cartDROP+'LUTLOS_mol_{}_iso_{}_alllev.pic'.format(isomolec.mol, isomolec.iso)
         set_tot['all'] = LutSet(isomolec.mol, isomolec.iso, isomolec.MM, level = None, filename = strin)
-        set_tot['all'].prepare_export([zui for zui in zip(Press,Temps)])
+        set_tot['all'].prepare_export([zui for zui in zip(Press,Temps)], spectral_grid)
 
 
     if not useLUTs:
@@ -1310,13 +1427,13 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
                 ok, lev_lut = LUTs.find_lev(levello.lev_string)
                 if not ok:
                     raise ValueError('mol {} iso {} Level {} not found'.format(isomolec.mol, isomolec.iso, levello.lev_string))
-                LUTs.sets[lev_lut].load_from_file()
+                LUTs.sets[lev_lut].load_from_files()
                 for Pres, Temp in zip(Press,Temps):
                     set_ = LUTs.sets[lev_lut].calculate(Pres, Temp)
                     set_tot[lev].add_dump(set_)
                 LUTs.sets[lev_lut].free_memory()
         else:
-            LUTs.sets['all'].load_from_file()
+            LUTs.sets['all'].load_from_files()
             for Pres, Temp in zip(Press,Temps):
                 set_ = LUTs.sets['all'].calculate(Pres, Temp)
                 set_tot['all'].add_dump(set_)
@@ -1461,11 +1578,12 @@ def read_input_observed(observed_cart, wn_range = None):
     return set_pixels
 
 
-def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = None, useLUTs = True, debugfile = None, LUTopt = dict()):
+def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), useLUTs = True, debugfile = None, LUTopt = dict(), test = False):
     """
     Main routine for retrieval.
     """
 
+    lines = check_lines_mols(lines, planet.gases.values())
     print('inside')
     cartOUT = inputs['out_dir']
 
@@ -1502,6 +1620,12 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
 
         pres_max = max(pres_max)
         PTcoup_needed = calc_PT_couples_atmosphere(lines, planet.gases.values(), planet.atmosphere, **LUTopt)
+
+        print(len(PTcoup_needed))
+        # if test:
+        #     for i in range(20):
+        #         print('TEST!! REDUCING TO 3 PT COUPLES!')
+        #     PTcoup_needed = PTcoup_needed[:3]
 
         LUTS = check_and_build_allluts(inputs, sp_gri, lines, planet.gases.values(), PTcouples = PTcoup_needed, LUTopt = LUTopt)
         n_lut_tot = len(PTcoup_needed)
@@ -1605,13 +1729,17 @@ def FOV_integr_1D(radtrans, pixel_rot = 0.0):
     """
     from scipy import integrate
 
+    pixel_rot = sbm.rad(pixel_rot)
+
     dmax = np.sqrt(2.)/2.*np.cos(np.pi/4-pixel_rot)
+    print(pixel_rot, dmax)
     delta = dmax-np.sin(pixel_rot)
     esse = 1/np.cos(pixel_rot)
     x_integ = np.array([-dmax, 0, dmax])
+    print(x_integ)
     spectrums = np.array([rad.spectrum for rad in radtrans])
 
-    intens_spl = spline2D(x_integ, radtrans[0].spectral_grid.grid, spectrums, kx=2)
+    intens_spl = spline2D(x_integ, radtrans[0].spectral_grid.grid, spectrums, kx=2, ky=2)
 
     def integrand(x, ww, funz = intens_spl, delta = delta, dmax = dmax, esse = esse):
         if abs(x) <= delta:
