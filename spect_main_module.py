@@ -679,12 +679,13 @@ class LutSet(object):
         self.PTcouples = []
         for filename in self.filenames:
             fileo = open(filename,'rb')
-            self.PTcouples += pickle.load(fileo)
+            PTfil = pickle.load(fileo)
+            self.PTcouples += PTfil
 
             if load_just_PT:
                 fileo.close()
             else:
-                for PT in self.PTcouples:
+                for PT in PTfil:
                     gigi = pickle.load(fileo)
                     for pig in gigi.values():
                         pig.double_precision()
