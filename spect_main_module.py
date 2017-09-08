@@ -1249,7 +1249,7 @@ def calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, t
         #print('For level {} with pres {}, temp in range: {} <-> {}'.format(len(temps)-1,pres1,temps[-1][0],temps[-1][1]))
         i+=1
 
-    okke = (atmosphere.pres >= pressures[-2])
+    okke = (atmosphere.pres >= pressures[-2]) & (atmosphere.pres <= pressures[-1])
     #print(np.any(okke))
     temps_pres = atmosphere.temp[okke]
     temps.append([np.min(temps_pres),np.max(temps_pres)])
@@ -1258,9 +1258,9 @@ def calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, t
     # round_values for temp at 5 K steps and build couples P/T
     PTcouples = []
     for pres, trange in zip(pressures,temps):
-        t_0 = int(trange[0]) / int(temp_step)
-        t_1 = int(trange[1]+temp_step) / int(temp_step)
-        all_t = np.arange(t_0*temp_step,(t_1+1.)*temp_step,temp_step)
+        t_0 = (np.floor(trange[0]/temp_step)-1)*temp_step
+        t_1 = (np.ceil(trange[1]/temp_step)+1)*temp_step
+        all_t = np.arange(t_0,t_1+0.5*temp_step,temp_step)
         ##print(trange,all_t)
         for temp in all_t:
             PTcouples.append([pres,temp])
