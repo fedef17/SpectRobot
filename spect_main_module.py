@@ -1277,16 +1277,18 @@ def calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, t
 
     PTcouples_ok = []
     temps_lowpres = []
+    Pres_0 = 1.e-8
     for [Pres, Temp] in PTcouples:
         dw, lw, wsh = lines[airbr].CheckWidths(Temp, Pres, min(mms))
         if lw < thres*dw:
             #print('Skippo pressure level: {} << {}'.format(lw,dw))
+            if Pres > Pres_0:
+                Pres_0 = Pres
             if Temp not in temps_lowpres:
                 temps_lowpres.append(Temp)
         else:
             PTcouples_ok.append([Pres, Temp])
 
-    Pres_0 = 1.e-8
     for Temp in temps_lowpres:
         PTcouples_ok.insert(0, [Pres_0, Temp])
 
