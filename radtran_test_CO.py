@@ -72,8 +72,8 @@ wn_range = [2050.,2250.]
 wn_range_obs = [spcl.convertto_nm(wn_range[1], 'cm_1')+10., spcl.convertto_nm(wn_range[0], 'cm_1')-10.]
 print(wn_range_obs)
 
-linee = spcl.read_line_database(db_file)
-#linee = spcl.read_line_database(db_file, freq_range = wn_range)
+#linee = spcl.read_line_database(db_file)
+linee = spcl.read_line_database(db_file, freq_range = wn_range)
 
 ### LOADING PLANET
 print('Loading planet...')
@@ -97,7 +97,7 @@ planet.add_atmosphere(atm_old)
 
 filetvi = inputs['cart_molecs']+'vt_co__07_25s_sza30_vmr04_7.62.1_0050'
 #filetvi = inputs['cart_molecs']+'vt_HOMO.dat'
-nlte_molecs = sbm.add_nLTE_molecs_from_tvibmanuel(planet, filetvi, linee = linee)#, extend_to_alt = 1500.)
+nlte_molecs = sbm.add_nLTE_molecs_from_tvibmanuel(planet, filetvi)#, linee = linee)#, extend_to_alt = 1500.)
 
 atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_vmr_prof.dat', 'vmr', n_alt_max = n_alt_max)
 
@@ -178,9 +178,15 @@ dampa = open('./debuh_yeah.pic','wb')
 
 radtran_opt = dict()
 radtran_opt['max_T_variation'] = 5.
-radtran_opt['max_Plog_variation'] = 2.
+radtran_opt['max_Plog_variation'] = 0.4
 
-result = smm.inversion(inputs, planet, linee, baybau, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, useLUTs = True)
+LUTopt = dict()
+LUTopt['temp_step'] = 5.
+LUTopt['pres_step_log'] = 1.0
+LUTopt['max_pres'] = 1.
+
+
+result = smm.inversion(inputs, planet, linee, baybau, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, useLUTs = True, test = inputs['test'], LUTopt = LUTopt)
 
 dampa.close()
 
