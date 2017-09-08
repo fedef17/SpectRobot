@@ -1067,7 +1067,7 @@ class SpectralGcoeff(SpectralObject):
             mini = [np.min(hap.spectrum*gco) for hap,gco in zip(shapes_tot, G_coeffs_tot)]
             #print('cazzzzuuuuuuuuuuuuuuuu {} {}'.format(max(maxi),min(mini)))
 
-            print('iiiiiiiiiiiiiiiiiiiiii {} {} {}'.format(self.ctype, np.max(self.spectrum),np.min(self.spectrum)))
+            if debug: print('iiiiiiiiiiiiiiiiiiiiii {} {} {}'.format(self.ctype, np.max(self.spectrum),np.min(self.spectrum)))
 
         self.temp = Temp
         self.pres = Pres

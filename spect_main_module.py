@@ -952,8 +952,8 @@ class AbsSetLOS(object):
     def add_dump(self, set_):
         pickle.dump(set_, self.temp_file, protocol = -1)
         self.counter += 1
-        print('dampato. siamo a {}'.format(self.counter))
-        print(time.ctime())
+        #print('dampato. siamo a {}'.format(self.counter))
+        #print(time.ctime())
         return
 
     def add_set(self, set_):
@@ -1108,9 +1108,6 @@ def check_LUT_exists(PTcouples, cartLUTs, mol, iso, LTE):
     """
     stringa = lut_name(mol, iso, LTE)
     fileok = [fil for fil in os.listdir(cartLUTs) if stringa in fil and not 'lev' in fil]
-
-    print(stringa)
-    print(fileok)
 
     if len(fileok) == 0:
         print('LUT does not exist at all')
@@ -1406,8 +1403,8 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
         numh = 0
         for Pres, Temp in zip(Press,Temps):
             numh+=1
-            print('Siamo a step {} catuuuullooooooo'.format(numh))
-            print(time.ctime())
+            #print('Siamo a step {} catuuuullooooooo'.format(numh))
+            #print(time.ctime())
             #print(isomolec.levels)
             lines_proc = spcl.calc_shapes_lines(spectral_grid, lines, Temp, Pres, isomolec)
             #print(len(lines_proc))
@@ -1560,7 +1557,7 @@ def read_input_observed(observed_cart, wn_range = None):
 
     for nomee in os.listdir(observed_cart):
         if 'error' in nomee:
-            print(observed_cart+nomee)
+            # print(observed_cart+nomee)
             noise = sbm.read_noise(observed_cart+nomee, wn_range = wn_range)
             break
 
@@ -1584,7 +1581,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     """
 
     lines = check_lines_mols(lines, planet.gases.values())
-    print('inside')
+    print('Begin inversion..')
     cartOUT = inputs['out_dir']
 
     if wn_range is None:
@@ -1621,7 +1618,6 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
         pres_max = max(pres_max)
         PTcoup_needed = calc_PT_couples_atmosphere(lines, planet.gases.values(), planet.atmosphere, **LUTopt)
 
-        print(len(PTcoup_needed))
         # if test:
         #     for i in range(20):
         #         print('TEST!! REDUCING TO 3 PT COUPLES!')
@@ -1648,6 +1644,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
             linea_low = pix.low_LOS()
             linea0 = pix.LOS()
             linea_up = pix.up_LOS()
+            print('pixel {} at tangent alt: {}'.format(num, pix.limb_tg_alt))
 
             # Using 1D interpolation scheme for FOV integration
             # x_FOV = np.array([linea_low.tangent_altitude, linea_0.tangent_altitude, linea_up.tangent_altitude])
@@ -1697,17 +1694,17 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
                 der_FOV_ok = FOV_integr_1D(ders, pix.pixel_rot)
                 par.store_deriv(der_FOV_ok, num = num)
 
-        print('{} pixels done in {:5.1f} min'.format(num, (time.time()-time0)/60.))
+        print('{} pixels done in {:5.1f} min'.format(num+1, (time.time()-time0)/60.))
 
         #INVERSIONE
-        chi = chicalc(obs, sims, noise, bayes_set.n_tot, masks = masks)
+        chi = chicalc(obs, sims, noise, masks, bayes_set.n_tot)
         print('chi is: {}'.format(chi))
         if num_it > 0:
             if abs(chi-chi_old)/chi_old < chi_threshold:
                 print('FINISHEDDDD!! :D', chi)
                 return
             elif chi > chi_old:
-                print('mmm chi is raised', chi)
+                print('mmm chi has raised', chi)
                 return
         chi_old = chi
         print('old', [par.value for par in bayes_set.params()])
@@ -1732,11 +1729,11 @@ def FOV_integr_1D(radtrans, pixel_rot = 0.0):
     pixel_rot = sbm.rad(pixel_rot)
 
     dmax = np.sqrt(2.)/2.*np.cos(np.pi/4-pixel_rot)
-    print(pixel_rot, dmax)
+    #print(pixel_rot, dmax)
     delta = dmax-np.sin(pixel_rot)
     esse = 1/np.cos(pixel_rot)
     x_integ = np.array([-dmax, 0, dmax])
-    print(x_integ)
+    #print(x_integ)
     spectrums = np.array([rad.spectrum for rad in radtrans])
 
     intens_spl = spline2D(x_integ, radtrans[0].spectral_grid.grid, spectrums, kx=2, ky=2)
