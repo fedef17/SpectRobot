@@ -748,11 +748,13 @@ class LutSet(object):
 
         try:
             if Pres <= np.min(Ps):
+                print(Pres)
                 closest_P1 = np.min(Ps)
                 closest_TA_ind = np.argmin(np.abs(Ts-Temp))
                 closest_TB_ind = np.argsort(np.abs(Ts-Temp))[1]
                 closest_TA = Ts[closest_TA_ind]
                 closest_TB = Ts[closest_TB_ind]
+                print(closest_TA, closest_TB)
 
                 ok1 = self.find(closest_P1,closest_TA)
                 coeff_ok1 = self.sets[ok1]
@@ -794,7 +796,7 @@ class LutSet(object):
             print('T set: {}'.format(Ts))
             print('P set: {}'.format(Ps))
             print('PT couples : {}'.format(self.PTcouples))
-            raise ValueError('cazzillo')
+            raise cazzillo
 
         return set_
 
