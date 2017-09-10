@@ -793,6 +793,7 @@ class LutSet(object):
             print('Unable to interpolate to pt couple {}'.format((Pres,Temp)))
             print('T set: {}'.format(Ts))
             print('P set: {}'.format(Ps))
+            print('PT couples : {}'.format(self.PTcouples))
             raise ValueError('cazzillo')
 
         return set_
