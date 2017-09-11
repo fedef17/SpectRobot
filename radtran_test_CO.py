@@ -178,7 +178,7 @@ dampa = open('./debuh_yeah.pic','wb')
 
 radtran_opt = dict()
 radtran_opt['max_T_variation'] = 5.
-radtran_opt['max_Plog_variation'] = 0.4
+radtran_opt['max_Plog_variation'] = 1.0
 
 LUTopt = dict()
 LUTopt['temp_step'] = 5.

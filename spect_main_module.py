@@ -1739,7 +1739,7 @@ def FOV_integr_1D(radtrans, pixel_rot = 0.0):
     """
     from scipy import integrate
 
-    pixel_rot = sbm.rad(pixel_rot)
+    pixel_rot = abs(sbm.rad(pixel_rot))
 
     dmax = np.sqrt(2.)/2.*np.cos(np.pi/4-pixel_rot)
     #print(pixel_rot, dmax)
