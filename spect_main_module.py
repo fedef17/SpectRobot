@@ -748,13 +748,13 @@ class LutSet(object):
 
         try:
             if Pres <= np.min(Ps):
-                print(Pres)
+                #print(Pres)
                 closest_P1 = np.min(Ps)
                 closest_TA_ind = np.argmin(np.abs(Ts-Temp))
                 closest_TB_ind = np.argsort(np.abs(Ts-Temp))[1]
                 closest_TA = Ts[closest_TA_ind]
                 closest_TB = Ts[closest_TB_ind]
-                print(closest_TA, closest_TB)
+                #print(closest_TA, closest_TB)
 
                 ok1 = self.find(closest_P1,closest_TA)
                 coeff_ok1 = self.sets[ok1]
@@ -762,7 +762,7 @@ class LutSet(object):
                 coeff_ok2 = self.sets[ok2]
                 set_ = dict()
                 for ctype in ctypes:
-                    set_[ctype] = coeff_ok1.interpolate(coeff_ok2, Temp = Temp)
+                    set_[ctype] = coeff_ok1[ctype].interpolate(coeff_ok2[ctype], Temp = Temp)
             else:
                 closest_P1_ind = np.argmin(np.abs(Ps-Pres))
                 closest_P2_ind = np.argsort(np.abs(Ps-Pres))[1]
@@ -790,7 +790,7 @@ class LutSet(object):
                 for ctype in ctypes:
                     coeff_ok13 = coeff_ok1[ctype].interpolate(coeff_ok3[ctype], Pres = Pres)
                     coeff_ok24 = coeff_ok2[ctype].interpolate(coeff_ok4[ctype], Pres = Pres)
-                    set_[ctype] = coeff_ok13.interpolate(coeff_ok24, Temp = Temp)
+                    set_[ctype] = coeff_ok13[ctype].interpolate(coeff_ok24[ctype], Temp = Temp)
         except Exception as cazzillo:
             print('Unable to interpolate to pt couple {}'.format((Pres,Temp)))
             print('T set: {}'.format(Ts))
