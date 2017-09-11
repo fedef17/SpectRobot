@@ -1646,15 +1646,17 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
         for pix, num in zip(pixels, range(len(pixels))):
             radtrans = []
             derivs = []
+            print('pixel {} at tangent alt: {}'.format(num, pix.limb_tg_alt))
+            time1 = time.time()
 
             linea_low = pix.low_LOS()
             linea0 = pix.LOS()
             linea_up = pix.up_LOS()
-            print('pixel {} at tangent alt: {}'.format(num, pix.limb_tg_alt))
 
             # Using 1D interpolation scheme for FOV integration
             # x_FOV = np.array([linea_low.tangent_altitude, linea_0.tangent_altitude, linea_up.tangent_altitude])
 
+            linea_low.details()
             radtran_low = linea_low.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
             radtrans.append(radtran_low)
             deriv_ok = []
@@ -1664,6 +1666,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
                 deriv_ok.append(lowres)
             derivs.append(deriv_ok)
 
+            linea0.details()
             radtran = linea0.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
             radtrans.append(radtran)
             deriv_ok = []
@@ -1673,6 +1676,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
                 deriv_ok.append(lowres)
             derivs.append(deriv_ok)
 
+            linea_up.details()
             radtran_up = linea_up.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
             radtrans.append(radtran_up)
             deriv_ok = []
@@ -1699,6 +1703,9 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
                 ders = np.array([der_low, der, der_up])
                 der_FOV_ok = FOV_integr_1D(ders, pix.pixel_rot)
                 par.store_deriv(der_FOV_ok, num = num)
+
+            print('pixel done in {:5.1f} min'.format((time.time()-time1)/60.))
+
 
         print('{} pixels done in {:5.1f} min'.format(num+1, (time.time()-time0)/60.))
 
