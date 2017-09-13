@@ -788,9 +788,9 @@ class LutSet(object):
 
                 set_ = dict()
                 for ctype in ctypes:
-                    coeff_ok13 = coeff_ok1[ctype].interpolate(coeff_ok3[ctype], Pres = Pres)
-                    coeff_ok24 = coeff_ok2[ctype].interpolate(coeff_ok4[ctype], Pres = Pres)
-                    set_[ctype] = coeff_ok13[ctype].interpolate(coeff_ok24[ctype], Temp = Temp)
+                    coeff_ok13_cty = coeff_ok1[ctype].interpolate(coeff_ok3[ctype], Pres = Pres)
+                    coeff_ok24_cty = coeff_ok2[ctype].interpolate(coeff_ok4[ctype], Pres = Pres)
+                    set_[ctype] = coeff_ok13_cty.interpolate(coeff_ok24_cty, Temp = Temp)
         except Exception as cazzillo:
             print('Unable to interpolate to pt couple {}'.format((Pres,Temp)))
             print('T set: {}'.format(Ts))

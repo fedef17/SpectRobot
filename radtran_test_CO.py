@@ -173,6 +173,7 @@ for gas in baybau.sets.keys():
     planet.gases[gas].add_clim(baybau.sets[gas].profile())
 
 pixels = smm.read_input_observed(inputs['cart_molecs'], wn_range = wn_range_obs)
+pixels = pixels[::5]
 
 dampa = open('./debuh_yeah.pic','wb')
 
