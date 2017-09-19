@@ -763,7 +763,7 @@ class LutSet(object):
                 set_ = dict()
                 for ctype in ctypes:
                     set_[ctype] = coeff_ok1[ctype].interpolate(coeff_ok2[ctype], Temp = Temp)
-            else:
+            elif Pres > np.min(Ps) and Pres <= np.max(Ps):
                 closest_P1_ind = np.argmin(np.abs(Ps-Pres))
                 closest_P2_ind = np.argsort(np.abs(Ps-Pres))[1]
                 closest_P1 = Ps[closest_P1_ind]
@@ -791,6 +791,8 @@ class LutSet(object):
                     coeff_ok13_cty = coeff_ok1[ctype].interpolate(coeff_ok3[ctype], Pres = Pres)
                     coeff_ok24_cty = coeff_ok2[ctype].interpolate(coeff_ok4[ctype], Pres = Pres)
                     set_[ctype] = coeff_ok13_cty.interpolate(coeff_ok24_cty, Temp = Temp)
+            else:
+                raise ValueError('Extrapolating in P')
         except Exception as cazzillo:
             print('Unable to interpolate to pt couple {}'.format((Pres,Temp)))
             print('T set: {}'.format(Ts))
@@ -1581,7 +1583,7 @@ def read_input_observed(observed_cart, wn_range = None):
     return set_pixels
 
 
-def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), useLUTs = True, debugfile = None, LUTopt = dict(), test = False):
+def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), useLUTs = True, debugfile = None, save_hires = False, LUTopt = dict(), test = False):
     """
     Main routine for retrieval.
     """
@@ -1643,6 +1645,9 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     time0 = time.time()
     for num_it in range(max_it):
         print('we are at iteration: {}'.format(num_it))
+        if save_hires:
+            hiresfile = open(cartOUT+'hires_radtran.pic', 'wb')
+
         for pix, num in zip(pixels, range(len(pixels))):
             radtrans = []
             derivs = []
@@ -1676,6 +1681,9 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
                 deriv_ok.append(lowres)
             derivs.append(deriv_ok)
 
+            if save_hires:
+                pickle.dump([num, pix.limb_tg_alt, radtran], hiresfile)
+
             linea_up.details()
             radtran_up = linea_up.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
             radtrans.append(radtran_up)
@@ -1706,6 +1714,8 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
 
             print('pixel done in {:5.1f} min'.format((time.time()-time1)/60.))
 
+        if save_hires:
+            hiresfile.close()
 
         print('{} pixels done in {:5.1f} min'.format(num+1, (time.time()-time0)/60.))
 

@@ -34,12 +34,16 @@ cart_LUTS = '/media/hd_B/Spect_data/LUTs/'
 
 cart_tvibs = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/clima_Maya_22_May_2017/'
 
+cart_tvibs2 = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/clima2_vts_hcn/'
+
+cart_tvibs3 = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/clima2_vts_c2h2/'
+
 hit12_25 = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/HITRAN/HITRAN2012_2-5mu.par'
 
-keys = 'cart_atm cart_observed cart_tvibs cart_LUTS out_dir hitran_db n_threads test'
+keys = 'cart_atm cart_observed cart_tvibs cart_tvibs2 cart_tvibs3 cart_LUTS out_dir hitran_db n_threads test'
 keys = keys.split()
-itype = [str, str, str, str, str, str, int, bool]
-defaults = [cart_atm, None, cart_tvibs, cart_LUTS, None, hit12_25, 8, False]
+itype = [str, str, str, str, str, str, str, str, int, bool]
+defaults = [cart_atm, None, cart_tvibs, cart_tvibs2, cart_tvibs3, cart_LUTS, None, hit12_25, 8, False]
 inputs = sbm.read_inputs(input_file, keys, itype = itype, defaults = defaults, verbose = True)
 
 if not os.path.exists(inputs['cart_LUTS']):
@@ -56,7 +60,7 @@ time0 = time.time()
 ### LOADING PLANET
 print('Loading planet...')
 
-planet = sbm.Titan()
+planet = sbm.Titan(1500.)
 
 lat_bands = ['SP','subPS','TS','EQ','TN','subPN','NP']
 lat_ext = [-90.,-75.,-60.,-30.,30.,60.,75.,90.]
@@ -94,7 +98,15 @@ for gas in atm_gases_old:
     coso2d = np.array((len(lat_ext)-1)*[atm_gases_old[gas]])
     atm_gases_old[gas] = sbm.AtmProfile(gridvmr, coso2d, profname='vmr', interp = ['box','lin'])
 
-nlte_molecs = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, cart_tvibs)
+nlte_molecs = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, cart_tvibs, formato = 'Maya')
+
+nlte_molecs2 = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, cart_tvibs2, formato = 'Manuel', correct_levstring = True)
+for molec in nlte_molecs2.items():
+    nlte_molecs[molec[0]] = copy.deepcopy(molec[1])
+
+nlte_molecs3 = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, cart_tvibs3, formato = 'Manuel2')
+for molec in nlte_molecs3.items():
+    nlte_molecs[molec[0]] = copy.deepcopy(molec[1])
 
 for molec in nlte_molecs.values():
     molec.link_to_atmos(Atm)
@@ -177,16 +189,16 @@ planetmols = [gas.mol for gas in planet.gases.values()]
 
 linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1]]
 
-max_lines = 10
-if len(linee) > max_lines:
-    print('Keeping ONLY 50 strongest lines for testing')
-    essesss = [lin.Strength for lin in linee]
-    essort = np.sort(np.array(essesss))[-1*max_lines]
-    linee_sel = [lin for lin in linee if lin.Strength >= essort]
-    linee = linee_sel
-
-    print(len(linee))
-    print(planet.gases)
+# max_lines = 10
+# if len(linee) > max_lines:
+#     print('Keeping ONLY 50 strongest lines for testing')
+#     essesss = [lin.Strength for lin in linee]
+#     essort = np.sort(np.array(essesss))[-1*max_lines]
+#     linee_sel = [lin for lin in linee if lin.Strength >= essort]
+#     linee = linee_sel
+#
+#     print(len(linee))
+#     print(planet.gases)
 
 pixels = smm.read_input_observed(inputs['cart_observed'], wn_range = wn_range_obs)
 
@@ -197,6 +209,8 @@ dampa = open('./debuh_yeah.pic','wb')
 radtran_opt = dict()
 radtran_opt['max_T_variation'] = 5.
 radtran_opt['max_Plog_variation'] = 2.
+
+sys.exit()
 
 result = smm.inversion(inputs, planet, linee, baybau, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, useLUTs = True)
 
