@@ -207,8 +207,41 @@ print(len(pixels))
 dampa = open('./debuh_yeah.pic','wb')
 
 radtran_opt = dict()
-radtran_opt['max_T_variation'] = 5.
-radtran_opt['max_Plog_variation'] = 2.
+radtran_opt['max_T_variation'] = 10.
+radtran_opt['max_Plog_variation'] = 4.
+
+# prova ad alta quota
+pix_ok = []
+for pix in pixels:
+    print(pix.limb_tg_alt)
+    if pix.limb_tg_alt < 1050. and pix.limb_tg_alt > 950.:
+        pix_ok.append(pix)
+        break
+
+for pix in pixels:
+    print(pix.limb_tg_alt)
+    if pix.limb_tg_alt < 750. and pix.limb_tg_alt > 650.:
+        pix_ok.append(pix)
+        break
+
+for pix in pixels:
+    print(pix.limb_tg_alt)
+    if pix.limb_tg_alt < 450. and pix.limb_tg_alt > 350.:
+        pix_ok.append(pix)
+        break
+
+damparad = open('./radtrans_ch4hcn.pic','wb')
+
+# splitto molecs
+for molec in planet.gases.values():
+    molec.split_molecs_levels('iso_1')
+
+for pix in pix_ok:
+    linea = pix.LOS()
+    radtran = linea.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = False, LUTS = None, useLUTs = False, radtran_opt = radtran_opt)
+    pickle.dump([pix, radtran], damparad)
+
+damparad.close()
 
 sys.exit()
 
