@@ -98,13 +98,13 @@ for gas in atm_gases_old:
     coso2d = np.array((len(lat_ext)-1)*[atm_gases_old[gas]])
     atm_gases_old[gas] = sbm.AtmProfile(gridvmr, coso2d, profname='vmr', interp = ['box','lin'])
 
-nlte_molecs = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, cart_tvibs, formato = 'Maya')
+nlte_molecs = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, inputs['cart_tvibs'], formato = 'Maya')
 
-nlte_molecs2 = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, cart_tvibs2, formato = 'Manuel', correct_levstring = True)
+nlte_molecs2 = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, inputs['cart_tvibs2'], formato = 'Manuel', correct_levstring = True)
 for molec in nlte_molecs2.items():
     nlte_molecs[molec[0]] = copy.deepcopy(molec[1])
 
-nlte_molecs3 = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, cart_tvibs3, formato = 'Manuel2')
+nlte_molecs3 = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, inputs['cart_tvibs3'], formato = 'Manuel2')
 for molec in nlte_molecs3.items():
     nlte_molecs[molec[0]] = copy.deepcopy(molec[1])
 
