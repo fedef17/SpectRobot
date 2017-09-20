@@ -238,7 +238,7 @@ for molec in planet.gases.values():
 
 for pix in pix_ok:
     linea = pix.LOS()
-    radtran = linea.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = False, LUTS = None, useLUTs = False, radtran_opt = radtran_opt)
+    radtran = linea.radtran(wn_range, planet, linee, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = False, LUTS = None, useLUTs = False, radtran_opt = radtran_opt, g3D = True, sub_solar_point = pix.sub_solar_point())
     pickle.dump([pix, radtran], damparad)
 
 damparad.close()
