@@ -184,7 +184,7 @@ radtran_opt['max_Plog_variation'] = 1.0
 LUTopt = dict()
 LUTopt['temp_step'] = 5.
 LUTopt['pres_step_log'] = 1.0
-LUTopt['max_pres'] = 1.
+LUTopt['max_pres'] = 2.5
 
 
 result = smm.inversion(inputs, planet, linee, baybau, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, useLUTs = True, test = inputs['test'], LUTopt = LUTopt)

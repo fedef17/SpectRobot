@@ -173,21 +173,6 @@ for gas in baybau.sets.keys():
     planet.gases[gas].add_clim(baybau.sets[gas].profile())
 
 ### LOADING LINES
-print('Loading lines...')
-
-db_file = inputs['hitran_db']
-wn_range = [2850.,3450.]
-wn_range_obs = [spcl.convertto_nm(wn_range[1], 'cm_1')+10., spcl.convertto_nm(wn_range[0], 'cm_1')-10.]
-print(wn_range_obs)
-
-#linee = spcl.read_line_database(db_file)
-linee = spcl.read_line_database(db_file, freq_range = wn_range)
-
-# planet = pickle.load(open(inputs['cart_tvibs']+'planet.pic'))
-
-planetmols = [gas.mol for gas in planet.gases.values()]
-
-linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1]]
 
 # max_lines = 10
 # if len(linee) > max_lines:
@@ -199,6 +184,10 @@ linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_rang
 #
 #     print(len(linee))
 #     print(planet.gases)
+
+wn_range = [2850.,3450.]
+wn_range_obs = [spcl.convertto_nm(wn_range[1], 'cm_1')+10., spcl.convertto_nm(wn_range[0], 'cm_1')-10.]
+print(wn_range_obs)
 
 pixels = smm.read_input_observed(inputs['cart_observed'], wn_range = wn_range_obs)
 
@@ -229,6 +218,40 @@ for pix in pixels:
     if pix.limb_tg_alt < 450. and pix.limb_tg_alt > 350.:
         pix_ok.append(pix)
         break
+
+pix = pix_ok[0]
+linea = pix.LOS()
+ssp = pix.sub_solar_point()
+linea.calc_SZA_along_los(planet, ssp)
+
+prof = planet.atmosphere.get('pres')
+
+time0 = time.time()
+for i in range(20):
+    prof.calc([72.,34.])
+print('Tempo calc 2D: {}'.format((time.time()-time0)/20))
+
+prof2 = planet.gases['CH4'].iso_1.lev_03.vibtemp
+
+time0 = time.time()
+for i in range(20):
+   prof2.calc([72.,34.,451.])
+print('Tempo calc 3D: {}'.format((time.time()-time0)/20))
+
+linea.calc_along_LOS(planet.atmosphere, profname = 'pres')
+
+linea.calc_along_LOS(planet.gases['CH4'].iso_1.lev_03.vibtemp)
+
+print('Loading lines...')
+db_file = inputs['hitran_db']
+linee = spcl.read_line_database(db_file, freq_range = wn_range)
+
+# planet = pickle.load(open(inputs['cart_tvibs']+'planet.pic'))
+
+planetmols = [gas.mol for gas in planet.gases.values()]
+
+linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1]]
+
 
 damparad = open('./radtrans_ch4hcn.pic','wb')
 
