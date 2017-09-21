@@ -120,7 +120,6 @@ for molec in nlte_molecs.values():
 
 pickle.dump(planet, open(inputs['cart_tvibs']+'planet.pic','w'))
 
-
 ##### SETTING THE BAYESSET:
 baybau = smm.BayesSet(tag = 'test_CH4_HCN_C2H2_3D')
 alt_nodes = np.arange(350., 1050., 100.)
@@ -190,6 +189,7 @@ wn_range_obs = [spcl.convertto_nm(wn_range[1], 'cm_1')+10., spcl.convertto_nm(wn
 print(wn_range_obs)
 
 pixels = smm.read_input_observed(inputs['cart_observed'], wn_range = wn_range_obs)
+pickle.dump(pixels, open('pixels_3D_test.pic','w'))
 
 print(len(pixels))
 
@@ -238,9 +238,10 @@ for i in range(20):
    prof2.calc([72.,34.,451.])
 print('Tempo calc 3D: {}'.format((time.time()-time0)/20))
 
-linea.calc_along_LOS(planet.atmosphere, profname = 'pres')
+pres = linea.calc_along_LOS(planet.atmosphere, profname = 'pres', set_attr = True)
+temp = linea.calc_along_LOS(planet.atmosphere, profname = 'temp', set_attr = True)
 
-linea.calc_along_LOS(planet.gases['CH4'].iso_1.lev_03.vibtemp)
+vt = linea.calc_along_LOS(planet.gases['CH4'].iso_1.lev_03.vibtemp)
 
 print('Loading lines...')
 db_file = inputs['hitran_db']

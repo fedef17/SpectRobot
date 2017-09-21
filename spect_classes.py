@@ -178,7 +178,13 @@ class SpectLine(object):
         if(verbose): print('Lorenz width = {}; Doppler width = {}'.format(lw,dw))
 
         #shape = MakeShape_py(wn_arr, self.Freq, lw, dw, Strength = Strength)
-        shape = MakeShape(grid, self.Freq, lw, dw, Strength = Strength)
+
+        try:
+            shape = MakeShape(grid, self.Freq, lw, dw, Strength = Strength)
+        except Exception as cazzillo:
+            self.Print()
+            print(dw, Temp, MM, self.Freq)
+            raise cazzillo
 
         if keep_memory:
             self.shape = shape
@@ -1535,6 +1541,7 @@ def MakeShape(wn_arr, wn_0, lw, dw, Strength = 1.0):
     fac = float(dw*mt.sqrt(np.pi/mt.log(2.0)))
 
     y = lineshape.humliv_bb(wn_arr.grid,1,len(wn_arr.grid),wn_0,lw,dw/mt.sqrt(mt.log(2.0)))
+
     #### PUT 1 HERE!! FORTRAN ARRAYS START FROM ONEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE -> 1
 
     y = Strength*y/fac
