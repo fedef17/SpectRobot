@@ -203,6 +203,7 @@ class SpectLine(object):
         """
         Calculates the line strength S in nonLTE conditions, starting from the Einstein A coeff.
         """
+
         if T_vib_lower is None:
             T_vib_lower = Temp
         if T_vib_upper is None:
@@ -1300,7 +1301,6 @@ def CalcPartitionSum(mol,iso,temp=296.0):
     """
     Calculates the internal partition sum for molecule mol (iso) at the chosen temperature. Default temp is 296 K as in hitran.
     """
-
     gi, T_grid, Q_grid = ImportPartitionSumTable(mol, iso)
 
     x1 = T_grid[T_grid <= temp][-2:]

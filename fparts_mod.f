@@ -3372,7 +3372,6 @@ c
       enddo
 
 c
-      write(*,*) T,Qt,Q
 c
    99 return
       end
