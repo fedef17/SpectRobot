@@ -253,12 +253,12 @@ planetmols = [gas.mol for gas in planet.gases.values()]
 
 linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1]]
 
-
 damparad = open('./radtrans_ch4hcn.pic','wb')
 
+linee = smm.check_lines_mols(linee, planet.gases.values())
 # splitto molecs
-for molec in planet.gases.values():
-    molec.split_molecs_levels('iso_1')
+# for molec in planet.gases.values():
+#     molec.split_molecs_levels('iso_1')
 
 for pix in pix_ok:
     linea = pix.LOS()

@@ -68,6 +68,8 @@ def equiv(num1, num2, thres = 1e-8):
 def check_lines_mols(lines, molecs):
     """
     Returns just the lines that involve molecs and molecs levels if set.
+
+    !!!! CAUTION! : does not work with fake isomols.
     """
 
     lines_ok = []
