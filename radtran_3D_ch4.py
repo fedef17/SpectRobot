@@ -202,19 +202,19 @@ radtran_opt['max_Plog_variation'] = 4.
 # prova ad alta quota
 pix_ok = []
 for pix in pixels:
-    print(pix.limb_tg_alt)
+    #print(pix.limb_tg_alt)
     if pix.limb_tg_alt < 1050. and pix.limb_tg_alt > 950.:
         pix_ok.append(pix)
         break
 
 for pix in pixels:
-    print(pix.limb_tg_alt)
+    #print(pix.limb_tg_alt)
     if pix.limb_tg_alt < 750. and pix.limb_tg_alt > 650.:
         pix_ok.append(pix)
         break
 
 for pix in pixels:
-    print(pix.limb_tg_alt)
+    #print(pix.limb_tg_alt)
     if pix.limb_tg_alt < 450. and pix.limb_tg_alt > 350.:
         pix_ok.append(pix)
         break
