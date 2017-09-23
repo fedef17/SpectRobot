@@ -84,6 +84,15 @@ def check_lines_mols(lines, molecs):
     return lines_ok
 
 
+def track_all_levels(planet):
+    track_levels = dict()
+    for molnam in planet.gases.keys():
+        mol = planet.gases[molnam]
+        for iso in mol.all_iso:
+            isomol = getattr(mol, iso)
+            track_levels[(molnam, iso)] = isomol.levels
+
+    return track_levels
 
 # CLASSES
 
@@ -1337,7 +1346,7 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, isomol, LTE, atmosphere = None,
     return LUT
 
 
-def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, allLUTs = None, useLUTs = False, lines = None, store_in_memory = False, tagLOS = None, cartDROP = None):
+def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, allLUTs = None, useLUTs = False, lines = None, store_in_memory = False, tagLOS = None, cartDROP = None, track_levels = None):
     """
     Builds the absorption and emission coefficients for isomolec, both in LTE and non-LTE. If in non-LTE, isomolec levels have to contain the attribute local_vibtemp, produced by calling level.add_local_vibtemp(). If LTE is set to True, LTE populations are used.
     LUT is the object created by makeLUT_nonLTE_Gcoeffs(). Contains
@@ -1377,9 +1386,20 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
     tagg = tagLOS+'_mol_{}_iso_{}'.format(isomolec.mol, isomolec.iso)
     abs_coeffs = AbsSetLOS(cartDROP+'abscoeff_'+tagg+'.pic')
     emi_coeffs = AbsSetLOS(cartDROP+'emicoeff_'+tagg+'.pic')
+    if track_levels is not None:
+        emi_coeffs_tracked = dict()
+        abs_coeffs_tracked = dict()
+        for lev in track_levels:
+            tagg = tagLOS+'_mol_{}_iso_{}_{}'.format(isomolec.mol, isomolec.iso, lev)
+            emi_coeffs_tracked[lev] = AbsSetLOS(cartDROP+'tracklevel_emicoeff_'+tagg+'.pic')
+            abs_coeffs_tracked[lev] = AbsSetLOS(cartDROP+'tracklevel_abscoeff_'+tagg+'.pic')
     if store_in_memory:
         abs_coeffs.prepare_export()
         emi_coeffs.prepare_export()
+        if track_levels is not None:
+            for lev in track_levels:
+                emi_coeffs_tracked[lev].prepare_export()
+                abs_coeffs_tracked[lev].prepare_export()
 
     unidentified_lines = False
     if len(isomolec.levels) == 0:
@@ -1458,7 +1478,14 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
         #print('oyeeeeeeeeeee ', num)
         abs_coeff = prepare_spe_grid(wn_range_tot)
         emi_coeff = prepare_spe_grid(wn_range_tot)
-            # THIS IS WITH LTE PARTITION FUNCTION!!
+        if track_levels is not None:
+            emi_coeff_level = dict()
+            abs_coeff_level = dict()
+            for lev in track_levels:
+                emi_coeff_level[lev] = prepare_spe_grid(wn_range_tot)
+                abs_coeff_level[lev] = prepare_spe_grid(wn_range_tot)
+
+        # THIS IS WITH LTE PARTITION FUNCTION!!
         Q_part = spcl.CalcPartitionSum(isomolec.mol, isomolec.iso, temp = Temps[num])
 
         if unidentified_lines:
@@ -1484,21 +1511,42 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
                 abs_coeff.add_to_spectrum(Gco['ind_emission'], Strength = -pop)
                 emi_coeff.add_to_spectrum(Gco['sp_emission'], Strength = pop)
 
+                if track_levels is not None:
+                    if lev in track_levels:
+                        abs_coeff_level[lev].add_to_spectrum(Gco['absorption'], Strength = pop)
+                        abs_coeff_level[lev].add_to_spectrum(Gco['ind_emission'], Strength = -pop)
+                        emi_coeff_level[lev].add_to_spectrum(Gco['sp_emission'], Strength = pop)
+
         if not store_in_memory:
             abs_coeffs.add_set(abs_coeff)
             emi_coeffs.add_set(emi_coeff)
+            if track_levels is not None:
+                for lev in track_levels:
+                    emi_coeffs_tracked[lev].add_set(emi_coeff_level[lev])
+                    abs_coeffs_tracked[lev].add_set(emi_coeff_level[lev])
         else:
             #print(pop)
             #print('iiiii make_abs 2 iiiiii {} {} {}'.format('absorb-ind_emiss', np.max(abs_coeff.spectrum),np.min(abs_coeff.spectrum)))
             #print('iiiii make_abs 2 iiiiii {} {} {}'.format('sp_emiss', np.max(emi_coeff.spectrum),np.min(emi_coeff.spectrum)))
             abs_coeffs.add_dump(abs_coeff)
             emi_coeffs.add_dump(emi_coeff)
+            if track_levels is not None:
+                for lev in track_levels:
+                    emi_coeffs_tracked[lev].add_dump(emi_coeff_level[lev])
+                    abs_coeffs_tracked[lev].add_dump(emi_coeff_level[lev])
 
     if store_in_memory:
         abs_coeffs.finalize_IO()
         emi_coeffs.finalize_IO()
+        if track_levels is not None:
+            for lev in track_levels:
+                emi_coeffs_tracked[lev].finalize_IO()
+                abs_coeffs_tracked[lev].finalize_IO()
 
-    return abs_coeffs, emi_coeffs
+    if track_levels is None:
+        return abs_coeffs, emi_coeffs
+    else:
+        return abs_coeffs, emi_coeffs, emi_coeffs_tracked, abs_coeffs_tracked
 
 
 def read_obs(filename, formato = 'gbb', wn_range = None):
