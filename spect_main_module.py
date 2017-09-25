@@ -1557,8 +1557,8 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
     print('     -  make abs part 2: {:5.1f} s'.format((time.time()-time0)))
     time0 = time.time()
 
-    print('      -   make_abs: LUT interp   ->   {5.1f} s'.format(timooo))
-    print('      -   make_abs: add to spect   ->   {5.1f} s'.format(timuuu))
+    print('      -   make_abs: LUT interp   ->   {:5.1f} s'.format(timooo))
+    print('      -   make_abs: add to spect   ->   {:5.1f} s'.format(timuuu))
 
     if store_in_memory:
         abs_coeffs.finalize_IO()
