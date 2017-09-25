@@ -253,7 +253,6 @@ planetmols = [gas.mol for gas in planet.gases.values()]
 
 linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1]]
 
-damparad = open('./radtrans_ch4hcn_tracklevels.pic','wb')
 
 linee = smm.check_lines_mols(linee, planet.gases.values())
 
@@ -264,11 +263,12 @@ linee = smm.check_lines_mols(linee, planet.gases.values())
 track_levels = smm.track_all_levels(planet)
 
 for pix in pix_ok:
+    damparad = open('./radtrans_ch4hcn_tkl_{}km.pic'.format(int(pix.limb_tg_alt)),'w')
     linea = pix.LOS()
     radtran = linea.radtran(wn_range, planet, linee, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = False, LUTS = None, useLUTs = False, radtran_opt = radtran_opt, g3D = True, sub_solar_point = pix.sub_solar_point(), track_levels = track_levels)
     pickle.dump([pix, linea, radtran], damparad)
+    damparad.close()
 
-damparad.close()
 
 sys.exit()
 

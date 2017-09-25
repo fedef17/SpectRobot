@@ -1358,6 +1358,8 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
     LUT is the object created by makeLUT_nonLTE_Gcoeffs(). Contains
     """
 
+    time0 = time.time()
+
     try:
         len(Press)
         len(Temps)
@@ -1425,6 +1427,8 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
         set_tot['all'] = LutSet(isomolec.mol, isomolec.iso, isomolec.MM, level = None, filename = strin)
         set_tot['all'].prepare_export([zui for zui in zip(Press,Temps)], spectral_grid)
 
+    timooo = 0.0
+    timuuu = 0.0
 
     if not useLUTs:
         if lines is None:
@@ -1462,15 +1466,22 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
                     raise ValueError('mol {} iso {} Level {} not found'.format(isomolec.mol, isomolec.iso, levello.lev_string))
                 LUTs.sets[lev_lut].load_from_files()
                 for Pres, Temp in zip(Press,Temps):
+                    time1 = time.time()
                     set_ = LUTs.sets[lev_lut].calculate(Pres, Temp)
+                    timooo += time.time()-time1
                     set_tot[lev].add_dump(set_)
                 LUTs.sets[lev_lut].free_memory()
         else:
             LUTs.sets['all'].load_from_files()
             for Pres, Temp in zip(Press,Temps):
+                time1 = time.time()
                 set_ = LUTs.sets['all'].calculate(Pres, Temp)
+                timooo += time.time()-time1
                 set_tot['all'].add_dump(set_)
             LUTs.sets['all'].free_memory()
+
+    print('     -  make abs part 1: {:5.1f} s'.format((time.time()-time0)))
+    time0 = time.time()
 
     for val in set_tot.values():
         val.finalize_IO()
@@ -1513,9 +1524,11 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
                     #print('iiiii make_abs iiiiii {} {} {}'.format(key, np.max(val.spectrum),np.min(val.spectrum)))
 
                 pop = spcl.Boltz_ratio_nodeg(levello.energy, vibt) / Q_part
+                time1 = time.time()
                 abs_coeff.add_to_spectrum(Gco['absorption'], Strength = pop)
                 abs_coeff.add_to_spectrum(Gco['ind_emission'], Strength = -pop)
                 emi_coeff.add_to_spectrum(Gco['sp_emission'], Strength = pop)
+                timuuu += time.time()-time1
 
                 if track_levels is not None:
                     if lev in track_levels:
@@ -1540,6 +1553,12 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
                 for lev in track_levels:
                     emi_coeffs_tracked[lev].add_dump(emi_coeff_level[lev])
                     abs_coeffs_tracked[lev].add_dump(emi_coeff_level[lev])
+
+    print('     -  make abs part 2: {:5.1f} s'.format((time.time()-time0)))
+    time0 = time.time()
+
+    print('      -   make_abs: LUT interp   ->   {5.1f} s'.format(timooo))
+    print('      -   make_abs: add to spect   ->   {5.1f} s'.format(timuuu))
 
     if store_in_memory:
         abs_coeffs.finalize_IO()
