@@ -669,20 +669,15 @@ class SpectralObject(object):
         if not sbm.isclose(self.spectral_grid.step(), spectrum2.spectral_grid.step()):
             print("Different steps {} and {}, can't add the two spectra, convolve first".format(self.spectral_grid.step(),spectrum2.spectral_grid.step()))
 
-        len2 = len(spectrum2.spectrum)
-            
-        spino = self.spectral_grid.step()/10.
-
-        ok = (self.spectral_grid.grid > spectrum2.spectral_grid.grid[0]-spino) & (self.spectral_grid.grid < spectrum2.spectral_grid.grid[-1]+spino)
-        ok2 = (spectrum2.spectral_grid.grid > self.spectral_grid.grid[0]-spino) & (spectrum2.spectral_grid.grid < self.spectral_grid.grid[-1]+spino)
+        ini_1 = np.argmin(np.abs(self.spectral_grid.grid-spectrum2.spectral_grid.grid[0]))
+        fin_1 = np.argmin(np.abs(self.spectral_grid.grid-spectrum2.spectral_grid.grid[-1]))
+        ini_2 = np.argmin(np.abs(spectrum2.spectral_grid.grid-self.spectral_grid.grid[0]))
+        fin_2 = np.argmin(np.abs(spectrum2.spectral_grid.grid-self.spectral_grid.grid[-1]))
 
         if Strength is not None:
-            self.spectrum[ok] += Strength*spectrum2.spectrum[ok2]
+            self.spectrum[ini_1:fin_1] += Strength*spectrum2.spectrum[ini_2:fin_2]
         else:
-            self.spectrum[ok] += spectrum2.spectrum[ok2]
-
-        #check_grid_diff = self.spectral_grid.grid[ok]-spectrum2.spectral_grid.grid[ok2]
-        #griddifsum = np.sum(np.abs(check_grid_diff))
+            self.spectrum[ini_1:fin_1] += spectrum2.spectrum[ini_2:fin_2]
 
         return
 
