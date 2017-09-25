@@ -1512,6 +1512,7 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
 
         # THIS IS WITH LTE PARTITION FUNCTION!!
         Q_part = spcl.CalcPartitionSum(isomolec.mol, isomolec.iso, temp = Temps[num])
+        timhhh += time.time()-time2
 
         if unidentified_lines:
             Gco = set_tot['all'].load_singlePT_from_file(spectral_grid)
@@ -1521,6 +1522,7 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
             emi_coeff.add_to_spectrum(Gco['sp_emission'], Strength = pop)
         else:
             for lev in isomolec.levels:
+                time2 = time.time()
                 levello = getattr(isomolec, lev)
                 if LTE:
                     vibt = Temps[num]
