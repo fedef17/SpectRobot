@@ -1429,6 +1429,8 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
 
     timooo = 0.0
     timuuu = 0.0
+    timaaa = 0.0
+    timaaa2 = 0.0
 
     if not useLUTs:
         if lines is None:
@@ -1464,12 +1466,16 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
                 ok, lev_lut = LUTs.find_lev(levello.lev_string)
                 if not ok:
                     raise ValueError('mol {} iso {} Level {} not found'.format(isomolec.mol, isomolec.iso, levello.lev_string))
+                time1 = time.time()
                 LUTs.sets[lev_lut].load_from_files()
+                timaaa += time.time()-time1
                 for Pres, Temp in zip(Press,Temps):
                     time1 = time.time()
                     set_ = LUTs.sets[lev_lut].calculate(Pres, Temp)
                     timooo += time.time()-time1
+                    time1 = time.time()
                     set_tot[lev].add_dump(set_)
+                    timaaa2 += time.time()-time1
                 LUTs.sets[lev_lut].free_memory()
         else:
             LUTs.sets['all'].load_from_files()
@@ -1519,7 +1525,9 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
                 else:
                     vibt = levello.local_vibtemp[num]
                 #Gco = levello.Gcoeffs[num]
+                time1 = time.time()
                 Gco = set_tot[lev].load_singlePT_from_file(spectral_grid)
+                timaaa += time.time()-time1
                 #for key, val in zip(Gco.keys(), Gco.values()):
                     #print('iiiii make_abs iiiiii {} {} {}'.format(key, np.max(val.spectrum),np.min(val.spectrum)))
 
@@ -1547,8 +1555,10 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
             #print(pop)
             #print('iiiii make_abs 2 iiiiii {} {} {}'.format('absorb-ind_emiss', np.max(abs_coeff.spectrum),np.min(abs_coeff.spectrum)))
             #print('iiiii make_abs 2 iiiiii {} {} {}'.format('sp_emiss', np.max(emi_coeff.spectrum),np.min(emi_coeff.spectrum)))
+            time1 = time.time()
             abs_coeffs.add_dump(abs_coeff)
             emi_coeffs.add_dump(emi_coeff)
+            timaaa2 += time.time()-time1
             if track_levels is not None:
                 for lev in track_levels:
                     emi_coeffs_tracked[lev].add_dump(emi_coeff_level[lev])
@@ -1559,6 +1569,8 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
 
     print('      -   make_abs: LUT interp   ->   {:5.1f} s'.format(timooo))
     print('      -   make_abs: add to spect   ->   {:5.1f} s'.format(timuuu))
+    print('      -   make_abs: reading   ->   {:5.1f} s'.format(timaaa))
+    print('      -   make_abs: writing   ->   {:5.1f} s'.format(timaaa2))
 
     if store_in_memory:
         abs_coeffs.finalize_IO()
