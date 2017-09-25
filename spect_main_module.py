@@ -76,10 +76,16 @@ def check_lines_mols(lines, molecs):
     for mol in molecs:
         for iso in mol.all_iso:
             isomol = getattr(mol, iso)
+            n_lm = 0
             if len(isomol.levels) > 0:
-                lines_ok += [lin for lin in lines if lin.Mol == isomol.mol and lin.Iso == isomol.iso and isomol.has_level(lin.Lo_lev_str)[0] and isomol.has_level(lin.Up_lev_str)[0]]
+                lev_lines = [lin for lin in lines if lin.Mol == isomol.mol and lin.Iso == isomol.iso and isomol.has_level(lin.Lo_lev_str)[0] and isomol.has_level(lin.Up_lev_str)[0]]
+                lines_ok += lev_lines
+                n_lm += len(lev_lines)
             else:
-                lines_ok += [lin for lin in lines if lin.Mol == isomol.mol and lin.Iso == isomol.iso]
+                iso_lines = [lin for lin in lines if lin.Mol == isomol.mol and lin.Iso == isomol.iso]
+                lines_ok += iso_lines
+                n_lm = len(iso_lines)
+            print('found {} lines for mol {} iso {}'.format(n_lm, isomol.mol, isomol.iso))
 
     return lines_ok
 
