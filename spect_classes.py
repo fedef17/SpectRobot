@@ -646,41 +646,45 @@ class SpectralObject(object):
             print("Different steps {} and {}, can't add the two spectra, convolve first".format(self.spectral_grid.step(),spectrum2.spectral_grid.step()))
 
         len2 = len(spectrum2.spectrum)
-        grid_intersect = np.intersect1d(self.spectral_grid.grid, spectrum2.spectral_grid.grid)
+        # grid_intersect = np.intersect1d(self.spectral_grid.grid, spectrum2.spectral_grid.grid)
         spino = self.spectral_grid.step()/10.
 
-        if len(grid_intersect) == 0:
-            #print('No intersection between the two spectra, doing nothing')
-            return
+        ok = (self.spectral_grid.grid > spectrum2.spectral_grid.grid[0]-spino) & (self.spectral_grid.grid < spectrum2.spectral_grid.grid[-1]+spino)
+        ok2 = (spectrum2.spectral_grid.grid > self.spectral_grid.grid[0]-spino) & (spectrum2.spectral_grid.grid < self.spectral_grid.grid[-1]+spino)
+
+        if Strength is not None:
+            self.spectrum[ok] += Strength*spectrum2.spectrum[ok2]
         else:
-            ok = (self.spectral_grid.grid > spectrum2.spectral_grid.grid[0]-spino) & (self.spectral_grid.grid < spectrum2.spectral_grid.grid[-1]+spino)
-            ok2 = (spectrum2.spectral_grid.grid > self.spectral_grid.grid[0]-spino) & (spectrum2.spectral_grid.grid < self.spectral_grid.grid[-1]+spino)
-            #print(type(ok), type(ok2))
-            #print(ok)
-            #print(ok2)
-            if Strength is not None:
-                self.spectrum[ok] += Strength*spectrum2.spectrum[ok2]
-            else:
-                # print(np.sum(ok))
-                # print(np.sum(ok2))
-                # print(len(self.spectrum))
-                # print(len(spectrum2.spectrum))
-                # print(len(self.spectral_grid.grid))
-                # print(len(spectrum2.spectral_grid.grid))
-                #sys.exit()
-                self.spectrum[ok] += spectrum2.spectrum[ok2]
+            self.spectrum[ok] += spectrum2.spectrum[ok2]
 
-            check_grid_diff = self.spectral_grid.grid[ok]-spectrum2.spectral_grid.grid[ok2]
-            griddifsum = np.sum(np.abs(check_grid_diff))
-            #if griddifsum > self.spectral_grid.step()/sumcheck:
-                #print(griddifsum, len(self.spectral_grid.grid))
-                # pl.ion()
-                # pl.figure(78)
-                # pl.plot(self.spectral_grid.grid[ok], spectrum2.spectral_grid.grid[ok2])
-                # pl.plot(self.spectral_grid.grid[ok], self.spectral_grid.grid[ok])
-                #print("Problem with the spectral grids! Check or lower the threshold for sumcheck")
+        #check_grid_diff = self.spectral_grid.grid[ok]-spectrum2.spectral_grid.grid[ok2]
+        #griddifsum = np.sum(np.abs(check_grid_diff))
 
-            return griddifsum
+        return
+
+    def add_to_spectrum_fast(self, spectrum2, Strength = None):
+        """
+        Spectrum2 is a SpectralObject with a spectral_grid which is entirely or partially included in the self.spectral_grid, with the SAME STEP.
+        """
+        if not sbm.isclose(self.spectral_grid.step(), spectrum2.spectral_grid.step()):
+            print("Different steps {} and {}, can't add the two spectra, convolve first".format(self.spectral_grid.step(),spectrum2.spectral_grid.step()))
+
+        len2 = len(spectrum2.spectrum)
+            
+        spino = self.spectral_grid.step()/10.
+
+        ok = (self.spectral_grid.grid > spectrum2.spectral_grid.grid[0]-spino) & (self.spectral_grid.grid < spectrum2.spectral_grid.grid[-1]+spino)
+        ok2 = (spectrum2.spectral_grid.grid > self.spectral_grid.grid[0]-spino) & (spectrum2.spectral_grid.grid < self.spectral_grid.grid[-1]+spino)
+
+        if Strength is not None:
+            self.spectrum[ok] += Strength*spectrum2.spectrum[ok2]
+        else:
+            self.spectrum[ok] += spectrum2.spectrum[ok2]
+
+        #check_grid_diff = self.spectral_grid.grid[ok]-spectrum2.spectral_grid.grid[ok2]
+        #griddifsum = np.sum(np.abs(check_grid_diff))
+
+        return
 
 
     def multiply_elementwise(self, spectrum2, save = True):
