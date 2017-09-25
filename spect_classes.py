@@ -662,9 +662,9 @@ class SpectralObject(object):
 
         return
 
-    def add_to_spectrum_fast(self, spectrum2, Strength = None):
+    def add_to_spectrum_slow(self, spectrum2, Strength = None):
         """
-        Spectrum2 is a SpectralObject with a spectral_grid which is entirely or partially included in the self.spectral_grid, with the SAME STEP.
+        This was supposed to be faster than add_to_spectrum, instead it's about 40% slower!
         """
         if not sbm.isclose(self.spectral_grid.step(), spectrum2.spectral_grid.step()):
             print("Different steps {} and {}, can't add the two spectra, convolve first".format(self.spectral_grid.step(),spectrum2.spectral_grid.step()))

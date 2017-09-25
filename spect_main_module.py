@@ -1528,9 +1528,6 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
             abs_coeff += Gco['absorption']*pop
             abs_coeff -= Gco['ind_emission']*pop
             emi_coeff += Gco['sp_emission']*pop
-            # abs_coeff.add_to_spectrum(Gco['absorption'], Strength = pop)
-            # abs_coeff.add_to_spectrum(Gco['ind_emission'], Strength = -pop)
-            # emi_coeff.add_to_spectrum(Gco['sp_emission'], Strength = pop)
         else:
             for lev in isomolec.levels:
                 time2 = time.time()
@@ -1553,25 +1550,12 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
                 abs_coeff -= Gco['ind_emission']*pop
                 emi_coeff += Gco['sp_emission']*pop
                 timuuu += time.time()-time1
-                time1 = time.time()
-                abs_coeff.add_to_spectrum_fast(Gco['absorption'], Strength = pop)
-                abs_coeff.add_to_spectrum_fast(Gco['ind_emission'], Strength = -pop)
-                emi_coeff.add_to_spectrum_fast(Gco['sp_emission'], Strength = pop)
-                timuuu_fast += time.time()-time1
-                time1 = time.time()
-                abs_coeff.add_to_spectrum(Gco['absorption'], Strength = pop)
-                abs_coeff.add_to_spectrum(Gco['ind_emission'], Strength = -pop)
-                emi_coeff.add_to_spectrum(Gco['sp_emission'], Strength = pop)
-                timuuu_old += time.time()-time1
 
                 if track_levels is not None:
                     if lev in track_levels:
                         abs_coeff_level[lev] += Gco['absorption']*pop
                         abs_coeff_level[lev] -= Gco['ind_emission']*pop
                         emi_coeff_level[lev] += Gco['sp_emission']*pop
-                        # abs_coeff_level[lev].add_to_spectrum(Gco['absorption'], Strength = pop)
-                        # abs_coeff_level[lev].add_to_spectrum(Gco['ind_emission'], Strength = -pop)
-                        # emi_coeff_level[lev].add_to_spectrum(Gco['sp_emission'], Strength = pop)
 
         if not store_in_memory:
             abs_coeffs.add_set(abs_coeff)
@@ -1581,9 +1565,6 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
                     emi_coeffs_tracked[lev].add_set(emi_coeff_level[lev])
                     abs_coeffs_tracked[lev].add_set(emi_coeff_level[lev])
         else:
-            #print(pop)
-            #print('iiiii make_abs 2 iiiiii {} {} {}'.format('absorb-ind_emiss', np.max(abs_coeff.spectrum),np.min(abs_coeff.spectrum)))
-            #print('iiiii make_abs 2 iiiiii {} {} {}'.format('sp_emiss', np.max(emi_coeff.spectrum),np.min(emi_coeff.spectrum)))
             time1 = time.time()
             abs_coeffs.add_dump(abs_coeff)
             emi_coeffs.add_dump(emi_coeff)
@@ -1598,8 +1579,6 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
 
     print('      -   make_abs: LUT interp   ->   {:5.1f} s'.format(timooo))
     print('      -   make_abs: add   ->   {:5.2f} s'.format(timuuu))
-    print('      -   make_abs: add to spect   ->   {:5.2f} s'.format(timuuu_old))
-    print('      -   make_abs: add to spect fast  ->   {:5.2f} s'.format(timuuu_fast))
     print('      -   make_abs: prima di add to spect   ->   {:5.1f} s'.format(timhhh))
     print('      -   make_abs: reading   ->   {:5.1f} s'.format(timaaa))
     print('      -   make_abs: writing   ->   {:5.1f} s'.format(timaaa2))
