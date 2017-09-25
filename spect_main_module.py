@@ -1498,6 +1498,9 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
         val.prepare_read()
         #print('Reading... -> '+nam)
 
+    print('     -  make abs part 1bis: {:5.1f} s'.format((time.time()-time0)))
+    time0 = time.time()
+
     for num in range(len(Temps)):
         time2 = time.time()
         #print('oyeeeeeeeeeee ', num)
@@ -1515,6 +1518,7 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
         timhhh += time.time()-time2
 
         if unidentified_lines:
+            print('qui non ci entro')
             Gco = set_tot['all'].load_singlePT_from_file(spectral_grid)
             pop = 1 / Q_part
             abs_coeff.add_to_spectrum(Gco['absorption'], Strength = pop)
@@ -1549,6 +1553,9 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
                         abs_coeff_level[lev].add_to_spectrum(Gco['ind_emission'], Strength = -pop)
                         emi_coeff_level[lev].add_to_spectrum(Gco['sp_emission'], Strength = pop)
 
+        print('     -  make abs part 2: {:5.1f} s'.format((time.time()-time0)))
+        time0 = time.time()
+
         if not store_in_memory:
             abs_coeffs.add_set(abs_coeff)
             emi_coeffs.add_set(emi_coeff)
@@ -1569,7 +1576,7 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
                     emi_coeffs_tracked[lev].add_dump(emi_coeff_level[lev])
                     abs_coeffs_tracked[lev].add_dump(emi_coeff_level[lev])
 
-    print('     -  make abs part 2: {:5.1f} s'.format((time.time()-time0)))
+    print('     -  make abs part 2bis: {:5.1f} s'.format((time.time()-time0)))
     time0 = time.time()
 
     print('      -   make_abs: LUT interp   ->   {:5.1f} s'.format(timooo))
