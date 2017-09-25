@@ -1431,6 +1431,7 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
     timuuu = 0.0
     timaaa = 0.0
     timaaa2 = 0.0
+    timhhh = 0.0
 
     if not useLUTs:
         if lines is None:
@@ -1498,6 +1499,7 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
         #print('Reading... -> '+nam)
 
     for num in range(len(Temps)):
+        time2 = time.time()
         #print('oyeeeeeeeeeee ', num)
         abs_coeff = prepare_spe_grid(wn_range_tot)
         emi_coeff = prepare_spe_grid(wn_range_tot)
@@ -1532,6 +1534,7 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
                     #print('iiiii make_abs iiiiii {} {} {}'.format(key, np.max(val.spectrum),np.min(val.spectrum)))
 
                 pop = spcl.Boltz_ratio_nodeg(levello.energy, vibt) / Q_part
+                timhhh += time.time()-time2
                 time1 = time.time()
                 abs_coeff.add_to_spectrum(Gco['absorption'], Strength = pop)
                 abs_coeff.add_to_spectrum(Gco['ind_emission'], Strength = -pop)
@@ -1569,6 +1572,7 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
 
     print('      -   make_abs: LUT interp   ->   {:5.1f} s'.format(timooo))
     print('      -   make_abs: add to spect   ->   {:5.1f} s'.format(timuuu))
+    print('      -   make_abs: prima di add to spect   ->   {:5.1f} s'.format(timhhh))
     print('      -   make_abs: reading   ->   {:5.1f} s'.format(timaaa))
     print('      -   make_abs: writing   ->   {:5.1f} s'.format(timaaa2))
 
