@@ -611,10 +611,15 @@ class SpectralObject(object):
             if wid is not None:
                 gigi = gaussian(lin_grid, 0.0, wid)
 
-            ind_ok, fr_grid_ok = closest_grid(self.spectral_grid, freq)
+            # Problema: se freq è fuori da self.spectral_grid qui mi fa la convoluz sbagliata
+            ind, fr_grid_ok = closest_grid_ext(self.spectral_grid, freq)
             lin_grid_ok = SpectralGrid(lin_grid+fr_grid_ok, units = 'cm_1')
 
             spect_old = self[lin_grid_ok.grid[0],lin_grid_ok.grid[-1]]
+
+            if spect_old is None:
+                spectrum[num] = 0.0
+                continue
 
             if len(spect_old.spectrum) < len(gigi):
                 zero = SpectralObject(np.zeros(len(lin_grid_ok.grid)), lin_grid_ok)
@@ -1505,6 +1510,27 @@ def closest_grid(wn_arr,wn_0):
     ind = np.argmin(np.abs(wn_arr.grid-wn_0))
 
     return ind, wn_arr.grid[ind]
+
+def closest_grid_ext(wn_arr,wn_0):
+    """
+    Returns the value and the index of the grid point closest to wn_0 if wn_0 in the range of wn_arr. Instead extrapolates the grid.
+    """
+    step = wn_arr.step()
+    if (wn_0 >= wn_arr.grid[0] and wn_0 <= wn_arr.grid[-1]) or sbm.isclose(wn_0, wn_arr.grid[0]) or sbm.isclose(wn_0, wn_arr.grid[-1]):
+        ind = np.argmin(np.abs(wn_arr.grid-wn_0))
+        fr_ok = wn_arr.grid[ind]
+    elif wn_0 < wn_arr.grid[0]:
+        ext = np.arange(wn_arr.grid[0], wn_0-step, -step)
+        ind = np.argmin(np.abs(ext-wn_0))
+        fr_ok = ext[ind]
+        ind = -ind
+    elif wn_0 > wn_arr.grid[-1]:
+        ext = np.arange(wn_arr.grid[-1], wn_0+step, step)
+        ind = np.argmin(np.abs(ext-wn_0))
+        fr_ok = ext[ind]
+        ind = len(wn_arr.grid)+ind
+
+    return ind, fr_ok
 
 
 def Lorenz_width(Temp, Pres_atm, T_dep_broad, Air_broad, Self_broad = 0.0, Self_pres_atm=0.0):

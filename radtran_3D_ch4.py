@@ -255,17 +255,34 @@ linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_rang
 
 
 linee = smm.check_lines_mols(linee, planet.gases.values())
+smm.keep_levels_wlines(planet, linee)
 
-# splitto molecs
-# for molec in planet.gases.values():
-#     molec.split_molecs_levels('iso_1')
+for gas in planet.gases:
+    for iso in planet.gases[gas].all_iso:
+        print([gas,iso], getattr(planet.gases[gas], iso).levels)
 
-track_levels = smm.track_all_levels(planet)
+sys.exit()
+
+keep_levels = dict()
+keep_levels[('CH4', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02', 'lev_09', 'lev_07', 'lev_14', 'lev_08', 'lev_06', 'lev_03', 'lev_05', 'lev_04', 'lev_10']
+# keep_levels[('CH4', 'iso_1')] = ['lev_00', 'lev_01', 'lev_09', 'lev_07', 'lev_08', 'lev_06', 'lev_03', 'lev_10']
+keep_levels[('CH4', 'iso_2')] = ['lev_00', 'lev_02', 'lev_03']
+keep_levels[('HCN', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02', 'lev_04', 'lev_10', 'lev_07']
+# keep_levels[('HCN', 'iso_1')] = ['lev_00', 'lev_04']
+keep_levels[('C2H2', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02']
+
+smm.keep_levels(planet, keep_levels)
+
+for gas in planet.gases:
+    for iso in planet.gases[gas].all_iso:
+        print([gas,iso], getattr(planet.gases[gas], iso).levels)
+
+# track_levels = smm.track_all_levels(planet)
 
 for pix in pix_ok:
-    damparad = open('./radtrans_ch4hcn_tkl_{}km.pic'.format(int(pix.limb_tg_alt)),'w')
+    damparad = open('./radtrans_ch4hcn_tot_{}km.pic'.format(int(pix.limb_tg_alt)),'w')
     linea = pix.LOS()
-    radtran = linea.radtran(wn_range, planet, linee, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = False, LUTS = None, useLUTs = False, radtran_opt = radtran_opt, g3D = True, sub_solar_point = pix.sub_solar_point(), track_levels = track_levels)
+    radtran = linea.radtran(wn_range, planet, linee, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = False, LUTS = None, useLUTs = False, radtran_opt = radtran_opt, g3D = True, sub_solar_point = pix.sub_solar_point())
     pickle.dump([pix, linea, radtran], damparad)
     damparad.close()
 

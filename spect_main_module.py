@@ -90,6 +90,63 @@ def check_lines_mols(lines, molecs):
     return lines_ok
 
 
+def keep_levels_wlines(planet, lines):
+    """
+    Keeps only the levels of the molecs in planet.gases that have some lines in linee.
+    """
+
+    for gas in planet.gases:
+        mol = planet.gases[gas]
+        for iso in mol.all_iso:
+            isomol = getattr(mol, iso)
+            iso_lines = [lin for lin in lines if lin.Mol == isomol.mol and lin.Iso == isomol.iso]
+            erase_levels = []
+            for lev in isomol.levels:
+                levvo = getattr(isomol, lev)
+                lev_lines = [lin for lin in iso_lines if levvo.equiv(lin.Lo_lev_str) or levvo.equiv(lin.Up_lev_str)]
+                if len(lev_lines) == 0:
+                    print('no lines for level {} of mol {} iso {}. Erasing..'.format(lev, isomol.mol, isomol.iso))
+                    erase_levels.append(lev)
+
+            for lev in erase_levels:
+                isomol.erase_level(lev)
+
+    return
+
+def listbands(isomol, lines):
+    """
+    Simply lists all bands and the number of lines in lines.
+    """
+    isolin = [lin for lin in lines if lin.Mol == isomol.mol and lin.Iso == isomol.iso]
+
+    for lev in isomol.levels:
+        levvo = getattr(isomol, lev)
+        for lev2 in isomol.levels:
+            levvo2 = getattr(isomol, lev2)
+            lev_lines = [lin for lin in isolin if (levvo2.equiv(lin.Lo_lev_str) and levvo.equiv(lin.Up_lev_str))]
+            if len(lev_lines) > 0: print('{} -> {} : {} lines'.format(lev,lev2, len(lev_lines)))
+
+    return
+
+def keep_levels(planet, keep_levels, lines = None):
+    """
+    Keeps only the levels of the molecs in planet.gases that are in keep_levels. keep_levels is a dict: keep_levels[(gas, iso)] = levels_to_keep.
+    If lines is not None checks for the lower levels of the transitions with the levels considered. These are kept even if not listed in keep_levels.
+    """
+
+    for gas in planet.gases:
+        mol = planet.gases[gas]
+        for iso in mol.all_iso:
+            isomol = getattr(mol, iso)
+            all_levels = copy.deepcopy(isomol.levels)
+            for lev in all_levels:
+                if not lev in keep_levels[(gas, iso)]:
+                    print('erasing level {} of mol {} iso {}'.format(lev, isomol.mol, isomol.iso))
+                    isomol.erase_level(lev)
+
+    return
+
+
 def track_all_levels(planet):
     track_levels = dict()
     for molnam in planet.gases.keys():
