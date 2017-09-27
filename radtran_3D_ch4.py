@@ -118,8 +118,6 @@ for molec in nlte_molecs.values():
         print('ATTENZZZZIONEEE: gas {} not found in input vmr profiles'.format(molec.name))
         time.sleep(5)
 
-pickle.dump(planet, open(inputs['cart_tvibs']+'planet.pic','w'))
-
 ##### SETTING THE BAYESSET:
 baybau = smm.BayesSet(tag = 'test_CH4_HCN_C2H2_3D')
 alt_nodes = np.arange(350., 1050., 100.)
@@ -243,6 +241,9 @@ temp = linea.calc_along_LOS(planet.atmosphere, profname = 'temp', set_attr = Tru
 
 vt = linea.calc_along_LOS(planet.gases['CH4'].iso_1.lev_03.vibtemp)
 
+
+
+
 print('Loading lines...')
 db_file = inputs['hitran_db']
 linee = spcl.read_line_database(db_file, freq_range = wn_range)
@@ -261,8 +262,6 @@ for gas in planet.gases:
     for iso in planet.gases[gas].all_iso:
         print([gas,iso], getattr(planet.gases[gas], iso).levels)
 
-sys.exit()
-
 keep_levels = dict()
 keep_levels[('CH4', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02', 'lev_09', 'lev_07', 'lev_14', 'lev_08', 'lev_06', 'lev_03', 'lev_05', 'lev_04', 'lev_10']
 # keep_levels[('CH4', 'iso_1')] = ['lev_00', 'lev_01', 'lev_09', 'lev_07', 'lev_08', 'lev_06', 'lev_03', 'lev_10']
@@ -277,7 +276,33 @@ for gas in planet.gases:
     for iso in planet.gases[gas].all_iso:
         print([gas,iso], getattr(planet.gases[gas], iso).levels)
 
+pickle.dump(planet, open(inputs['cart_tvibs']+'planet.pic','w'))
 # track_levels = smm.track_all_levels(planet)
+
+### test linea di vista verticale -> assorbimento solar intensity
+set_alts = np.arange(800., 99., -100.)
+set_intens = dict()
+
+Tsun = 5777.0
+spectral_grid = smm.prepare_spe_grid(wn_range).spectral_grid
+solar = spcl.Calc_BB(spectral_grid, Tsun)
+alt_init = 1500.0
+slat = pix_ok[0].sub_solar_lat
+slon = pix_ok[0].sub_solar_lon
+for alt in set_alts:
+    point2 = sbm.Coords([slat, slon, alt], s_ref = 'Spherical')
+    point1 = sbm.Coords([slat, slon, alt_init], s_ref = 'Spherical')
+    linea_vert = sbm.LineOfSight(point1, point2)
+    linea_vert.calc_atm_intersections(planet, delta_x = 5.0, start_from_TOA = False, stop_at_second_point = True, verbose = True, LOS_order = 'photon')
+    radtran = linea_vert.radtran(wn_range, planet, linee, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], radtran_opt = radtran_opt, solo_absorption = True, initial_intensity = solar, g3D = True, sub_solar_point = pix_ok[0].sub_solar_point())
+    set_intens[alt] = radtran
+    solar = radtran
+    alt_init = alt
+
+damparad = open('./solar_ray_absorb.pic','w')
+pickle.dump(set_intens, damparad)
+damparad.close()
+sys.exit()
 
 for pix in pix_ok:
     damparad = open('./radtrans_ch4hcn_tot_{}km.pic'.format(int(pix.limb_tg_alt)),'w')

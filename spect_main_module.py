@@ -1050,9 +1050,7 @@ class AbsSetLOS(object):
 
         return set_
 
-
 # FUNCTIONS
-
 
 def prepare_spe_grid(wn_range, sp_step = 5.e-4, units = 'cm_1'):
     """
