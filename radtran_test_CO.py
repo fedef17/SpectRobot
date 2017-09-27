@@ -116,11 +116,14 @@ for gas in atm_gases_old:
 # c2h2.add_clim(atm_gases_old['C2H2'])
 # planet.add_gas(c2h2)
 #
-# ch4 = sbm.Molec(6, 'CH4')
-# ch4.add_all_iso_from_HITRAN(linee, add_levels = False)
-# ch4.link_to_atmos(atm_old)
-# ch4.add_clim(atm_gases_old['CH4'])
-# planet.add_gas(ch4)
+ch4 = sbm.Molec(6, 'CH4')
+ch4.add_all_iso_from_HITRAN(linee, add_levels = False)
+delattr(ch4, 'iso_1')
+delattr(ch4, 'iso_2')
+ch4.all_iso = ['iso_3']
+ch4.link_to_atmos(atm_old)
+ch4.add_clim(atm_gases_old['CH4'])
+planet.add_gas(ch4)
 
 print(' ')
 print(atm_gases_old.keys())
@@ -135,6 +138,7 @@ for molec in nlte_molecs.values():
         for n in range(30): print(' ')
         print('ATTENZZZZIONEEE: gas {} not found in input vmr profiles'.format(molec.name))
         time.sleep(5)
+
 
 #pickle.dump(planet, open(inputs['cart_molecs']+'co_old_ref_nonLTE.pic','w'))
 # planet = pickle.load(open(inputs['cart_molecs']+'co_old_ref_nonLTE.pic'))
