@@ -309,9 +309,11 @@ LUTopt['max_pres'] = 2.0 # hPa circa 200 km
 LUTopt['temp_step'] = 5.
 LUTopt['pres_step_log'] = 1.0
 
-PTcoup_needed = calc_PT_couples_atmosphere(lines, planet.gases.values(), planet.atmosphere, **LUTopt)
+sp_gri = prepare_spe_grid(wn_range).spectral_grid
 
-LUTS = check_and_build_allluts(inputs, sp_gri, lines, planet.gases.values(), PTcouples = PTcoup_needed, LUTopt = LUTopt)
+PTcoup_needed = smm.calc_PT_couples_atmosphere(linee, planet.gases.values(), planet.atmosphere, **LUTopt)
+
+LUTS = smm.check_and_build_allluts(inputs, sp_gri, linee, planet.gases.values(), PTcouples = PTcoup_needed, LUTopt = LUTopt)
 
 for pix in pix_ok:
     damparad = open('./radtrans_ch4hcn_tot_{}km.pic'.format(int(pix.limb_tg_alt)),'w')
