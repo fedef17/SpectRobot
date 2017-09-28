@@ -309,8 +309,6 @@ pickle.dump(planet, open(inputs['cart_tvibs']+'planet.pic','w'))
 # damparad.close()
 # sys.exit()
 
-sys.exit()
-
 LUTopt = dict()
 LUTopt['max_pres'] = 2.0 # hPa circa 200 km
 LUTopt['temp_step'] = 5.
@@ -333,6 +331,8 @@ LUTS = smm.check_and_build_allluts(inputs, sp_gri, linee, planet.gases.values(),
 # sys.exit()
 dampa = open('./out_3D_inversion_test1.pic','wb')
 
+print(len(pix_ok))
+print([pix.limb_tg_alt for pix in pix_ok])
 result = smm.inversion(inputs, planet, linee, baybau, pix_ok, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, useLUTs = True)
 
 dampa.close()
