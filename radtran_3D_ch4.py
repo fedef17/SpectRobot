@@ -280,29 +280,29 @@ pickle.dump(planet, open(inputs['cart_tvibs']+'planet.pic','w'))
 # track_levels = smm.track_all_levels(planet)
 
 ### test linea di vista verticale -> assorbimento solar intensity
-set_alts = np.arange(800., 99., -100.)
-set_intens = dict()
-
-Tsun = 5777.0
-spectral_grid = smm.prepare_spe_grid(wn_range).spectral_grid
-solar = spcl.Calc_BB(spectral_grid, Tsun)
-alt_init = 1500.0
-slat = pix_ok[0].sub_solar_lat
-slon = pix_ok[0].sub_solar_lon
-for alt in set_alts:
-    point2 = sbm.Coords([slat, slon, alt], s_ref = 'Spherical')
-    point1 = sbm.Coords([slat, slon, alt_init], s_ref = 'Spherical')
-    linea_vert = sbm.LineOfSight(point1, point2)
-    linea_vert.calc_atm_intersections(planet, delta_x = 5.0, start_from_TOA = False, stop_at_second_point = True, verbose = True, LOS_order = 'photon')
-    radtran = linea_vert.radtran(wn_range, planet, linee, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], radtran_opt = radtran_opt, solo_absorption = True, initial_intensity = solar, g3D = True, sub_solar_point = pix_ok[0].sub_solar_point())
-    set_intens[alt] = radtran
-    solar = radtran
-    alt_init = alt
-
-damparad = open('./solar_ray_absorb.pic','w')
-pickle.dump(set_intens, damparad)
-damparad.close()
-sys.exit()
+# set_alts = np.arange(800., 99., -100.)
+# set_intens = dict()
+#
+# Tsun = 5777.0
+# spectral_grid = smm.prepare_spe_grid(wn_range).spectral_grid
+# solar = spcl.Calc_BB(spectral_grid, Tsun)
+# alt_init = 1500.0
+# slat = pix_ok[0].sub_solar_lat
+# slon = pix_ok[0].sub_solar_lon
+# for alt in set_alts:
+#     point2 = sbm.Coords([slat, slon, alt], s_ref = 'Spherical')
+#     point1 = sbm.Coords([slat, slon, alt_init], s_ref = 'Spherical')
+#     linea_vert = sbm.LineOfSight(point1, point2)
+#     linea_vert.calc_atm_intersections(planet, delta_x = 5.0, start_from_TOA = False, stop_at_second_point = True, verbose = True, LOS_order = 'photon')
+#     radtran = linea_vert.radtran(wn_range, planet, linee, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], radtran_opt = radtran_opt, solo_absorption = True, initial_intensity = solar, g3D = True, sub_solar_point = pix_ok[0].sub_solar_point())
+#     set_intens[alt] = radtran
+#     solar = radtran
+#     alt_init = alt
+#
+# damparad = open('./solar_ray_absorb.pic','w')
+# pickle.dump(set_intens, damparad)
+# damparad.close()
+# sys.exit()
 
 for pix in pix_ok:
     damparad = open('./radtrans_ch4hcn_tot_{}km.pic'.format(int(pix.limb_tg_alt)),'w')
