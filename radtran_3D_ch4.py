@@ -194,8 +194,8 @@ print(len(pixels))
 dampa = open('./debuh_yeah.pic','wb')
 
 radtran_opt = dict()
-radtran_opt['max_T_variation'] = 10.
-radtran_opt['max_Plog_variation'] = 4.
+radtran_opt['max_T_variation'] = 5.
+radtran_opt['max_Plog_variation'] = 1.
 
 # prova ad alta quota
 pix_ok = []
@@ -304,10 +304,19 @@ pickle.dump(planet, open(inputs['cart_tvibs']+'planet.pic','w'))
 # damparad.close()
 # sys.exit()
 
+LUTopt = dict()
+LUTopt['max_pres'] = 2.0 # hPa circa 200 km
+LUTopt['temp_step'] = 5.
+LUTopt['pres_step_log'] = 1.0
+
+PTcoup_needed = calc_PT_couples_atmosphere(lines, planet.gases.values(), planet.atmosphere, **LUTopt)
+
+LUTS = check_and_build_allluts(inputs, sp_gri, lines, planet.gases.values(), PTcouples = PTcoup_needed, LUTopt = LUTopt)
+
 for pix in pix_ok:
     damparad = open('./radtrans_ch4hcn_tot_{}km.pic'.format(int(pix.limb_tg_alt)),'w')
     linea = pix.LOS()
-    radtran = linea.radtran(wn_range, planet, linee, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = False, LUTS = None, useLUTs = False, radtran_opt = radtran_opt, g3D = True, sub_solar_point = pix.sub_solar_point())
+    radtran = linea.radtran(wn_range, planet, linee, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = False, LUTS = LUTS, useLUTs = True, radtran_opt = radtran_opt, g3D = True, sub_solar_point = pix.sub_solar_point())
     pickle.dump([pix, linea, radtran], damparad)
     damparad.close()
 
