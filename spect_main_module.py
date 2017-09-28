@@ -380,7 +380,7 @@ class LinearProfile_2D(RetSet):
             latbox = lat_box(lat_limits, lat)
             for cos in coso.set:
                 numask = cos.maskgrid.merge(latbox)
-                par = RetParam(name, [lat, cos.key], numask, cos.apriori, cos.apriori_err)
+                par = RetParam(name, (lat, cos.key), numask, cos.apriori, cos.apriori_err)
                 self.set.append(copy.deepcopy(par))
 
         return

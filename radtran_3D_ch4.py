@@ -198,9 +198,13 @@ radtran_opt['max_Plog_variation'] = 1.
 
 pix_ok = []
 pixels = [pix for pix in pixels if pix.limb_tg_alt > 350.]
-np.random.shuffle(pixels)
+alts = [pix.limb_tg_alt for pix in pixels]
+order = np.argsort(alts)
+pixels = np.array(pixels)[order][::-1]
+pixels = list(pixels)
+#np.random.shuffle(pixels)
 
-pix_ok = pixels[::200]
+pix_ok = pixels[::150]
 
 # # prova ad alta quota
 # pix_ok = []
