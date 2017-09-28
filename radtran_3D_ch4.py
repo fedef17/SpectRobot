@@ -191,55 +191,60 @@ pickle.dump(pixels, open('pixels_3D_test.pic','w'))
 
 print(len(pixels))
 
-dampa = open('./debuh_yeah.pic','wb')
 
 radtran_opt = dict()
 radtran_opt['max_T_variation'] = 5.
 radtran_opt['max_Plog_variation'] = 1.
 
-# prova ad alta quota
 pix_ok = []
-for pix in pixels:
-    #print(pix.limb_tg_alt)
-    if pix.limb_tg_alt < 1050. and pix.limb_tg_alt > 950.:
-        pix_ok.append(pix)
-        break
+pixels = [pix for pix in pixels if pix.limb_tg_alt > 350.]
+np.random.shuffle(pixels)
 
-for pix in pixels:
-    #print(pix.limb_tg_alt)
-    if pix.limb_tg_alt < 750. and pix.limb_tg_alt > 650.:
-        pix_ok.append(pix)
-        break
+pix_ok = pixels[::200]
 
-for pix in pixels:
-    #print(pix.limb_tg_alt)
-    if pix.limb_tg_alt < 450. and pix.limb_tg_alt > 350.:
-        pix_ok.append(pix)
-        break
-
-pix = pix_ok[0]
-linea = pix.LOS()
-ssp = pix.sub_solar_point()
-linea.calc_SZA_along_los(planet, ssp)
-
-prof = planet.atmosphere.get('pres')
-
-time0 = time.time()
-for i in range(20):
-    prof.calc([72.,34.])
-print('Tempo calc 2D: {}'.format((time.time()-time0)/20))
-
-prof2 = planet.gases['CH4'].iso_1.lev_03.vibtemp
-
-time0 = time.time()
-for i in range(20):
-   prof2.calc([72.,34.,451.])
-print('Tempo calc 3D: {}'.format((time.time()-time0)/20))
-
-pres = linea.calc_along_LOS(planet.atmosphere, profname = 'pres', set_attr = True)
-temp = linea.calc_along_LOS(planet.atmosphere, profname = 'temp', set_attr = True)
-
-vt = linea.calc_along_LOS(planet.gases['CH4'].iso_1.lev_03.vibtemp)
+# # prova ad alta quota
+# pix_ok = []
+# for pix in pixels:
+#     #print(pix.limb_tg_alt)
+#     if pix.limb_tg_alt < 1050. and pix.limb_tg_alt > 950.:
+#         pix_ok.append(pix)
+#         break
+#
+# for pix in pixels:
+#     #print(pix.limb_tg_alt)
+#     if pix.limb_tg_alt < 750. and pix.limb_tg_alt > 650.:
+#         pix_ok.append(pix)
+#         break
+#
+# for pix in pixels:
+#     #print(pix.limb_tg_alt)
+#     if pix.limb_tg_alt < 450. and pix.limb_tg_alt > 350.:
+#         pix_ok.append(pix)
+#         break
+#
+# pix = pix_ok[0]
+# linea = pix.LOS()
+# ssp = pix.sub_solar_point()
+# linea.calc_SZA_along_los(planet, ssp)
+#
+# prof = planet.atmosphere.get('pres')
+#
+# time0 = time.time()
+# for i in range(20):
+#     prof.calc([72.,34.])
+# print('Tempo calc 2D: {}'.format((time.time()-time0)/20))
+#
+# prof2 = planet.gases['CH4'].iso_1.lev_03.vibtemp
+#
+# time0 = time.time()
+# for i in range(20):
+#    prof2.calc([72.,34.,451.])
+# print('Tempo calc 3D: {}'.format((time.time()-time0)/20))
+#
+# pres = linea.calc_along_LOS(planet.atmosphere, profname = 'pres', set_attr = True)
+# temp = linea.calc_along_LOS(planet.atmosphere, profname = 'temp', set_attr = True)
+#
+# vt = linea.calc_along_LOS(planet.gases['CH4'].iso_1.lev_03.vibtemp)
 
 
 
@@ -304,28 +309,31 @@ pickle.dump(planet, open(inputs['cart_tvibs']+'planet.pic','w'))
 # damparad.close()
 # sys.exit()
 
+sys.exit()
+
 LUTopt = dict()
 LUTopt['max_pres'] = 2.0 # hPa circa 200 km
 LUTopt['temp_step'] = 5.
 LUTopt['pres_step_log'] = 1.0
 
-sp_gri = prepare_spe_grid(wn_range).spectral_grid
+sp_gri = smm.prepare_spe_grid(wn_range).spectral_grid
 
 PTcoup_needed = smm.calc_PT_couples_atmosphere(linee, planet.gases.values(), planet.atmosphere, **LUTopt)
 
 LUTS = smm.check_and_build_allluts(inputs, sp_gri, linee, planet.gases.values(), PTcouples = PTcoup_needed, LUTopt = LUTopt)
 
-for pix in pix_ok:
-    damparad = open('./radtrans_ch4hcn_tot_{}km.pic'.format(int(pix.limb_tg_alt)),'w')
-    linea = pix.LOS()
-    radtran = linea.radtran(wn_range, planet, linee, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = False, LUTS = LUTS, useLUTs = True, radtran_opt = radtran_opt, g3D = True, sub_solar_point = pix.sub_solar_point())
-    pickle.dump([pix, linea, radtran], damparad)
-    damparad.close()
+# for pix in pix_ok:
+#     damparad = open('./radtrans_ch4hcn_tot_{}km.pic'.format(int(pix.limb_tg_alt)),'w')
+#     linea = pix.LOS()
+#     radtran = linea.radtran(wn_range, planet, linee, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = False, LUTS = LUTS, useLUTs = True, radtran_opt = radtran_opt, g3D = True, sub_solar_point = pix.sub_solar_point())
+#     pickle.dump([pix, linea, radtran], damparad)
+#     damparad.close()
 
 
-sys.exit()
+# sys.exit()
+dampa = open('./out_3D_inversion_test1.pic','wb')
 
-result = smm.inversion(inputs, planet, linee, baybau, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, useLUTs = True)
+result = smm.inversion(inputs, planet, linee, baybau, pix_ok, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, useLUTs = True)
 
 dampa.close()
 
