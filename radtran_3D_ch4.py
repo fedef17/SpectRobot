@@ -333,7 +333,7 @@ dampa = open('./out_3D_inversion_test1.pic','wb')
 
 print(len(pix_ok))
 print([pix.limb_tg_alt for pix in pix_ok])
-result = smm.inversion(inputs, planet, linee, baybau, pix_ok, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, useLUTs = True, LUTopt = LUTopt)
+result = smm.inversion(inputs, planet, linee, baybau, pix_ok, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, useLUTs = True, LUTopt = LUTopt, g3D = True)
 
 dampa.close()
 

@@ -1739,7 +1739,7 @@ def read_input_observed(observed_cart, wn_range = None):
     return set_pixels
 
 
-def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), useLUTs = True, debugfile = None, save_hires = False, LUTopt = dict(), test = False):
+def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), useLUTs = True, debugfile = None, save_hires = False, LUTopt = dict(), test = False, g3D = False):
     """
     Main routine for retrieval.
     """
@@ -1813,12 +1813,16 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
             linea_low = pix.low_LOS()
             linea0 = pix.LOS()
             linea_up = pix.up_LOS()
+            if g3D:
+                ssp = pix.sub_solar_point()
+            else:
+                ssp = None
 
             # Using 1D interpolation scheme for FOV integration
             # x_FOV = np.array([linea_low.tangent_altitude, linea_0.tangent_altitude, linea_up.tangent_altitude])
 
             linea_low.details()
-            radtran_low = linea_low.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
+            radtran_low = linea_low.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt, g3D = g3D, sub_solar_point = ssp)
             radtrans.append(radtran_low)
             deriv_ok = []
             for par in bayes_set.params():
@@ -1828,7 +1832,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
             derivs.append(deriv_ok)
 
             linea0.details()
-            radtran = linea0.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
+            radtran = linea0.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt, g3D = g3D, sub_solar_point = ssp)
             radtrans.append(radtran)
             deriv_ok = []
             for par in bayes_set.params():
@@ -1841,7 +1845,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
                 pickle.dump([num, pix.limb_tg_alt, radtran], hiresfile)
 
             linea_up.details()
-            radtran_up = linea_up.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt)
+            radtran_up = linea_up.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt, g3D = g3D, sub_solar_point = ssp)
             radtrans.append(radtran_up)
             deriv_ok = []
             for par in bayes_set.params():
