@@ -415,6 +415,161 @@ class SpectralObject(object):
             coso.spectrum /= obj2
         return coso
 
+    def interp_to_grid(self, nugrid):
+        coso = copy.deepcopy(self)
+        nuspet = np.interp(nugrid.grid, self.spectral_grid.grid, self.spectrum, left = 0.0, right = 0.0)
+        coso.spectral_grid = copy.deepcopy(nugrid)
+        coso.spectrum = nuspet
+
+        return coso
+
+    def degrade_grid(self, thress = [1.e-3, 1.e-4, 1.e-5], factors = [5,20,100], consider_derivatives = True):
+        """
+        Keeps just the values for which the spectrum is larger than (thres) the max value. For the other points the resolution is degraded by a factor (factor). If consider_derivatives the points for which the first or second derivatives are larger than thres*max are included.
+        """
+
+        if consider_derivatives:
+            deriv1spe = np.gradient(self.spectrum)
+            deriv2spe = np.gradient(deriv1spe)
+            deriv1spe = np.abs(deriv1spe)
+            deriv2spe = np.abs(deriv2spe)
+
+        gridss = dict()
+        names = ['high', 'med', 'low']
+        # punti hires:
+        factors = [1]+factors
+        for thres, fact, name in zip(thress, factors[:-1], names[:-1]):
+            oks = (self.spectrum[::fact] > thres*self.max())
+            if consider_derivatives:
+                oks_1 = (deriv1spe[::fact] > thres*np.max(deriv1spe))
+                oks_2 = (deriv2spe[::fact] > thres*np.max(deriv2spe))
+                oks = oks | oks_1 | oks_2
+
+            gridss[name] = self.spectral_grid.grid[::fact][oks]
+
+        grid_deg = self.spectral_grid.grid[::factors[-1]]
+        for nam in gridss:
+            grid_deg = np.append(grid_deg,gridss[nam])
+
+        grid_tot = np.sort(np.unique(grid_deg))
+        grid_tot = SpectralGrid(grid_tot, units = self.spectral_grid.units)
+
+        coso = self.interp_to_grid(grid_tot)
+
+        int0 = self.integrate()
+        int2 = coso.integrate()
+        print('Keeping {:5.1f}% original points'.format(100.0*len(coso.spectrum)/len(self.spectrum)))
+        print((int0-int2)/int0, int0, int2)
+
+        return coso
+
+    def degrade_grid2(self, thres = 1.e-4, num_aside = [10,5,5], res_low = [1,2,5],  consider_derivatives = True):
+        """
+        Keeps just the values for which the spectrum is larger than (thres) the max value. (num_aside) points are kept on each side at lower resolution (2 and than 5)
+        """
+
+        if consider_derivatives:
+            deriv1spe = np.gradient(self.spectrum)
+            deriv2spe = np.gradient(deriv1spe)
+            deriv1spe = np.abs(deriv1spe)
+            deriv2spe = np.abs(deriv2spe)
+
+        names = ['high', 'med', 'low']
+        # punti hires:
+        oks = (self.spectrum > thres*self.max())
+        if consider_derivatives:
+            oks_1 = (deriv1spe > thres*np.max(deriv1spe))
+            oks_2 = (deriv2spe > thres*np.max(deriv2spe))
+            oks = oks | oks_1 | oks_2
+
+        hi_res = np.argwhere(oks)[0]
+        print(hi_res.shape)
+        hi_res = np.argwhere(oks)
+        print(hi_res.shape)
+        grid = self.spectral_grid.grid
+        hi_res_part = hi_res
+        print(len(hi_res))
+        print(hi_res)
+
+        for num, res in zip(num_aside, res_low):
+            for i in range(num):
+                coso = hi_res+(i+1)*res
+                coso = coso[coso < len(self.spectrum)][::res]
+                hi_res_part = np.unique(np.append(hi_res_part, coso))
+                coso = hi_res-(i+1)*res
+                coso = coso[coso >= 0][::res]
+                hi_res_part = np.unique(np.append(hi_res_part, coso))
+            hi_res = hi_res_part
+            print(len(hi_res))
+            print(hi_res)
+
+        grid_tot = grid[np.unique(hi_res)]
+        #grid_tot = np.sort(np.unique(grid_hi))
+        grid_tot = SpectralGrid(grid_tot, units = self.spectral_grid.units)
+
+        coso = self.interp_to_grid(grid_tot)
+
+        int0 = self.integrate()
+        int2 = coso.integrate()
+        print('Keeping {:5.1f}% original points'.format(100.0*len(coso.spectrum)/len(self.spectrum)))
+        print((int0-int2)/int0, int0, int2)
+
+        return coso
+
+
+    def degrade_grid3(self, thres = 1.e-4, abs_thres = 1.e-3):
+        """
+        Keeps just the lines for which the spectrum is larger than (thres) the max value. (num_aside) points are kept on each side at lower resolution (2 and than 5)
+        """
+
+        if consider_derivatives:
+            deriv1spe = np.gradient(self.spectrum)
+            deriv2spe = np.gradient(deriv1spe)
+            deriv1spe = np.abs(deriv1spe)
+            deriv2spe = np.abs(deriv2spe)
+
+        names = ['high', 'med', 'low']
+        # punti hires:
+        oks = (self.spectrum > thres*self.max())
+        if consider_derivatives:
+            oks_1 = (deriv1spe > thres*np.max(deriv1spe))
+            oks_2 = (deriv2spe > thres*np.max(deriv2spe))
+            oks = oks | oks_1 | oks_2
+
+        hi_res = np.argwhere(oks)[0]
+        print(hi_res.shape)
+        hi_res = np.argwhere(oks)
+        print(hi_res.shape)
+        grid = self.spectral_grid.grid
+        hi_res_part = hi_res
+        print(len(hi_res))
+        print(hi_res)
+
+        for num, res in zip(num_aside, res_low):
+            for i in range(num):
+                coso = hi_res+(i+1)*res
+                coso = coso[coso < len(self.spectrum)][::res]
+                hi_res_part = np.unique(np.append(hi_res_part, coso))
+                coso = hi_res-(i+1)*res
+                coso = coso[coso >= 0][::res]
+                hi_res_part = np.unique(np.append(hi_res_part, coso))
+            hi_res = hi_res_part
+            print(len(hi_res))
+            print(hi_res)
+
+        grid_tot = grid[np.unique(hi_res)]
+        #grid_tot = np.sort(np.unique(grid_hi))
+        grid_tot = SpectralGrid(grid_tot, units = self.spectral_grid.units)
+
+        coso = self.interp_to_grid(grid_tot)
+
+        int0 = self.integrate()
+        int2 = coso.integrate()
+        print('Keeping {:5.1f}% original points'.format(100.0*len(coso.spectrum)/len(self.spectrum)))
+        print((int0-int2)/int0, int0, int2)
+
+        return coso
+
     # def __truediv__(self, obj2):
     #     coso = copy.deepcopy(self)
     #     if type(obj2) is SpectralObject:
@@ -1099,6 +1254,7 @@ class SpectralGcoeff(SpectralObject):
         """
         Interpolates self with another Gcoeff coeff2, considering the parameters given. The two coeffs should either have the same pressure (and in this case the desired Temp is given in the call) or the same temperature (Pres is given in the call).
         """
+
         if not sbm.isclose(self.temp, coeff2.temp) and not sbm.isclose(self.pres, coeff2.pres):
             raise ValueError('The two coeffs have both different temperatures and pressures! cannot interpolate')
 

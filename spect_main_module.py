@@ -516,6 +516,10 @@ class RetParam(object):
         self.hires_deriv = copy.deepcopy(derivative)
         return
 
+    def erase_hires_deriv(self):
+        self.hires_deriv = None
+        return
+
     def store_deriv(self, derivative, num):
         try:
             self.derivatives[num] = copy.deepcopy(derivative)
@@ -529,6 +533,14 @@ def lut_name(mol, iso, LTE):
         name = 'LUT_mol{:02d}_iso{:1d}_LTE'.format(mol,iso)
     else:
         name = 'LUT_mol{:02d}_iso{:1d}_nonLTE'.format(mol,iso)
+    return name
+
+def lut_name_compressed(mol, iso, LTE, split):
+    if LTE:
+        name = 'LUT_csplit{:02d}_mol{:02d}_iso{:1d}_LTE'.format(split,mol,iso)
+    else:
+        name = 'LUT_csplit{:02d}_mol{:02d}_iso{:1d}_nonLTE'.format(split,mol,iso)
+
     return name
 
 
@@ -682,6 +694,7 @@ class LutSet(object):
         self.sets = []
         self.spectral_grid = None
         self.PTcouples = None
+
         return
 
     def add_file(self, filename, PTcouples):
@@ -744,7 +757,7 @@ class LutSet(object):
 
         return
 
-    def load_from_files(self, load_just_PT = False, spectral_grid = None):
+    def load_from_files(self, load_just_PT = False, spectral_grid = None, cartLUTs = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/LUTs/'):
         """
         Loads from file just the data regarding level's LutSet. Better not to load all levels together due to memory limits.
         Adapted for more than one file.
@@ -752,7 +765,13 @@ class LutSet(object):
 
         self.PTcouples = []
         for filename in self.filenames:
-            fileo = open(filename,'rb')
+            try:
+                fileo = open(filename,'rb')
+            except:
+                ind = filename.rfind('/')
+                filena = filename[ind+1:]
+                filename = cartLUTs+filena
+                fileo = open(filename,'rb')
             PTfil = pickle.load(fileo)
             self.PTcouples += PTfil
 
@@ -1278,6 +1297,105 @@ def check_and_build_allluts(inputs, sp_grid, lines, molecs, atmosphere = None, P
     return allLUTs
 
 
+def best_compressed_grid(simuls, thress = [1.e-3, 1.e-4, 1.e-5], factors = [5,20,100], skip_thres = 1.e-20, consider_derivatives = True, factor_minor = 10, thres_minor = 1.e-2, alg = 2):
+    gridi_best = np.array([])
+    maxo = 0.
+    for singles in simuls:
+        for tag in singles:
+            if singles[tag].max() > maxo:
+                maxo = singles[tag].max()
+
+    for singles in simuls:
+        for tag in singles:
+            if singles[tag].max() < skip_thres:
+                continue
+            if singles[tag].max() < thres_minor*maxo:
+                thress_tag = list(factor_minor*np.array(thress))
+            else:
+                thress_tag = thress
+            if alg == 1:
+                gridi = singles[tag].degrade_grid(thress = thress_tag, factors = factors, consider_derivatives = consider_derivatives).spectral_grid.grid
+            elif alg == 2:
+                gridi = singles[tag].degrade_grid2(thres = max(thress_tag), consider_derivatives = False).spectral_grid.grid
+            else:
+                gridi = singles[tag].degrade_grid3().spectral_grid.grid
+            gridi_best = np.append(gridi_best, gridi)
+
+    gridi_best = np.sort(np.unique(gridi_best))
+
+    return gridi_best
+
+
+def split_and_compress_LUTS(molecs, cartLUTs, n_split = None, low_thres = 1.e-30, new_grid = None):
+    """
+    Reads the luts in memory and splits them into smaller wn ranges. If new_grid is specified, the luts are first interpolated to the new grid. If the G_coeff considered is lower than low_thres, the zero flag is raised.
+    """
+    # read all luts and determine grid
+
+    for molec in molecs:
+        for isoname in molec.all_iso:
+            isomol = getattr(molec, isoname)
+            exists, pt_to_do, pt_map = check_LUT_exists([], cartLUTs, isomol.mol, isomol.iso, isomol.is_in_LTE)
+
+            if exists:
+                filos = pt_map[0][0]
+                with open(filos, 'r') as coso:
+                    LUT_isomol = pickle.load(coso)
+                if len(pt_map) > 1:
+                    for [fi,ptfi] in pt_map[1:]:
+                        with open(fi, 'r') as coso:
+                            LUT_isomol.merge(pickle.load(coso))
+            else:
+                raise ValueError('LUT does not exist!')
+
+            for lev in isomol.levels:
+                levello = getattr(isomol, lev)
+                ok, lev_lut = LUT_isomol.find_lev(levello.lev_string)
+                if not ok:
+                    raise ValueError('mol {} iso {} Level {} not found'.format(isomolec.mol, isomolec.iso, levello.lev_string))
+
+                LUT_isomol.sets[lev_lut].load_from_files()
+                PTcouples = LUT_isomol.sets[lev_lut].PTcouples
+                Pmin = min([P for [P,T] in PTcouples])
+                Tmin = min([T for [P,T] in PTcouples if sbm.isclose(P, Pmin)])
+                ind = LUT_isomol.sets[lev_lut].find(Pmin,Tmin)
+                sett_min = LUT_isomol.sets[lev_lut].sets[ind]
+                Pmax = max([P for [P,T] in PTcouples])
+                Tmax = max([T for [P,T] in PTcouples if sbm.isclose(P, Pmax)])
+                ind = LUT_isomol.sets[lev_lut].find(Pmax,Tmax)
+                sett_max = LUT_isomol.sets[lev_lut].sets[ind]
+
+                for nam in sett_min:
+                    out1 = sett_min[nam].degrade_grid(thress = thress, factors = factors, consider_derivatives = consider_derivatives)
+                    gridi = out1.spectral_grid.grid
+                    gridi_best = np.append(gridi_best, gridi)
+                    out2 = sett_max[nam].degrade_grid(thress = thress, factors = factors, consider_derivatives = consider_derivatives)
+                    gridi2 = out2.spectral_grid.grid
+                    gridi_best = np.append(gridi_best, gridi2)
+                    # if sett_min[nam].max() > 0:
+                    #     pl.figure(77)
+                    #     pl.scatter(sett_min[nam].spectral_grid.grid, sett_min[nam].spectrum, s=1)
+                    #     pl.scatter(out1.spectral_grid.grid, out1.spectrum, s=1)
+                    #     pl.figure(78)
+                    #     sett_min[nam].plot(label='min orig')
+                    #     out1.plot(label='min deg')
+                    #     sett_max[nam].plot(label='max orig')
+                    #     out2.plot(label='max deg')
+                    #     sys.exit()
+
+
+                gridi_best = np.sort(np.unique(gridi_best))
+
+    print('THIS IS NOT THE BEST GRID')
+    return gridi_best
+
+    # check split wrt memory available
+
+    # create all compressed luts
+
+    #return allLUTs
+
+
 def calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, temp_step = 5.0, max_pres = None, thres = 0.01):
     """
     Define pressure levels, for each pres check which temps are needed for the full atm and define a set of temperatures to be used at that pressure. Build something to be given as input to make LUTs.
@@ -1655,6 +1773,246 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
         return abs_coeffs, emi_coeffs, emi_coeffs_tracked, abs_coeffs_tracked
 
 
+def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, LUTs = None, lines = None, cartDROP = None, track_levels = None):
+    """
+    Works with compressed grid, keeps everything in memory.
+
+    IMPORTANT: since the grid can be irregular, the same grid is required in input and in the LUTS.
+
+    Another function in this module splits and compresses the grid in input and create the corresponding luts.
+    """
+
+    time0 = time.time()
+
+    try:
+        len(Press)
+        len(Temps)
+    except:
+        Press = [Press]
+        Temps = [Temps]
+
+    if cartDROP is None:
+        cartDROP = 'stuff_'+date_stamp()
+        if not os.path.exists(cartDROP):
+            os.mkdir(cartDROP)
+        cartDROP += '/'
+
+    #print('Sto entrandooooooooooooo, mol {}, iso {}'.format(isomolec.mol, isomolec.iso))
+    wn_range = LUTs.wn_range
+    spectral_grid = LUTs.spectral_grid
+
+    if tagLOS is None:
+        tagLOS = 'LOS'
+    tagg = tagLOS+'_mol_{}_iso_{}'.format(isomolec.mol, isomolec.iso)
+    abs_coeffs = AbsSetLOS(cartDROP+'abscoeff_'+tagg+'.pic')
+    emi_coeffs = AbsSetLOS(cartDROP+'emicoeff_'+tagg+'.pic')
+    if track_levels is not None:
+        emi_coeffs_tracked = dict()
+        abs_coeffs_tracked = dict()
+        for lev in track_levels:
+            tagg = tagLOS+'_mol_{}_iso_{}_{}'.format(isomolec.mol, isomolec.iso, lev)
+            emi_coeffs_tracked[lev] = AbsSetLOS(cartDROP+'tracklevel_emicoeff_'+tagg+'.pic')
+            abs_coeffs_tracked[lev] = AbsSetLOS(cartDROP+'tracklevel_abscoeff_'+tagg+'.pic')
+    if store_in_memory:
+        abs_coeffs.prepare_export()
+        emi_coeffs.prepare_export()
+        if track_levels is not None:
+            for lev in track_levels:
+                emi_coeffs_tracked[lev].prepare_export()
+                abs_coeffs_tracked[lev].prepare_export()
+
+    unidentified_lines = False
+    if len(isomolec.levels) == 0:
+        unidentified_lines = True
+    #    print('acazuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu')
+
+    set_tot = dict()
+    if not unidentified_lines:
+        for lev in isomolec.levels:
+            levvo = getattr(isomolec, lev)
+            strin = cartDROP+'LUTLOS_mol_{}_iso_{}_{}.pic'.format(isomolec.mol, isomolec.iso, lev)
+            set_tot[lev] = LutSet(isomolec.mol, isomolec.iso, isomolec.MM, level = levvo, filename = strin)
+            set_tot[lev].prepare_export([zui for zui in zip(Press,Temps)], spectral_grid)
+    else:
+        #print('siamo quaaaA')
+        strin = cartDROP+'LUTLOS_mol_{}_iso_{}_alllev.pic'.format(isomolec.mol, isomolec.iso)
+        set_tot['all'] = LutSet(isomolec.mol, isomolec.iso, isomolec.MM, level = None, filename = strin)
+        set_tot['all'].prepare_export([zui for zui in zip(Press,Temps)], spectral_grid)
+
+    timooo = 0.0
+    timuuu = 0.0
+    timuuu_old = 0.0
+    timuuu_fast = 0.0
+    timaaa = 0.0
+    timaaa2 = 0.0
+    timhhh = 0.0
+
+    if not useLUTs:
+        if lines is None:
+            raise ValueError('when calling smm.make_abscoeff_isomolec() with useLUTs = False, you need to give the list of spectral lines of isomolec as input')
+        else:
+            #print(len(lines))
+            lines = [lin for lin in lines if lin.Mol == isomolec.mol and lin.Iso == isomolec.iso]
+            #print(len(lines))
+
+        ctypes = ['sp_emission','ind_emission','absorption']
+
+        numh = 0
+        for Pres, Temp in zip(Press,Temps):
+            numh+=1
+            #print('Siamo a step {} catuuuullooooooo'.format(numh))
+            #print(time.ctime())
+            #print(isomolec.levels)
+            lines_proc = spcl.calc_shapes_lines(spectral_grid, lines, Temp, Pres, isomolec)
+            #print(len(lines_proc))
+            if not unidentified_lines:
+                for lev in isomolec.levels:
+                    #print('Siamo a mol {}, iso {}, lev {} bauuuuuuuuu'.format(isomolec.mol, isomolec.iso, lev))
+                    levello = getattr(isomolec, lev)
+                    set_tot[lev].add_PT(spectral_grid, lines_proc, Pres, Temp)
+            else:
+                #print('Siamo a mol {}, iso {}, all_levssss miaoooooooooooo'.format(isomolec.mol, isomolec.iso))
+                set_tot['all'].add_PT(spectral_grid, lines_proc, Pres, Temp)
+
+    else:
+        if not unidentified_lines:
+            for lev in isomolec.levels:
+                levello = getattr(isomolec, lev)
+                ok, lev_lut = LUTs.find_lev(levello.lev_string)
+                if not ok:
+                    raise ValueError('mol {} iso {} Level {} not found'.format(isomolec.mol, isomolec.iso, levello.lev_string))
+                time1 = time.time()
+                LUTs.sets[lev_lut].load_from_files()
+                timaaa += time.time()-time1
+                for Pres, Temp in zip(Press,Temps):
+                    time1 = time.time()
+                    set_ = LUTs.sets[lev_lut].calculate(Pres, Temp)
+                    timooo += time.time()-time1
+                    time1 = time.time()
+                    set_tot[lev].add_dump(set_)
+                    timaaa2 += time.time()-time1
+                LUTs.sets[lev_lut].free_memory()
+        else:
+            LUTs.sets['all'].load_from_files()
+            for Pres, Temp in zip(Press,Temps):
+                time1 = time.time()
+                set_ = LUTs.sets['all'].calculate(Pres, Temp)
+                timooo += time.time()-time1
+                set_tot['all'].add_dump(set_)
+            LUTs.sets['all'].free_memory()
+
+    print('     -  make abs part 1: {:5.1f} s'.format((time.time()-time0)))
+    time0 = time.time()
+
+    for val in set_tot.values():
+        val.finalize_IO()
+        #print('Finalizzzooooooooooo')
+
+    print('     -  make abs part 1bis: {:5.1f} s'.format((time.time()-time0)))
+    time0 = time.time()
+
+    for nam, val in zip(set_tot.keys(), set_tot.values()):
+        val.prepare_read()
+        #print('Reading... -> '+nam)
+
+    print('     -  make abs part 1tris: {:5.1f} s'.format((time.time()-time0)))
+    time0 = time.time()
+
+    for num in range(len(Temps)):
+        time2 = time.time()
+        #print('oyeeeeeeeeeee ', num)
+        abs_coeff = prepare_spe_grid(wn_range_tot)
+        emi_coeff = prepare_spe_grid(wn_range_tot)
+        if track_levels is not None:
+            emi_coeff_level = dict()
+            abs_coeff_level = dict()
+            for lev in track_levels:
+                emi_coeff_level[lev] = prepare_spe_grid(wn_range_tot)
+                abs_coeff_level[lev] = prepare_spe_grid(wn_range_tot)
+
+        # THIS IS WITH LTE PARTITION FUNCTION!!
+        Q_part = spcl.CalcPartitionSum(isomolec.mol, isomolec.iso, temp = Temps[num])
+        timhhh += time.time()-time2
+
+        if unidentified_lines:
+            Gco = set_tot['all'].load_singlePT_from_file(spectral_grid)
+            pop = 1 / Q_part
+            abs_coeff += Gco['absorption']*pop
+            abs_coeff -= Gco['ind_emission']*pop
+            emi_coeff += Gco['sp_emission']*pop
+        else:
+            for lev in isomolec.levels:
+                time2 = time.time()
+                levello = getattr(isomolec, lev)
+                if LTE:
+                    vibt = Temps[num]
+                else:
+                    vibt = levello.local_vibtemp[num]
+                #Gco = levello.Gcoeffs[num]
+                time1 = time.time()
+                Gco = set_tot[lev].load_singlePT_from_file(spectral_grid)
+                timaaa += time.time()-time1
+                #for key, val in zip(Gco.keys(), Gco.values()):
+                    #print('iiiii make_abs iiiiii {} {} {}'.format(key, np.max(val.spectrum),np.min(val.spectrum)))
+
+                pop = spcl.Boltz_ratio_nodeg(levello.energy, vibt) / Q_part
+                timhhh += time.time()-time2
+                time1 = time.time()
+                abs_coeff += Gco['absorption']*pop
+                abs_coeff -= Gco['ind_emission']*pop
+                emi_coeff += Gco['sp_emission']*pop
+                timuuu += time.time()-time1
+
+                if track_levels is not None:
+                    if lev in track_levels:
+                        abs_coeff_level[lev] += Gco['absorption']*pop
+                        abs_coeff_level[lev] -= Gco['ind_emission']*pop
+                        emi_coeff_level[lev] += Gco['sp_emission']*pop
+
+        if not store_in_memory:
+            abs_coeffs.add_set(abs_coeff)
+            emi_coeffs.add_set(emi_coeff)
+            if track_levels is not None:
+                for lev in track_levels:
+                    emi_coeffs_tracked[lev].add_set(emi_coeff_level[lev])
+                    abs_coeffs_tracked[lev].add_set(emi_coeff_level[lev])
+        else:
+            time1 = time.time()
+            abs_coeffs.add_dump(abs_coeff)
+            emi_coeffs.add_dump(emi_coeff)
+            timaaa2 += time.time()-time1
+            if track_levels is not None:
+                for lev in track_levels:
+                    emi_coeffs_tracked[lev].add_dump(emi_coeff_level[lev])
+                    abs_coeffs_tracked[lev].add_dump(emi_coeff_level[lev])
+
+    print('     -  make abs part 2: {:5.1f} s'.format((time.time()-time0)))
+    time0 = time.time()
+
+    print('      -   make_abs: LUT interp   ->   {:5.1f} s'.format(timooo))
+    print('      -   make_abs: add   ->   {:5.2f} s'.format(timuuu))
+    print('      -   make_abs: prima di add to spect   ->   {:5.1f} s'.format(timhhh))
+    print('      -   make_abs: reading   ->   {:5.1f} s'.format(timaaa))
+    print('      -   make_abs: writing   ->   {:5.1f} s'.format(timaaa2))
+
+    if store_in_memory:
+        abs_coeffs.finalize_IO()
+        emi_coeffs.finalize_IO()
+        if track_levels is not None:
+            for lev in track_levels:
+                emi_coeffs_tracked[lev].finalize_IO()
+                abs_coeffs_tracked[lev].finalize_IO()
+
+    print('     -  make abs part 3: {:5.1f} s'.format((time.time()-time0)))
+    time0 = time.time()
+
+    if track_levels is None:
+        return abs_coeffs, emi_coeffs
+    else:
+        return abs_coeffs, emi_coeffs, emi_coeffs_tracked, abs_coeffs_tracked
+
+
+
 def read_obs(filename, formato = 'gbb', wn_range = None):
     if formato == 'gbb':
         outs = sbm.read_obs(filename)
@@ -1894,6 +2252,8 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
         inversion_algebra(obs, sims, noise, bayes_set, lambda_LM = lambda_LM, L1_reg = L1_reg, masks = masks)
         print('new', [par.value for par in bayes_set.params()])
 
+        for par in bayes_set.params():
+            par.hires_deriv = None
         if debugfile is not None:
             pickle.dump([num_it, obs, sims, bayes_set], debugfile)
         # Update the VMRs of the retrieved gases with the new values
