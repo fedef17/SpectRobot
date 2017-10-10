@@ -88,3 +88,6 @@ for i in range(20):
         par.erase_hires_deriv()
     coso2.append(bset)
     pickle.dump(coso2, nuovofil)
+
+nuovofil.close()
+fil.close()

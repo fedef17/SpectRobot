@@ -333,7 +333,7 @@ LUTS = smm.check_and_build_allluts(inputs, sp_gri, linee, planet.gases.values(),
 
 
 # sys.exit()
-dampa = open('./out_3D_inversion_test1.pic','wb')
+dampa = open('./out_3D_inversion_test_fast.pic','wb')
 
 print(len(pix_ok))
 print([pix.limb_tg_alt for pix in pix_ok])

@@ -1971,7 +1971,7 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
         return abs_coeffs, emi_coeffs, emi_coeffs_tracked, abs_coeffs_tracked
 
 
-def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, tagLOS = None, allLUTs = None, lines = None, cartDROP = None, store_in_memory = False, track_levels = None):
+def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, tagLOS = None, allLUTs = None, lines = None, cartDROP = None, store_in_memory = False, track_levels = None, time_control = False):
     """
     Works with compressed grid, keeps everything in memory.
 
@@ -2028,7 +2028,7 @@ def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, t
         unidentified_lines = True
     #    print('acazuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu')
 
-    print('     -  make abs part 1: {:5.1f} s'.format((time.time()-time0)))
+    if time_control: print('     -  make abs part 1: {:5.1f} s'.format((time.time()-time0)))
     time0 = time.time()
 
     timewrite = 0.0
@@ -2114,7 +2114,7 @@ def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, t
                     emi_coeffs_tracked[lev].add_dump(emi_coeff_level[lev])
                     abs_coeffs_tracked[lev].add_dump(emi_coeff_level[lev])
 
-    print('     -  make abs part 2: {:5.1f} s'.format((time.time()-time0)))
+    if time_control: print('     -  make abs part 2: {:5.1f} s'.format((time.time()-time0)))
     time0 = time.time()
 
 
@@ -2128,9 +2128,9 @@ def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, t
                 emi_coeffs_tracked[lev].finalize_IO()
                 abs_coeffs_tracked[lev].finalize_IO()
 
-    print('      -   make_abs: LUT interp   ->   {:5.1f} s'.format(timecalc))
-    print('      -   make_abs: add coeffs   ->   {:5.1f} s'.format(timeadd))
-    print('      -   make_abs: writing   ->   {:5.1f} s'.format(timewrite))
+    if time_control: print('      -   make_abs: LUT interp   ->   {:5.1f} s'.format(timecalc))
+    if time_control: print('      -   make_abs: add coeffs   ->   {:5.1f} s'.format(timeadd))
+    if time_control: print('      -   make_abs: writing   ->   {:5.1f} s'.format(timewrite))
 
     if track_levels is None:
         return abs_coeffs, emi_coeffs
@@ -2476,7 +2476,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
     print(alts_sim)
     for pix in pixels:
         print(pix.limb_tg_lat, pix.limb_tg_lon, pix.limb_tg_alt)
-    sys.exit()
+    #sys.exit()
 
     observ_sample = pixels[0].observation
     spectral_widths = pixels[0].observation.bands.spectrum
@@ -2607,7 +2607,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
             #         else:
             #             derivs[kiave] = derivva
 
-                print('split {}, LOS {} done'.format(nsp, los.tag))
+                print('split {}, {} to {} done'.format(nsp, losos[0].tag, losos[-1].tag))
 
             pickle.dump([nsp,hi_res], hiresfile)
             print('split {}: {} LOS done in {:5.1f} min'.format(nsp, len(sim_LOSs), (time.time()-time0)/60.))
