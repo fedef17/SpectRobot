@@ -46,6 +46,17 @@ from matplotlib.ticker import FormatStrFormatter
 
 ########################### MAIN #######################################################
 
+cub = 'PIXs_HCN-CH4-C2H2_season_szaall_nu.sav'
+cart = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/DATA/'
+cubo = io.readsav(cart+cub)
+
+pixs = cubo.compPIX
+pixs = pixs[1:]
+
+print('ciao')
+
+sys.exit()
+
 t1 = time.time()
 print('STARTED AT {}\n'.format(time.ctime()))
 time.sleep(2)

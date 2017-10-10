@@ -22,6 +22,7 @@ from multiprocessing import Process, Queue
 import copy
 import subprocess
 from scipy.interpolate import RectBivariateSpline as spline2D
+from memory_profiler import profile
 
 n_threads = 4
 
@@ -1485,7 +1486,7 @@ def compress_LUTS(molecs, cartLUTs, n_threads, ram_max = 8., dim_tot = 20., low_
     # create all compressed luts
 
     #return allLUTs
-def split_and_compress_LUTS(spectral_grid, allLUTs, cartLUTs, n_threads, n_splits = None, ram_max = 8., dim_tot = 20., low_thres = 1.e-30):
+def split_and_compress_LUTS(spectral_grid, allLUTs, cartLUTs, n_threads, n_split = None, ram_max = 8., dim_tot = 20., low_thres = 1.e-30):
     """
     Reads the luts in memory and splits them into smaller wn ranges. If new_grid is specified, the luts are first interpolated to the new grid. If the G_coeff considered is lower than low_thres, the G_coeff is set equal to None.
     """
@@ -1573,7 +1574,7 @@ def split_and_compress_LUTS(spectral_grid, allLUTs, cartLUTs, n_threads, n_split
         pickle.dump(allLUTs[nam], fio)
         fio.close()
 
-    return allLUTs, n_split
+    return allLUTs, n_split, sp_grids
 
 
 def group_observations(pixels, ret_set):
@@ -2454,7 +2455,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
     # FASE 0: decidere in quanti pezzi splittare le LUTS. le splitto. se tengo tutto raddoppia la dimensione su disco. butto via i Gcoeff nulli.
     n_threads = inputs['n_threads']
-    LUTS, n_split = split_and_compress_LUTS(sp_gri, LUTS, inputs['cart_LUTS'], n_threads, n_split = 20)
+    LUTS, n_split, sp_grids = split_and_compress_LUTS(sp_gri, LUTS, inputs['cart_LUTS'], n_threads, n_split = 20)
 
     # lancio calc_radtran_steps e decido quante los calcolare davvero
     # ho una lista di los fittizie in uscita
@@ -2488,22 +2489,26 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
             hiresfile = open(cartOUT+'hires_radtran.pic', 'wb')
 
         # fillo = open('calc_radtran_steps.pic', 'w')
-        for los, ssp in zip(sim_LOSs, ssps):
-            los.calc_SZA_along_los(planet, ssp)
-            los.calc_radtran_steps(planet, lines, calc_derivatives = True, bayes_set = bayes_set, **radtran_opt)
+        # for los, ssp in zip(sim_LOSs, ssps):
+            # los.calc_SZA_along_los(planet, ssp)
+            # los.calc_radtran_steps(planet, lines, calc_derivatives = True, bayes_set = bayes_set, **radtran_opt)
         # pickle.dump(sim_LOSs, fillo)
         # fillo.close()
-        # fillo = open('calc_radtran_steps.pic', 'r')
-        # sim_LOSs = pickle.load(fillo)
+        fillo = open('calc_radtran_steps.pic', 'r')
+        sim_LOSs = pickle.load(fillo)
+        sim_LOSs = sim_LOSs[::-1]
+
         for num in range(len(sim_LOSs)):
             sim_LOSs[num].tag = 'LOS{:02d}'.format(num)
+            print('{} - {} steps'.format(sim_LOSs[num].tag, len(sim_LOSs[num].radtran_steps['step'])))
+        #sim_LOSs = sim_LOSs[::-1]
 
         radtrans = dict()
         derivs = dict()
 
         time00 = time.time()
-        for nsp in range(n_split):
-            print('Split # {}'.format(nsp))
+        for nsp, sp_grid_split in zip(range(n_split), sp_grids):
+            print('Split # {} of {}'.format(nsp, n_split))
 
             for nam in LUTS:
                 LUTS[nam].load_split(nsp)
@@ -2524,6 +2529,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
             time0 = time.time()
 
+            return
 
             ntot = 0
             nlos = len(sim_LOSs)
@@ -2540,8 +2546,8 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
                 outputs = []
                 for los, ssp, i in zip(losos, sspsos, range(n_proc)):
                     coda.append(Queue())
-                    args = (sp_gri, planet, lines)
-                    kwargs = {'queue': coda[i], 'cartLUTs': inputs['cart_LUTS'], 'cartDROP' : inputs['out_dir'], 'calc_derivatives' : True, 'bayes_set' : bayes_set, 'LUTS' : LUTS, 'radtran_opt' : radtran_opt, 'g3D' : g3D, 'sub_solar_point' : ssp}
+                    args = (sp_grid_split, planet, lines)
+                    kwargs = {'queue': coda[i], 'cartLUTs': inputs['cart_LUTS'], 'cartDROP' : inputs['out_dir'], 'calc_derivatives' : True, 'bayes_set' : bayes_set, 'LUTS' : LUTS, 'radtran_opt' : radtran_opt, 'g3D' : g3D, 'sub_solar_point' : ssp, 'store_abscoeff': False}
                     processi.append(Process(target=los.radtran_fast, args=args, kwargs=kwargs))
                     processi[i].start()
 
@@ -2579,6 +2585,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
                 ntot += n_threads
                 print('tempo: {:5.1f} min'.format((time.time()-time01)/60.))
+                sys.exit()
 
             # for los in sim_LOSs:
             #     time1 = time.time()
