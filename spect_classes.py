@@ -358,10 +358,13 @@ class SpectralObject(object):
     This is the general class for all spectral quantities, that is for distributions in the frequency/wavelength/wavenumber domani. Some useful methods (conversions, integration, convolution, ..).
     """
 
-    def __init__(self, spectrum, spectral_grid, direction = None, units = ''):
+    def __init__(self, spectrum, spectral_grid, direction = None, units = '', link_grid = False):
         self.spectrum = copy.deepcopy(spectrum)
         self.direction = copy.deepcopy(direction)
-        self.spectral_grid = copy.deepcopy(spectral_grid)
+        if not link_grid:
+            self.spectral_grid = copy.deepcopy(spectral_grid)
+        else:
+            self.spectral_grid = spectral_grid
         self.units = units
 
         return
@@ -625,11 +628,15 @@ class SpectralObject(object):
         self.spectral_grid = None
         return
 
-    def restore_grid(self, spectral_grid):
+    def restore_grid(self, spectral_grid, link_grid = False):
         """
         Erases the spectral_grid to save disk space.
         """
-        self.spectral_grid = copy.deepcopy(spectral_grid)
+        if not link_grid:
+            self.spectral_grid = copy.deepcopy(spectral_grid)
+        else:
+            self.spectral_grid = spectral_grid
+
         return
 
     def half_precision(self):

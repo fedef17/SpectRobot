@@ -23,7 +23,7 @@ import copy
 import subprocess
 from scipy.interpolate import RectBivariateSpline as spline2D
 
-n_threads = 8
+n_threads = 4
 
 ############ MAIN ROUTINES USED FOR SPECT_ROBOT.PY
 def date_stamp():
@@ -368,6 +368,8 @@ class LinearProfile_2D(RetSet):
         self.name = name
         self.set = []
         self.n_par = len(alt_nodes)*len(lat_limits)
+        self.alts = list(alt_nodes)
+        self.lats = list(lat_limits)
 
         alt_grid = sbm.AtmGrid('alt', atmosphere.grid.coords['alt'])
 
@@ -395,6 +397,27 @@ class LinearProfile_2D(RetSet):
             prof += par.maskgrid*par.value
 
         return prof
+
+
+    def check_involved(self, parkey, coord_range):
+        indp = self.alts.index(parkey[1])
+        involved = True
+        altz = coord_range['alt']
+
+        if indp == len(self.alts)-1:
+            pass
+        elif altz[0] > self.alts[indp+1]:
+            involved = False
+
+        latz = coord_range['lat']
+        indp = self.lats.index(parkey[0])
+        if indp == len(self.lats)-1:
+            if latz[1] < parkey[0]:
+                involved = False
+        elif latz[1] < parkey[0] or latz[0] > self.lats[indp+1]:
+            involved = False
+
+        return involved
 
 
 class LinearProfile_1D_new(RetSet):
@@ -500,6 +523,15 @@ class RetParam(object):
         self.derivatives = []
         self.old_values = []
         self.constrain_positive = constrain_positive
+        self.not_involved = False
+        return
+
+    def set_not_involved(self):
+        self.not_involved = True
+        return
+
+    def set_involved(self):
+        self.not_involved = False
         return
 
     def update_par(self, delta_par):
@@ -535,7 +567,7 @@ def lut_name(mol, iso, LTE):
         name = 'LUT_mol{:02d}_iso{:1d}_nonLTE'.format(mol,iso)
     return name
 
-def lut_name_compressed(mol, iso, LTE, split):
+def lut_name_split(mol, iso, LTE, split):
     if LTE:
         name = 'LUT_csplit{:02d}_mol{:02d}_iso{:1d}_LTE'.format(split,mol,iso)
     else:
@@ -543,6 +575,13 @@ def lut_name_compressed(mol, iso, LTE, split):
 
     return name
 
+def lut_name_wsplits(mol, iso, LTE, n_split):
+    if LTE:
+        name = 'LUT_{:02d}splits_mol{:02d}_iso{:1d}_LTE'.format(n_split,mol,iso)
+    else:
+        name = 'LUT_{:02d}splits_mol{:02d}_iso{:1d}_nonLTE'.format(n_split,mol,iso)
+
+    return name
 
 class LookUpTable(object):
     """
@@ -672,6 +711,30 @@ class LookUpTable(object):
 
         return False, None
 
+    def add_split_file(self, filename):
+        if not hasattr(self, 'splitfiles'):
+            self.splitfiles = []
+
+        self.splitfiles.append(filename)
+        return
+
+    def load_split(self, nsp):
+        splitfi = open(self.splitfiles[nsp], 'rb')
+        sett_nuovo = dict()
+        for nam in self.sets:
+            coso = pickle.load(splitfi)
+            sett_nuovo[coso[0]] = coso[1]
+
+        for nam in self.sets:
+            self.sets[nam] = sett_nuovo[nam]
+            for num in range(len(self.sets[nam].PTcouples)):
+                set_ = self.sets[nam].sets[num]
+                for ctype in set_:
+                    if set_[ctype] is None: continue
+                    set_[ctype].double_precision()
+                    set_[ctype].restore_grid(self.sets[nam].spectral_grid, link_grid = True)
+
+        return
 
 
 class LutSet(object):
@@ -839,59 +902,65 @@ class LutSet(object):
         Ps = np.unique(np.array([PT[0] for PT in self.PTcouples]))
         Ts = np.unique(np.array([PT[1] for PT in self.PTcouples]))
 
-        try:
-            if Pres <= np.min(Ps):
-                #print(Pres)
-                closest_P1 = np.min(Ps)
-                closest_TA_ind = np.argmin(np.abs(Ts-Temp))
-                closest_TB_ind = np.argsort(np.abs(Ts-Temp))[1]
-                closest_TA = Ts[closest_TA_ind]
-                closest_TB = Ts[closest_TB_ind]
-                #print(closest_TA, closest_TB)
+        # try:
+        if Pres <= np.min(Ps):
+            #print(Pres)
+            closest_P1 = np.min(Ps)
+            closest_TA_ind = np.argmin(np.abs(Ts-Temp))
+            closest_TB_ind = np.argsort(np.abs(Ts-Temp))[1]
+            closest_TA = Ts[closest_TA_ind]
+            closest_TB = Ts[closest_TB_ind]
+            #print(closest_TA, closest_TB)
 
-                ok1 = self.find(closest_P1,closest_TA)
-                coeff_ok1 = self.sets[ok1]
-                ok2 = self.find(closest_P1,closest_TB)
-                coeff_ok2 = self.sets[ok2]
-                set_ = dict()
-                for ctype in ctypes:
-                    set_[ctype] = coeff_ok1[ctype].interpolate(coeff_ok2[ctype], Temp = Temp)
-            elif Pres > np.min(Ps) and Pres <= np.max(Ps):
-                closest_P1_ind = np.argmin(np.abs(Ps-Pres))
-                closest_P2_ind = np.argsort(np.abs(Ps-Pres))[1]
-                closest_P1 = Ps[closest_P1_ind]
-                closest_P2 = Ps[closest_P2_ind]
+            ok1 = self.find(closest_P1,closest_TA)
+            coeff_ok1 = self.sets[ok1]
+            ok2 = self.find(closest_P1,closest_TB)
+            coeff_ok2 = self.sets[ok2]
+            set_ = dict()
+            for ctype in ctypes:
+                if coeff_ok1[ctype] is None:
+                    set_[ctype] = None
+                    continue
+                set_[ctype] = coeff_ok1[ctype].interpolate(coeff_ok2[ctype], Temp = Temp)
+        elif Pres > np.min(Ps) and Pres <= np.max(Ps):
+            closest_P1_ind = np.argmin(np.abs(Ps-Pres))
+            closest_P2_ind = np.argsort(np.abs(Ps-Pres))[1]
+            closest_P1 = Ps[closest_P1_ind]
+            closest_P2 = Ps[closest_P2_ind]
 
-                # Now that I found the two closest Ps, I check which temps are closer to my case
+            # Now that I found the two closest Ps, I check which temps are closer to my case
 
-                closest_T1_ind = np.argmin(np.abs(Ts-Temp))
-                closest_T2_ind = np.argsort(np.abs(Ts-Temp))[1]
-                closest_T1 = Ts[closest_T1_ind]
-                closest_T2 = Ts[closest_T2_ind]
+            closest_T1_ind = np.argmin(np.abs(Ts-Temp))
+            closest_T2_ind = np.argsort(np.abs(Ts-Temp))[1]
+            closest_T1 = Ts[closest_T1_ind]
+            closest_T2 = Ts[closest_T2_ind]
 
-                # I'm doing first the P interpolation
-                ok1 = self.find(closest_P1,closest_T1)
-                coeff_ok1 = self.sets[ok1]
-                ok2 = self.find(closest_P1,closest_T2)
-                coeff_ok2 = self.sets[ok2]
-                ok3 = self.find(closest_P2,closest_T1)
-                coeff_ok3 = self.sets[ok3]
-                ok4 = self.find(closest_P2,closest_T2)
-                coeff_ok4 = self.sets[ok4]
+            # I'm doing first the P interpolation
+            ok1 = self.find(closest_P1,closest_T1)
+            coeff_ok1 = self.sets[ok1]
+            ok2 = self.find(closest_P1,closest_T2)
+            coeff_ok2 = self.sets[ok2]
+            ok3 = self.find(closest_P2,closest_T1)
+            coeff_ok3 = self.sets[ok3]
+            ok4 = self.find(closest_P2,closest_T2)
+            coeff_ok4 = self.sets[ok4]
 
-                set_ = dict()
-                for ctype in ctypes:
-                    coeff_ok13_cty = coeff_ok1[ctype].interpolate(coeff_ok3[ctype], Pres = Pres)
-                    coeff_ok24_cty = coeff_ok2[ctype].interpolate(coeff_ok4[ctype], Pres = Pres)
-                    set_[ctype] = coeff_ok13_cty.interpolate(coeff_ok24_cty, Temp = Temp)
-            else:
-                raise ValueError('Extrapolating in P')
-        except Exception as cazzillo:
-            print('Unable to interpolate to pt couple {}'.format((Pres,Temp)))
-            print('T set: {}'.format(Ts))
-            print('P set: {}'.format(Ps))
-            print('PT couples : {}'.format(self.PTcouples))
-            raise cazzillo
+            set_ = dict()
+            for ctype in ctypes:
+                if coeff_ok1[ctype] is None:
+                    set_[ctype] = None
+                    continue
+                coeff_ok13_cty = coeff_ok1[ctype].interpolate(coeff_ok3[ctype], Pres = Pres)
+                coeff_ok24_cty = coeff_ok2[ctype].interpolate(coeff_ok4[ctype], Pres = Pres)
+                set_[ctype] = coeff_ok13_cty.interpolate(coeff_ok24_cty, Temp = Temp)
+        else:
+            raise ValueError('Extrapolating in P')
+        # except Exception as cazzillo:
+        #     print('Unable to interpolate to pt couple {}'.format((Pres,Temp)))
+        #     print('T set: {}'.format(Ts))
+        #     print('P set: {}'.format(Ps))
+        #     print('PT couples : {}'.format(self.PTcouples))
+        #     raise cazzillo
 
         return set_
 
@@ -1011,7 +1080,7 @@ class AbsSetLOS(object):
     This class represent a set of abs and emi coeffs along a LOS. This is to allow for saving in memory when calculating long sets.
     """
 
-    def __init__(self, filename, indices = None):
+    def __init__(self, filename, spectral_grid = None, indices = None):
         if indices is not None:
             self.indices = indices
         else:
@@ -1021,15 +1090,18 @@ class AbsSetLOS(object):
         self.filename = filename
         self.temp_file = None
         self.set = []
+        self.spectral_grid = spectral_grid
         return
 
-    def prepare_read(self):
+    def prepare_read(self, read_spectral_grid = True):
         #print('{} coefficients to be read sequentially..'.format(self.counter))
         if self.filename is None:
             raise ValueError('ERROR!: NO filename set for LutSet.')
         else:
             self.temp_file = open(self.filename, 'rb')
         self.remaining = self.counter
+        if read_spectral_grid:
+            self.spectral_grid = pickle.load(self.temp_file)
         return
 
     def prepare_export(self):
@@ -1041,6 +1113,9 @@ class AbsSetLOS(object):
         else:
             self.temp_file = open(self.filename, 'wb')
 
+        if self.spectral_grid is not None:
+            pickle.dump(self.spectral_grid, self.temp_file, protocol = -1)
+
         return
 
     def finalize_IO(self):
@@ -1048,7 +1123,13 @@ class AbsSetLOS(object):
         self.temp_file = None
         return
 
-    def add_dump(self, set_):
+    def add_dump(self, set_, no_spectral_grid = True):
+        if no_spectral_grid:
+            if type(set_) is dict:
+                for cos in set_:
+                    set_[cos].erase_grid()
+            else:
+                set_.erase_grid()
         pickle.dump(set_, self.temp_file, protocol = -1)
         self.counter += 1
         #print('dampato. siamo a {}'.format(self.counter))
@@ -1065,6 +1146,12 @@ class AbsSetLOS(object):
             self.prepare_read()
 
         set_ = pickle.load(self.temp_file)
+        if type(set_) is dict:
+            for cos in set_:
+                set_[cos].restore_grid(self.spectral_grid, link_grid = True)
+        else:
+            set_.restore_grid(self.spectral_grid, link_grid = True)
+
         self.remaining -= 1
 
         return set_
@@ -1326,11 +1413,15 @@ def best_compressed_grid(simuls, thress = [1.e-3, 1.e-4, 1.e-5], factors = [5,20
     return gridi_best
 
 
-def split_and_compress_LUTS(molecs, cartLUTs, n_split = None, low_thres = 1.e-30, new_grid = None):
+def compress_LUTS(molecs, cartLUTs, n_threads, ram_max = 8., dim_tot = 20., low_thres = 1.e-30, new_grid = None):
     """
     Reads the luts in memory and splits them into smaller wn ranges. If new_grid is specified, the luts are first interpolated to the new grid. If the G_coeff considered is lower than low_thres, the zero flag is raised.
     """
     # read all luts and determine grid
+    dim_tot = 20.
+    ram_max = 8.
+
+    n_split = np.ceil(dim_tot*n_threads/ram_max)
 
     for molec in molecs:
         for isoname in molec.all_iso:
@@ -1394,6 +1485,113 @@ def split_and_compress_LUTS(molecs, cartLUTs, n_split = None, low_thres = 1.e-30
     # create all compressed luts
 
     #return allLUTs
+def split_and_compress_LUTS(spectral_grid, allLUTs, cartLUTs, n_threads, ram_max = 8., dim_tot = 20., low_thres = 1.e-30):
+    """
+    Reads the luts in memory and splits them into smaller wn ranges. If new_grid is specified, the luts are first interpolated to the new grid. If the G_coeff considered is lower than low_thres, the G_coeff is set equal to None.
+    """
+    # read all luts and determine grid
+    dim_tot = 20.
+    ram_max = 8.
+
+    n_split = int(np.ceil(dim_tot*n_threads/ram_max))
+    sp_grids = []
+    i = 0
+    len_split = int(np.ceil(1.0*len(spectral_grid.grid)/n_split))
+    for nsp in range(n_split):
+        nugri = spectral_grid.grid[i:i+len_split]
+        gigi = copy.deepcopy(spectral_grid)
+        gigi.grid = nugri
+        sp_grids.append(gigi)
+        i += len_split
+
+    already_done = dict()
+    for lutnam in allLUTs:
+        stringa = lut_name_wsplits(allLUTs[lutnam].mol, allLUTs[lutnam].iso, allLUTs[lutnam].LTE, n_split)
+        fileok = [fil for fil in os.listdir(cartLUTs) if stringa in fil]
+
+        print(lutnam)
+        print(fileok)
+        if len(fileok) == 1:
+            coso = open(cartLUTs+fileok[0],'r')
+            allLUTs[lutnam] = pickle.load(coso)
+            already_done[lutnam] = True
+            print('già fatto', stringa)
+            continue
+        else:
+            print('non ce', stringa)
+            already_done[lutnam] = False
+
+        splitfiles = []
+        for nsp in range(n_split):
+            nuname = lut_name_split(allLUTs[lutnam].mol, allLUTs[lutnam].iso, allLUTs[lutnam].LTE, nsp)
+            nuovonome = cartLUTs+nuname+date_stamp()+'.pic'
+            fio = open(nuovonome, 'wb')
+            splitfiles.append(fio)
+            allLUTs[lutnam].add_split_file(nuovonome)
+
+        isomol = allLUTs[lutnam].isomolec
+        for lev in isomol.levels:
+            levello = getattr(isomol, lev)
+            ok, lev_lut = allLUTs[lutnam].find_lev(levello.lev_string)
+            if not ok:
+                raise ValueError('mol {} iso {} Level {} not found'.format(isomolec.mol, isomolec.iso, levello.lev_string))
+
+            allLUTs[lutnam].sets[lev_lut].load_from_files()
+
+            for nsp, spgri, splitfile in zip(range(n_split), sp_grids, splitfiles):
+                nuset = copy.deepcopy(allLUTs[lutnam].sets[lev_lut])
+                splitset = []
+                for sett in nuset.sets:
+                    settino = dict()
+                    for cos in sett:
+                        gigi = sett[cos].interp_to_grid(spgri)
+                        if gigi.max() > 0.0:
+                            gigi.erase_grid()
+                            gigi.half_precision()
+                            settino[cos] = gigi
+                        else:
+                            settino[cos] = None
+                    splitset.append(settino)
+                nuset.sets = splitset
+                nuset.spectral_grid = spgri
+
+                pickle.dump([lev_lut, nuset], splitfile, protocol=-1)
+
+            allLUTs[lutnam].sets[lev_lut].free_memory()
+
+        for fio in splitfiles:
+            fio.close()
+
+    for nam in allLUTs:
+        if already_done[nam]:
+            print('ce',nam)
+            continue
+        else:
+            print('nonce',nam)
+        nuname = lut_name_wsplits(allLUTs[nam].mol, allLUTs[nam].iso, allLUTs[nam].LTE, n_split)
+        nuovonome = cartLUTs+nuname+date_stamp()+'.pic'
+        fio = open(nuovonome, 'w')
+        pickle.dump(allLUTs[nam], fio)
+        fio.close()
+
+    return allLUTs, n_split
+
+
+def group_observations(pixels, ret_set):
+    """
+    Defines a set of LOSs suitable for calculating all required radtrans.
+    """
+    tg_points = [pix.get_tangent_point() for pix in pixels]
+    spacecraft = [pix.Spacecraft() for pix in pixels]
+    alt_tg = [po.Spherical()[2] for po in tg_points]
+    lat_tg = [po.Spherical()[0] for po in tg_points]
+
+
+    # potrei trovare punto di ingresso e uscita da atm anche
+
+
+
+    pass
 
 
 def calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, temp_step = 5.0, max_pres = None, thres = 0.01):
@@ -1565,15 +1763,15 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
     if tagLOS is None:
         tagLOS = 'LOS'
     tagg = tagLOS+'_mol_{}_iso_{}'.format(isomolec.mol, isomolec.iso)
-    abs_coeffs = AbsSetLOS(cartDROP+'abscoeff_'+tagg+'.pic')
-    emi_coeffs = AbsSetLOS(cartDROP+'emicoeff_'+tagg+'.pic')
+    abs_coeffs = AbsSetLOS(cartDROP+'abscoeff_'+tagg+'.pic', spectral_grid = spectral_grid)
+    emi_coeffs = AbsSetLOS(cartDROP+'emicoeff_'+tagg+'.pic', spectral_grid = spectral_grid)
     if track_levels is not None:
         emi_coeffs_tracked = dict()
         abs_coeffs_tracked = dict()
         for lev in track_levels:
             tagg = tagLOS+'_mol_{}_iso_{}_{}'.format(isomolec.mol, isomolec.iso, lev)
-            emi_coeffs_tracked[lev] = AbsSetLOS(cartDROP+'tracklevel_emicoeff_'+tagg+'.pic')
-            abs_coeffs_tracked[lev] = AbsSetLOS(cartDROP+'tracklevel_abscoeff_'+tagg+'.pic')
+            emi_coeffs_tracked[lev] = AbsSetLOS(cartDROP+'tracklevel_emicoeff_'+tagg+'.pic', spectral_grid = spectral_grid)
+            abs_coeffs_tracked[lev] = AbsSetLOS(cartDROP+'tracklevel_abscoeff_'+tagg+'.pic', spectral_grid = spectral_grid)
     if store_in_memory:
         abs_coeffs.prepare_export()
         emi_coeffs.prepare_export()
@@ -1773,7 +1971,7 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
         return abs_coeffs, emi_coeffs, emi_coeffs_tracked, abs_coeffs_tracked
 
 
-def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, LUTs = None, lines = None, cartDROP = None, track_levels = None):
+def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, tagLOS = None, allLUTs = None, lines = None, cartDROP = None, store_in_memory = False, track_levels = None):
     """
     Works with compressed grid, keeps everything in memory.
 
@@ -1797,22 +1995,26 @@ def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, L
             os.mkdir(cartDROP)
         cartDROP += '/'
 
-    #print('Sto entrandooooooooooooo, mol {}, iso {}'.format(isomolec.mol, isomolec.iso))
-    wn_range = LUTs.wn_range
-    spectral_grid = LUTs.spectral_grid
+    LUTs = allLUTs[(isomolec.mol_name, isomolec.iso)]
+    if LUTs is None:
+        # Se sono fuori dal range spettrale di LUT leggo None
+        if track_levels is None:
+            return None, None
+        else:
+            return None, None, None, None
 
     if tagLOS is None:
         tagLOS = 'LOS'
     tagg = tagLOS+'_mol_{}_iso_{}'.format(isomolec.mol, isomolec.iso)
-    abs_coeffs = AbsSetLOS(cartDROP+'abscoeff_'+tagg+'.pic')
-    emi_coeffs = AbsSetLOS(cartDROP+'emicoeff_'+tagg+'.pic')
+    abs_coeffs = AbsSetLOS(cartDROP+'abscoeff_'+tagg+'.pic', spectral_grid = spectral_grid)
+    emi_coeffs = AbsSetLOS(cartDROP+'emicoeff_'+tagg+'.pic', spectral_grid = spectral_grid)
     if track_levels is not None:
         emi_coeffs_tracked = dict()
         abs_coeffs_tracked = dict()
         for lev in track_levels:
             tagg = tagLOS+'_mol_{}_iso_{}_{}'.format(isomolec.mol, isomolec.iso, lev)
-            emi_coeffs_tracked[lev] = AbsSetLOS(cartDROP+'tracklevel_emicoeff_'+tagg+'.pic')
-            abs_coeffs_tracked[lev] = AbsSetLOS(cartDROP+'tracklevel_abscoeff_'+tagg+'.pic')
+            emi_coeffs_tracked[lev] = AbsSetLOS(cartDROP+'tracklevel_emicoeff_'+tagg+'.pic', spectral_grid = spectral_grid)
+            abs_coeffs_tracked[lev] = AbsSetLOS(cartDROP+'tracklevel_abscoeff_'+tagg+'.pic', spectral_grid = spectral_grid)
     if store_in_memory:
         abs_coeffs.prepare_export()
         emi_coeffs.prepare_export()
@@ -1826,120 +2028,42 @@ def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, L
         unidentified_lines = True
     #    print('acazuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu')
 
-    set_tot = dict()
-    if not unidentified_lines:
-        for lev in isomolec.levels:
-            levvo = getattr(isomolec, lev)
-            strin = cartDROP+'LUTLOS_mol_{}_iso_{}_{}.pic'.format(isomolec.mol, isomolec.iso, lev)
-            set_tot[lev] = LutSet(isomolec.mol, isomolec.iso, isomolec.MM, level = levvo, filename = strin)
-            set_tot[lev].prepare_export([zui for zui in zip(Press,Temps)], spectral_grid)
-    else:
-        #print('siamo quaaaA')
-        strin = cartDROP+'LUTLOS_mol_{}_iso_{}_alllev.pic'.format(isomolec.mol, isomolec.iso)
-        set_tot['all'] = LutSet(isomolec.mol, isomolec.iso, isomolec.MM, level = None, filename = strin)
-        set_tot['all'].prepare_export([zui for zui in zip(Press,Temps)], spectral_grid)
-
-    timooo = 0.0
-    timuuu = 0.0
-    timuuu_old = 0.0
-    timuuu_fast = 0.0
-    timaaa = 0.0
-    timaaa2 = 0.0
-    timhhh = 0.0
-
-    if not useLUTs:
-        if lines is None:
-            raise ValueError('when calling smm.make_abscoeff_isomolec() with useLUTs = False, you need to give the list of spectral lines of isomolec as input')
-        else:
-            #print(len(lines))
-            lines = [lin for lin in lines if lin.Mol == isomolec.mol and lin.Iso == isomolec.iso]
-            #print(len(lines))
-
-        ctypes = ['sp_emission','ind_emission','absorption']
-
-        numh = 0
-        for Pres, Temp in zip(Press,Temps):
-            numh+=1
-            #print('Siamo a step {} catuuuullooooooo'.format(numh))
-            #print(time.ctime())
-            #print(isomolec.levels)
-            lines_proc = spcl.calc_shapes_lines(spectral_grid, lines, Temp, Pres, isomolec)
-            #print(len(lines_proc))
-            if not unidentified_lines:
-                for lev in isomolec.levels:
-                    #print('Siamo a mol {}, iso {}, lev {} bauuuuuuuuu'.format(isomolec.mol, isomolec.iso, lev))
-                    levello = getattr(isomolec, lev)
-                    set_tot[lev].add_PT(spectral_grid, lines_proc, Pres, Temp)
-            else:
-                #print('Siamo a mol {}, iso {}, all_levssss miaoooooooooooo'.format(isomolec.mol, isomolec.iso))
-                set_tot['all'].add_PT(spectral_grid, lines_proc, Pres, Temp)
-
-    else:
-        if not unidentified_lines:
-            for lev in isomolec.levels:
-                levello = getattr(isomolec, lev)
-                ok, lev_lut = LUTs.find_lev(levello.lev_string)
-                if not ok:
-                    raise ValueError('mol {} iso {} Level {} not found'.format(isomolec.mol, isomolec.iso, levello.lev_string))
-                time1 = time.time()
-                LUTs.sets[lev_lut].load_from_files()
-                timaaa += time.time()-time1
-                for Pres, Temp in zip(Press,Temps):
-                    time1 = time.time()
-                    set_ = LUTs.sets[lev_lut].calculate(Pres, Temp)
-                    timooo += time.time()-time1
-                    time1 = time.time()
-                    set_tot[lev].add_dump(set_)
-                    timaaa2 += time.time()-time1
-                LUTs.sets[lev_lut].free_memory()
-        else:
-            LUTs.sets['all'].load_from_files()
-            for Pres, Temp in zip(Press,Temps):
-                time1 = time.time()
-                set_ = LUTs.sets['all'].calculate(Pres, Temp)
-                timooo += time.time()-time1
-                set_tot['all'].add_dump(set_)
-            LUTs.sets['all'].free_memory()
-
     print('     -  make abs part 1: {:5.1f} s'.format((time.time()-time0)))
     time0 = time.time()
 
-    for val in set_tot.values():
-        val.finalize_IO()
-        #print('Finalizzzooooooooooo')
+    timewrite = 0.0
+    timecalc = 0.0
+    timeadd = 0.0
 
-    print('     -  make abs part 1bis: {:5.1f} s'.format((time.time()-time0)))
-    time0 = time.time()
+    spe_zero = np.zeros(len(spectral_grid.grid), dtype = float)
 
-    for nam, val in zip(set_tot.keys(), set_tot.values()):
-        val.prepare_read()
-        #print('Reading... -> '+nam)
-
-    print('     -  make abs part 1tris: {:5.1f} s'.format((time.time()-time0)))
-    time0 = time.time()
-
-    for num in range(len(Temps)):
-        time2 = time.time()
+    for Pres, Temp, num in zip(Press, Temps, range(len(Temps))):
         #print('oyeeeeeeeeeee ', num)
-        abs_coeff = prepare_spe_grid(wn_range_tot)
-        emi_coeff = prepare_spe_grid(wn_range_tot)
+        abs_coeff = spcl.SpectralObject(spe_zero, spectral_grid, link_grid = True)
+        emi_coeff = spcl.SpectralObject(spe_zero, spectral_grid, link_grid = True)
         if track_levels is not None:
             emi_coeff_level = dict()
             abs_coeff_level = dict()
             for lev in track_levels:
-                emi_coeff_level[lev] = prepare_spe_grid(wn_range_tot)
-                abs_coeff_level[lev] = prepare_spe_grid(wn_range_tot)
+                emi_coeff_level[lev] = spcl.SpectralObject(spe_zero, spectral_grid, link_grid = True)
+                abs_coeff_level[lev] = spcl.SpectralObject(spe_zero, spectral_grid, link_grid = True)
 
         # THIS IS WITH LTE PARTITION FUNCTION!!
         Q_part = spcl.CalcPartitionSum(isomolec.mol, isomolec.iso, temp = Temps[num])
-        timhhh += time.time()-time2
 
         if unidentified_lines:
-            Gco = set_tot['all'].load_singlePT_from_file(spectral_grid)
+            time2 = time.time()
+            Gco = LUTs.sets['all'].calculate(Pres, Temp)
+            timecalc += time.time()-time2
             pop = 1 / Q_part
-            abs_coeff += Gco['absorption']*pop
-            abs_coeff -= Gco['ind_emission']*pop
-            emi_coeff += Gco['sp_emission']*pop
+            time2 = time.time()
+            if Gco['absorption'] is not None:
+                abs_coeff += Gco['absorption']*pop
+            if Gco['ind_emission'] is not None:
+                abs_coeff -= Gco['ind_emission']*pop
+            if Gco['sp_emission'] is not None:
+                emi_coeff += Gco['sp_emission']*pop
+            timeadd += time.time()-time2
         else:
             for lev in isomolec.levels:
                 time2 = time.time()
@@ -1948,26 +2072,30 @@ def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, L
                     vibt = Temps[num]
                 else:
                     vibt = levello.local_vibtemp[num]
-                #Gco = levello.Gcoeffs[num]
-                time1 = time.time()
-                Gco = set_tot[lev].load_singlePT_from_file(spectral_grid)
-                timaaa += time.time()-time1
-                #for key, val in zip(Gco.keys(), Gco.values()):
-                    #print('iiiii make_abs iiiiii {} {} {}'.format(key, np.max(val.spectrum),np.min(val.spectrum)))
+
+                time2 = time.time()
+                ok, lev_lut = LUTs.find_lev(levello.lev_string)
+                Gco = LUTs.sets[lev_lut].calculate(Pres, Temp)
+                timecalc += time.time()-time2
 
                 pop = spcl.Boltz_ratio_nodeg(levello.energy, vibt) / Q_part
-                timhhh += time.time()-time2
-                time1 = time.time()
-                abs_coeff += Gco['absorption']*pop
-                abs_coeff -= Gco['ind_emission']*pop
-                emi_coeff += Gco['sp_emission']*pop
-                timuuu += time.time()-time1
+                time2 = time.time()
+                if Gco['absorption'] is not None:
+                    abs_coeff += Gco['absorption']*pop
+                if Gco['ind_emission'] is not None:
+                    abs_coeff -= Gco['ind_emission']*pop
+                if Gco['sp_emission'] is not None:
+                    emi_coeff += Gco['sp_emission']*pop
+                timeadd += time.time()-time2
 
                 if track_levels is not None:
                     if lev in track_levels:
-                        abs_coeff_level[lev] += Gco['absorption']*pop
-                        abs_coeff_level[lev] -= Gco['ind_emission']*pop
-                        emi_coeff_level[lev] += Gco['sp_emission']*pop
+                        if Gco['absorption'] is not None:
+                            abs_coeff_level[lev] += Gco['absorption']*pop
+                        if Gco['ind_emission'] is not None:
+                            abs_coeff_level[lev] -= Gco['ind_emission']*pop
+                        if Gco['sp_emission'] is not None:
+                            emi_coeff_level[lev] += Gco['sp_emission']*pop
 
         if not store_in_memory:
             abs_coeffs.add_set(abs_coeff)
@@ -1980,7 +2108,7 @@ def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, L
             time1 = time.time()
             abs_coeffs.add_dump(abs_coeff)
             emi_coeffs.add_dump(emi_coeff)
-            timaaa2 += time.time()-time1
+            timewrite += time.time()-time1
             if track_levels is not None:
                 for lev in track_levels:
                     emi_coeffs_tracked[lev].add_dump(emi_coeff_level[lev])
@@ -1989,22 +2117,20 @@ def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, L
     print('     -  make abs part 2: {:5.1f} s'.format((time.time()-time0)))
     time0 = time.time()
 
-    print('      -   make_abs: LUT interp   ->   {:5.1f} s'.format(timooo))
-    print('      -   make_abs: add   ->   {:5.2f} s'.format(timuuu))
-    print('      -   make_abs: prima di add to spect   ->   {:5.1f} s'.format(timhhh))
-    print('      -   make_abs: reading   ->   {:5.1f} s'.format(timaaa))
-    print('      -   make_abs: writing   ->   {:5.1f} s'.format(timaaa2))
 
     if store_in_memory:
+        time2 = time.time()
         abs_coeffs.finalize_IO()
         emi_coeffs.finalize_IO()
+        timewrite += time.time()-time2
         if track_levels is not None:
             for lev in track_levels:
                 emi_coeffs_tracked[lev].finalize_IO()
                 abs_coeffs_tracked[lev].finalize_IO()
 
-    print('     -  make abs part 3: {:5.1f} s'.format((time.time()-time0)))
-    time0 = time.time()
+    print('      -   make_abs: LUT interp   ->   {:5.1f} s'.format(timecalc))
+    print('      -   make_abs: add coeffs   ->   {:5.1f} s'.format(timeadd))
+    print('      -   make_abs: writing   ->   {:5.1f} s'.format(timewrite))
 
     if track_levels is None:
         return abs_coeffs, emi_coeffs
@@ -2178,12 +2304,16 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
 
             # Using 1D interpolation scheme for FOV integration
             # x_FOV = np.array([linea_low.tangent_altitude, linea_0.tangent_altitude, linea_up.tangent_altitude])
+            zeroder = pix.observation*0.0
 
             linea_low.details()
             radtran_low = linea_low.radtran(wn_range, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, useLUTs = useLUTs, radtran_opt = radtran_opt, g3D = g3D, sub_solar_point = ssp)
             radtrans.append(radtran_low)
             deriv_ok = []
             for par in bayes_set.params():
+                if par.not_involved:
+                    deriv_ok.append(zeroder)
+                    continue
                 towl = par.hires_deriv
                 lowres = towl.hires_to_lowres(pix.observation, spectral_widths = pix.observation.bands.spectrum)
                 deriv_ok.append(lowres)
@@ -2194,6 +2324,9 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
             radtrans.append(radtran)
             deriv_ok = []
             for par in bayes_set.params():
+                if par.not_involved:
+                    deriv_ok.append(zeroder)
+                    continue
                 towl = par.hires_deriv
                 lowres = towl.hires_to_lowres(pix.observation, spectral_widths = pix.observation.bands.spectrum)
                 deriv_ok.append(lowres)
@@ -2207,6 +2340,9 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
             radtrans.append(radtran_up)
             deriv_ok = []
             for par in bayes_set.params():
+                if par.not_involved:
+                    deriv_ok.append(zeroder)
+                    continue
                 towl = par.hires_deriv
                 lowres = towl.hires_to_lowres(pix.observation, spectral_widths = pix.observation.bands.spectrum)
                 deriv_ok.append(lowres)
@@ -2263,6 +2399,283 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     return
 
 
+def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = False, LUTopt = dict(), test = False, g3D = False):
+    """
+    Main routine for retrieval. Fast version.
+    """
+
+    lines = check_lines_mols(lines, planet.gases.values())
+    print('Begin inversion..')
+    cartOUT = inputs['out_dir']
+
+    if sp_gri is None:
+        if wn_range is None:
+            sp_gri = pixels[0].observation.spectral_grid
+            sp_gri.grid[0] -= 2*pixels[0].observation.bands.spectrum[0]
+            sp_gri.grid[-1] += 2*pixels[0].observation.bands.spectrum[-1]
+            sp_gri.convertto_cm_1()
+            wn_range = [sp_gri.grid[0], sp_gri.grid[-1]]
+            print(wn_range)
+            sp_gri = prepare_spe_grid(wn_range)
+            sp_gri = sp_gri.spectral_grid
+        else:
+            sp_gri = prepare_spe_grid(wn_range)
+            sp_gri = sp_gri.spectral_grid
+
+    # Update the VMRs of the retrieved gases with the a priori
+    for gas in bayes_set.sets.keys():
+        planet.gases[gas].add_clim(bayes_set.sets[gas].profile())
+
+    alt_tg = []
+    lat_tg = []
+    pres_max = []
+    tg_points = []
+    for pix in pixels:
+        linea_0 = pix.low_LOS()
+        tg_point = linea_0.get_tangent_point()
+        tg_points.append(tg_point)
+        if 'max_pres' not in LUTopt:
+            pres_max.append(planet.atmosphere.calc(tg_point, profname = 'pres'))
+        alt_tg.append(tg_point.Spherical()[2])
+        lat_tg.append(tg_point.Spherical()[0])
+
+    if 'max_pres' not in LUTopt:
+        pres_max = max(pres_max)
+        LUTopt['max_pres'] = pres_max
+    PTcoup_needed = calc_PT_couples_atmosphere(lines, planet.gases.values(), planet.atmosphere, **LUTopt)
+
+    LUTS = check_and_build_allluts(inputs, sp_gri, lines, planet.gases.values(), PTcouples = PTcoup_needed, LUTopt = LUTopt)
+    n_lut_tot = len(PTcoup_needed)
+    print('{} PT couples needed'.format(n_lut_tot))
+
+    sims = []
+    obs = [pix.observation for pix in pixels]
+    masks = [pix.observation.mask for pix in pixels]
+    noise = [pix.observation.noise for pix in pixels]
+
+    # FASE 0: decidere in quanti pezzi splittare le LUTS. le splitto. se tengo tutto raddoppia la dimensione su disco. butto via i Gcoeff nulli.
+    n_threads = inputs['n_threads']
+    LUTS, n_split = split_and_compress_LUTS(sp_gri, LUTS, inputs['cart_LUTS'], n_threads)
+
+    # lancio calc_radtran_steps e decido quante los calcolare davvero
+    # ho una lista di los fittizie in uscita
+    # se i pixels appartengono a cubi diversi o intersecano il pianeta in lats diverse devo separare in diversi gruppi
+    # questo discorso è un po' pericoloso ad esempio per le derivate. bisogna stare attenti.
+    # ad esempio che fare delle linee che intersecano più lat box? ehehehhe casino deh. NON esistono. Le metto o di qua o di là in base alla lat di tangenza. Fine.
+
+    #sim_LOSs = group_observations(pixels)
+    sim_LOSs = [pix.LOS() for pix in pixels]
+    sim_LOSs.insert(0, pixels[0].up_LOS())
+    sim_LOSs.append(pixels[-1].low_LOS())
+
+    alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
+
+    ssps = [pix.sub_solar_point() for pix in pixels]
+    ssps.insert(0, pixels[0].sub_solar_point())
+    ssps.append(pixels[-1].sub_solar_point())
+    print(alts_sim)
+    for pix in pixels:
+        print(pix.limb_tg_lat, pix.limb_tg_lon, pix.limb_tg_alt)
+    sys.exit()
+
+    observ_sample = pixels[0].observation
+    spectral_widths = pixels[0].observation.bands.spectrum
+    zeroder = observ_sample*0.0
+
+    time0 = time.time()
+    for num_it in range(max_it):
+        print('we are at iteration: {}'.format(num_it))
+        if save_hires:
+            hiresfile = open(cartOUT+'hires_radtran.pic', 'wb')
+
+        # fillo = open('calc_radtran_steps.pic', 'w')
+        for los, ssp in zip(sim_LOSs, ssps):
+            los.calc_SZA_along_los(planet, ssp)
+            los.calc_radtran_steps(planet, lines, calc_derivatives = True, bayes_set = bayes_set, **radtran_opt)
+        # pickle.dump(sim_LOSs, fillo)
+        # fillo.close()
+        # fillo = open('calc_radtran_steps.pic', 'r')
+        # sim_LOSs = pickle.load(fillo)
+        for num in range(len(sim_LOSs)):
+            sim_LOSs[num].tag = 'LOS{:02d}'.format(num)
+
+        radtrans = dict()
+        derivs = dict()
+
+        time00 = time.time()
+        for nsp in range(n_split):
+            print('Split # {}'.format(nsp))
+
+            for nam in LUTS:
+                LUTS[nam].load_split(nsp)
+
+            # qui comincia lavoro in parallelo
+            # multiprocessing pool?
+            # devo passargli multiprocessing.Array(LUTs) in modo da lascciare luts nella shared memory. Non si sa se funziona ma si spera di sì. lock = False.
+            # bisogna stare molto attenti perchè io chiamo delle funzioni (calculate) che sono metodi delle strutture salvate. Devo essere sicuuuuro che non vado a scrivere sui dati. Forse pandas sa fare questa cosa?
+
+            # qui eventuale ciclo per i diversi gruppi di los
+            # for sim_LOSs in LOS_groups:
+            #     ssp = None
+            #     if g3D:
+            #         ssp = pix.sub_solar_point()
+            # Ma per sanità mentale posso anche farlo fuori il ciclo
+
+            hi_res = dict()
+
+            time0 = time.time()
+
+
+            ntot = 0
+            nlos = len(sim_LOSs)
+
+            time01 = time.time()
+            while ntot < nlos:
+                losos = sim_LOSs[ntot:ntot+n_threads]
+                sspsos = ssps[ntot:ntot+n_threads]
+                n_proc = len(losos)
+                time01 = time.time()
+                print('Lancio {} procs'.format(n_proc))
+                processi = []
+                coda = []
+                outputs = []
+                for los, ssp, i in zip(losos, sspsos, range(n_proc)):
+                    coda.append(Queue())
+                    args = (sp_gri, planet, lines)
+                    kwargs = {'queue': coda[i], 'cartLUTs': inputs['cart_LUTS'], 'cartDROP' : inputs['out_dir'], 'calc_derivatives' : True, 'bayes_set' : bayes_set, 'LUTS' : LUTS, 'radtran_opt' : radtran_opt, 'g3D' : g3D, 'sub_solar_point' : ssp}
+                    processi.append(Process(target=los.radtran_fast, args=args, kwargs=kwargs))
+                    processi[i].start()
+
+                for i in range(n_proc):
+                    outputs.append(coda[i].get())
+
+                for i in range(n_proc):
+                    processi[i].join()
+
+                for los, out in zip(losos,outputs):
+                    radtran = out[0]
+                    retsetmod = out[2]
+                    hi_res[los.tag] = out[0]
+
+                    if los.tag in radtrans:
+                        radtrans[los.tag] += radtran.hires_to_lowres(observ_sample, spectral_widths = spectral_widths)
+                    else:
+                        radtrans[los.tag] = radtran.hires_to_lowres(observ_sample, spectral_widths = spectral_widths)
+
+                    for par, par_mod in zip(bayes_set.params(), retsetmod.params()):
+                        # if par_mod.not_involved:
+                        #     derivva = zeroder
+                        if not los.involved_retparams[(par.nameset, par.key)]:
+                            derivva = zeroder
+                        else:
+                            derivva = par_mod.hires_deriv.hires_to_lowres(observ_sample, spectral_widths = spectral_widths)
+
+                        kiave = (los.tag, par.nameset, par.key)
+                        if kiave in derivs:
+                            derivs[kiave] += derivva
+                        else:
+                            derivs[kiave] = derivva
+
+                ntot += n_threads
+                print('tempo: {} min'.format((time.time()-time01)/60.))
+
+            # for los in sim_LOSs:
+            #     time1 = time.time()
+            #     radtran = los.radtran_fast(sp_gri, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, radtran_opt = radtran_opt, g3D = g3D, sub_solar_point = ssp)
+            #
+            #     pio = open('hiresce','w')
+            #     pickle.dump(radtran, pio)
+            #     pio.close()
+            #     sys.exit()
+            #
+            #     hi_res[los.tag] = radtran
+            #
+            #     if los.tag in radtrans:
+            #         radtrans[los.tag] += radtran.hires_to_lowres(observ_sample, spectral_widths = spectral_widths)
+            #     else:
+            #         radtrans[los.tag] = radtran.hires_to_lowres(observ_sample, spectral_widths = spectral_widths)
+            #
+            #     for par in bayes_set.params():
+            #         if par.not_involved:
+            #             derivva = zeroder
+            #         else:
+            #             derivva = par.hires_deriv.hires_to_lowres(observ_sample, spectral_widths = spectral_widths)
+            #
+            #         kiave = (los.tag, par.nameset, par.key)
+            #         if kiave in derivs:
+            #             derivs[kiave] += derivva
+            #         else:
+            #             derivs[kiave] = derivva
+
+                print('split {}, LOS {} done'.format(nsp, los.tag))
+
+            pickle.dump([nsp,hi_res], hiresfile)
+            print('split {}: {} LOS done in {:5.1f} min'.format(nsp, len(sim_LOSs), (time.time()-time0)/60.))
+
+        if save_hires:
+            hiresfile.close()
+        print('Tempo los sim all wn_range: {} min'.format((time.time()-time00)/60.))
+        time0 = time.time()
+
+        sims = []
+        radtran_spline = make_radtran_spline(alts_sim, radtrans)
+        deriv_splines = dict()
+        for par in bayes_set.params():
+            deriv_par = [derivs[(los.tag, par.nameset, par.key)] for los in sim_LOSs]
+            deriv_splines[(par.nameset, par.key)] = make_radtran_spline(alts_sim, deriv_par)
+
+        for pix, num in zip(pixels, range(len(pixels))):
+            lineas = [pix.low_LOS(), pix.LOS(), pix.up_LOS()]
+
+            alts_pix = np.array([lin.get_tangent_point().Spherical()[2] for lin in lineas])
+            intens_FOV = np.array([radtran_spline(al) for al in alts_pix])
+            sim_FOV_ok = FOV_integr_1D(intens_FOV, pix.pixel_rot)
+            sims.append(sim_FOV_ok)
+
+            derivs_FOV = []
+            derivs_FOV.append(deriv_splines)
+            for par in bayes_set.params():
+                ders = np.array([deriv_splines[(par.nameset, par.key)](al) for al in alts_pix])
+                der_FOV_ok = FOV_integr_1D(ders, pix.pixel_rot)
+                par.store_deriv(der_FOV_ok, num = num)
+
+        print('FOV interp done in {:5.1f} min'.format((time.time()-time0)/60.))
+
+        #INVERSIONE
+        chi = chicalc(obs, sims, noise, masks, bayes_set.n_tot)
+        print('chi is: {}'.format(chi))
+        if num_it > 0:
+            if abs(chi-chi_old)/chi_old < chi_threshold:
+                print('FINISHEDDDD!! :D', chi)
+                return
+            elif chi > chi_old:
+                print('mmm chi has raised', chi)
+                return
+        chi_old = chi
+        print('old', [par.value for par in bayes_set.params()])
+        inversion_algebra(obs, sims, noise, bayes_set, lambda_LM = lambda_LM, L1_reg = L1_reg, masks = masks)
+        print('new', [par.value for par in bayes_set.params()])
+
+        for par in bayes_set.params():
+            par.hires_deriv = None
+        if debugfile is not None:
+            pickle.dump([num_it, obs, sims, bayes_set], debugfile)
+        # Update the VMRs of the retrieved gases with the new values
+        for gas in bayes_set.sets.keys():
+            planet.gases[gas].add_clim(bayes_set.sets[gas].profile())
+
+    return
+
+
+def group_observations(pixels, lat_limits = None, alt_grid = None):
+    """
+    Builds a set of LOS for the forward model. pixels are grouped depending on observation cube and lat_band. For each group, a set of LOSs to calculate the radtran in that cube is given.
+    """
+    cubes = np.unique([pix])
+
+    pass
+
+
 def FOV_integr_1D(radtrans, pixel_rot = 0.0):
     """
     FOV integration interpolating with a spline the spectrum between the external los.
@@ -2296,6 +2709,28 @@ def FOV_integr_1D(radtrans, pixel_rot = 0.0):
 
     integ_rad.spectrum = spet_fov
     return integ_rad
+
+
+def make_radtran_spline(alts, radtrans):
+    """
+    Creates a 2Dspline function to interpolate the los contributions at arbitrary altitude given some simulated LOS radtrans at fixed altitudes.
+    """
+    #print(x_integ)
+    alts = np.array(alts)
+    spectrums = np.array([rad.spectrum for rad in radtrans])
+    grid = radtrans[0].spectral_grid.grid
+    radsample = radtrans[0]
+
+    intens_spl = spline2D(alts, radtrans[0].spectral_grid.grid, spectrums, kx=2, ky=2)
+
+    def radtran_alt(x, funzspl = intens_spl, grid = grid, radsample = radsample):
+        res = [float(intens_spl(x,ww)) for ww in grid]
+        res = np.array(res)
+        res_spe = copy.deepcopy(radsample)
+        res_spe.spectrum = res
+        return res_spe
+
+    return radtran_alt
 
 
 def genvec(obs, sims, noise, masks = None):
