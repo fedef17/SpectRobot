@@ -1485,15 +1485,14 @@ def compress_LUTS(molecs, cartLUTs, n_threads, ram_max = 8., dim_tot = 20., low_
     # create all compressed luts
 
     #return allLUTs
-def split_and_compress_LUTS(spectral_grid, allLUTs, cartLUTs, n_threads, ram_max = 8., dim_tot = 20., low_thres = 1.e-30):
+def split_and_compress_LUTS(spectral_grid, allLUTs, cartLUTs, n_threads, n_splits = None, ram_max = 8., dim_tot = 20., low_thres = 1.e-30):
     """
     Reads the luts in memory and splits them into smaller wn ranges. If new_grid is specified, the luts are first interpolated to the new grid. If the G_coeff considered is lower than low_thres, the G_coeff is set equal to None.
     """
     # read all luts and determine grid
-    dim_tot = 20.
-    ram_max = 8.
+    if n_split is None:
+        n_split = int(np.ceil(dim_tot*n_threads/ram_max))
 
-    n_split = int(np.ceil(dim_tot*n_threads/ram_max))
     sp_grids = []
     i = 0
     len_split = int(np.ceil(1.0*len(spectral_grid.grid)/n_split))
@@ -2455,7 +2454,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
     # FASE 0: decidere in quanti pezzi splittare le LUTS. le splitto. se tengo tutto raddoppia la dimensione su disco. butto via i Gcoeff nulli.
     n_threads = inputs['n_threads']
-    LUTS, n_split = split_and_compress_LUTS(sp_gri, LUTS, inputs['cart_LUTS'], n_threads)
+    LUTS, n_split = split_and_compress_LUTS(sp_gri, LUTS, inputs['cart_LUTS'], n_threads, n_split = 20)
 
     # lancio calc_radtran_steps e decido quante los calcolare davvero
     # ho una lista di los fittizie in uscita
@@ -2552,6 +2551,8 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
                 for i in range(n_proc):
                     processi[i].join()
 
+                print('All processes ended')
+
                 for los, out in zip(losos,outputs):
                     radtran = out[0]
                     retsetmod = out[2]
@@ -2577,7 +2578,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
                             derivs[kiave] = derivva
 
                 ntot += n_threads
-                print('tempo: {} min'.format((time.time()-time01)/60.))
+                print('tempo: {:5.1f} min'.format((time.time()-time01)/60.))
 
             # for los in sim_LOSs:
             #     time1 = time.time()
