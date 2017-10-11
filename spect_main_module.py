@@ -2467,12 +2467,16 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
     sim_LOSs = [pix.LOS() for pix in pixels]
     sim_LOSs.insert(0, pixels[0].up_LOS())
     sim_LOSs.append(pixels[-1].low_LOS())
+    sim_LOSs = sim_LOSs[::-1]
 
     alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
+    alts_sim = alts_sim[::-1]
 
     ssps = [pix.sub_solar_point() for pix in pixels]
     ssps.insert(0, pixels[0].sub_solar_point())
     ssps.append(pixels[-1].sub_solar_point())
+    ssps = ssps[::-1]
+
     print(alts_sim)
     for pix in pixels:
         print(pix.limb_tg_lat, pix.limb_tg_lon, pix.limb_tg_alt)
@@ -2496,7 +2500,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         # fillo.close()
         fillo = open('calc_radtran_steps.pic', 'r')
         sim_LOSs = pickle.load(fillo)
-        #sim_LOSs = sim_LOSs[::-1]
+        sim_LOSs = sim_LOSs[::-1]
 
         for num in range(len(sim_LOSs)):
             sim_LOSs[num].tag = 'LOS{:02d}'.format(num)

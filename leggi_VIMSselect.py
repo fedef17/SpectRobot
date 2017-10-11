@@ -57,7 +57,7 @@ cubes = np.unique([pix.cubo for pix in pixs])
 pix_cubes = dict()
 for cub in cubes:
     pix_cubes[cub] = [pix for pix in pixs if pix.cubo == cub]
-    print(cub, len(pix_cubes[cub]), pix_cubes[0].dist)
+    print(cub, len(pix_cubes[cub]), pix_cubes[cub][0].dist)
 
 fio = open(cart+'data_cubes_VIMS_far.sav', 'w')
 pickle.dump(pix_cubes, fio)
