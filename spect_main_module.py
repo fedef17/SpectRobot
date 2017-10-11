@@ -2491,6 +2491,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         print('we are at iteration: {}'.format(num_it))
         if save_hires:
             hiresfile = open(cartOUT+'hires_radtran.pic', 'wb')
+            lowresfile = open(cartOUT+'lowres_radtran.pic', 'wb')
 
         # fillo = open('calc_radtran_steps.pic', 'w')
         # for los, ssp in zip(sim_LOSs, ssps):
@@ -2560,11 +2561,22 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
                     processi[i].join()
 
                 print('All processes ended')
+                time02 = time.time()
+
+                # processi = []
+                # coda = []
+                # outputs = []
 
                 for los, out in zip(losos,outputs):
                     radtran = out[0]
                     retsetmod = out[2]
                     hi_res[los.tag] = out[0]
+
+                    # coda.append(Queue())
+                    # args = (old_lowres, observ_sample)
+                    # kwargs = {'queue': coda[i], 'spectral_widths': spectral_widths, 'cartDROP' : inputs['out_dir'], 'calc_derivatives' : True, 'bayes_set' : bayes_set, 'LUTS' : LUTS, 'radtran_opt' : radtran_opt, 'g3D' : g3D, 'sub_solar_point' : ssp, 'store_abscoeff': False}
+                    # processi.append(Process(target=out_to_lowres, args=args, kwargs=kwargs))
+                    # processi[i].start()
 
                     if los.tag in radtrans:
                         radtrans[los.tag] += radtran.hires_to_lowres(observ_sample, spectral_widths = spectral_widths)
@@ -2586,7 +2598,8 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
                             derivs[kiave] = derivva
 
                 ntot += n_threads
-                print('tempo: {:5.1f} min'.format((time.time()-time01)/60.))
+                print('tempo tot: {:5.1f} min'.format((time.time()-time01)/60.))
+                print('tempo single proc: {:5.1f} min'.format((time.time()-time02)/60.))
 
             # for los in sim_LOSs:
             #     time1 = time.time()
