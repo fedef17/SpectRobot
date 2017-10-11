@@ -1971,7 +1971,7 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
         return abs_coeffs, emi_coeffs, emi_coeffs_tracked, abs_coeffs_tracked
 
 
-def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, tagLOS = None, allLUTs = None, lines = None, cartDROP = None, store_in_memory = False, track_levels = None, time_control = False):
+def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, tagLOS = None, allLUTs = None, cartDROP = None, store_in_memory = False, track_levels = None, time_control = False):
     """
     Works with compressed grid, keeps everything in memory.
 
@@ -2399,7 +2399,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     return
 
 
-def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = False, LUTopt = dict(), test = False, g3D = False):
+def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, LUTopt = dict(), test = False, g3D = False):
     """
     Main routine for retrieval. Fast version.
     """
@@ -2455,7 +2455,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
     # FASE 0: decidere in quanti pezzi splittare le LUTS. le splitto. se tengo tutto raddoppia la dimensione su disco. butto via i Gcoeff nulli.
     n_threads = inputs['n_threads']
-    LUTS, n_split, sp_grids = split_and_compress_LUTS(sp_gri, LUTS, inputs['cart_LUTS'], n_threads, n_split = 20)
+    LUTS, n_split, sp_grids = split_and_compress_LUTS(sp_gri, LUTS, inputs['cart_LUTS'], n_threads, n_split = 10)
 
     # lancio calc_radtran_steps e decido quante los calcolare davvero
     # ho una lista di los fittizie in uscita
@@ -2496,7 +2496,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         # fillo.close()
         fillo = open('calc_radtran_steps.pic', 'r')
         sim_LOSs = pickle.load(fillo)
-        sim_LOSs = sim_LOSs[::-1]
+        #sim_LOSs = sim_LOSs[::-1]
 
         for num in range(len(sim_LOSs)):
             sim_LOSs[num].tag = 'LOS{:02d}'.format(num)
@@ -2529,8 +2529,6 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
             time0 = time.time()
 
-            return
-
             ntot = 0
             nlos = len(sim_LOSs)
 
@@ -2546,7 +2544,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
                 outputs = []
                 for los, ssp, i in zip(losos, sspsos, range(n_proc)):
                     coda.append(Queue())
-                    args = (sp_grid_split, planet, lines)
+                    args = (sp_grid_split, planet)
                     kwargs = {'queue': coda[i], 'cartLUTs': inputs['cart_LUTS'], 'cartDROP' : inputs['out_dir'], 'calc_derivatives' : True, 'bayes_set' : bayes_set, 'LUTS' : LUTS, 'radtran_opt' : radtran_opt, 'g3D' : g3D, 'sub_solar_point' : ssp, 'store_abscoeff': False}
                     processi.append(Process(target=los.radtran_fast, args=args, kwargs=kwargs))
                     processi[i].start()
@@ -2585,7 +2583,6 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
                 ntot += n_threads
                 print('tempo: {:5.1f} min'.format((time.time()-time01)/60.))
-                sys.exit()
 
             # for los in sim_LOSs:
             #     time1 = time.time()
@@ -2617,7 +2614,8 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
                 print('split {}, {} to {} done'.format(nsp, losos[0].tag, losos[-1].tag))
 
-            pickle.dump([nsp,hi_res], hiresfile)
+            if save_hires:
+                pickle.dump([nsp,hi_res], hiresfile)
             print('split {}: {} LOS done in {:5.1f} min'.format(nsp, len(sim_LOSs), (time.time()-time0)/60.))
 
         if save_hires:
@@ -2626,7 +2624,8 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         time0 = time.time()
 
         sims = []
-        radtran_spline = make_radtran_spline(alts_sim, radtrans)
+        radtrans_list = [radtrans[los.tag] for los in sim_LOSs]
+        radtran_spline = make_radtran_spline(alts_sim, radtrans_list)
         deriv_splines = dict()
         for par in bayes_set.params():
             deriv_par = [derivs[(los.tag, par.nameset, par.key)] for los in sim_LOSs]

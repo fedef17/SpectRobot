@@ -46,12 +46,22 @@ from matplotlib.ticker import FormatStrFormatter
 
 ########################### MAIN #######################################################
 
-cub = 'PIXs_HCN-CH4-C2H2_season_szaall_nu.sav'
+cub = 'PIXs_HCN-CH4-C2H2_season_szaall_far.sav'
 cart = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/DATA/'
 cubo = io.readsav(cart+cub)
 
 pixs = cubo.compPIX
 pixs = pixs[1:]
+
+cubes = np.unique([pix.cubo for pix in pixs])
+pix_cubes = dict()
+for cub in cubes:
+    pix_cubes[cub] = [pix for pix in pixs if pix.cubo == cub]
+    print(cub, len(pix_cubes[cub]), pix_cubes[0].dist)
+
+fio = open(cart+'data_cubes_VIMS_far.sav', 'w')
+pickle.dump(pix_cubes, fio)
+fio.close()
 
 print('ciao')
 

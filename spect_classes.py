@@ -386,6 +386,7 @@ class SpectralObject(object):
             if len(obj2.spectrum) == len(self.spectrum):
                 coso.spectrum += obj2.spectrum
             else:
+                print(len(obj2.spectrum),len(self.spectrum))
                 coso.add_to_spectrum(obj2)
         else:
             coso.spectrum += obj2
