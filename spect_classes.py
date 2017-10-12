@@ -812,6 +812,7 @@ class SpectralObject(object):
         if not sbm.isclose(self.spectral_grid.step(), spectrum2.spectral_grid.step()):
             #raise ValueError("Different steps {} and {}, can't add the two spectra, convolve first".format(self.spectral_grid.step(),spectrum2.spectral_grid.step()))
             print("Different steps {} and {}, can't add the two spectra, convolve first".format(self.spectral_grid.step(),spectrum2.spectral_grid.step()))
+            print(len(spectrum2.spectrum), len(self.spectrum))
 
         len2 = len(spectrum2.spectrum)
         # grid_intersect = np.intersect1d(self.spectral_grid.grid, spectrum2.spectral_grid.grid)

@@ -2470,12 +2470,10 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
     sim_LOSs = sim_LOSs[::-1]
 
     alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
-    alts_sim = alts_sim[::-1]
 
     ssps = [pix.sub_solar_point() for pix in pixels]
     ssps.insert(0, pixels[0].sub_solar_point())
     ssps.append(pixels[-1].sub_solar_point())
-    ssps = ssps[::-1]
 
     print(alts_sim)
     for pix in pixels:
@@ -2564,8 +2562,8 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
                 time02 = time.time()
 
                 # processi = []
-                # coda = []
-                # outputs = []
+                coda = []
+                outputs = []
 
                 for los, out in zip(losos,outputs):
                     radtran = out[0]
@@ -2586,6 +2584,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
                     for par, par_mod in zip(bayes_set.params(), retsetmod.params()):
                         # if par_mod.not_involved:
                         #     derivva = zeroder
+                        print(los.tag, par.nameset, par.key, los.involved_retparams[(par.nameset, par.key)])
                         if not los.involved_retparams[(par.nameset, par.key)]:
                             derivva = zeroder
                         else:
@@ -2667,6 +2666,12 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
         #INVERSIONE
         chi = chicalc(obs, sims, noise, masks, bayes_set.n_tot)
+
+        for par in bayes_set.params():
+            par.hires_deriv = None
+        if debugfile is not None:
+            pickle.dump([num_it, obs, sims, noise, bayes_set, radtran_spline, deriv_splines], debugfile)
+
         print('chi is: {}'.format(chi))
         if num_it > 0:
             if abs(chi-chi_old)/chi_old < chi_threshold:
@@ -2680,10 +2685,6 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         inversion_algebra(obs, sims, noise, bayes_set, lambda_LM = lambda_LM, L1_reg = L1_reg, masks = masks)
         print('new', [par.value for par in bayes_set.params()])
 
-        for par in bayes_set.params():
-            par.hires_deriv = None
-        if debugfile is not None:
-            pickle.dump([num_it, obs, sims, bayes_set], debugfile)
         # Update the VMRs of the retrieved gases with the new values
         for gas in bayes_set.sets.keys():
             planet.gases[gas].add_clim(bayes_set.sets[gas].profile())
