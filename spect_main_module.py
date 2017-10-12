@@ -1536,7 +1536,7 @@ def split_and_compress_LUTS(spectral_grid, allLUTs, cartLUTs, n_threads, n_split
             if not ok:
                 raise ValueError('mol {} iso {} Level {} not found'.format(isomolec.mol, isomolec.iso, levello.lev_string))
 
-            allLUTs[lutnam].sets[lev_lut].load_from_files()
+            allLUTs[lutnam].sets[lev_lut].load_from_files(cartLUTs = cartLUTs)
 
             for nsp, spgri, splitfile in zip(range(n_split), sp_grids, splitfiles):
                 nuset = copy.deepcopy(allLUTs[lutnam].sets[lev_lut])
@@ -2486,7 +2486,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
     # FASE 0: decidere in quanti pezzi splittare le LUTS. le splitto. se tengo tutto raddoppia la dimensione su disco. butto via i Gcoeff nulli.
     n_threads = inputs['n_threads']
-    LUTS, n_split, sp_grids = split_and_compress_LUTS(sp_gri, LUTS, inputs['cart_LUTS'], n_threads, n_split = 10)
+    LUTS, n_split, sp_grids = split_and_compress_LUTS(sp_gri, LUTS, inputs['cart_LUTS'], n_threads, n_split = inputs['n_split'])
 
     # lancio calc_radtran_steps e decido quante los calcolare davvero
     # ho una lista di los fittizie in uscita
