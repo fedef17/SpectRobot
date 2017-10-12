@@ -2500,8 +2500,6 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         sim_LOSs.insert(0, pixels[0].up_LOS())
         sim_LOSs.append(pixels[-1].low_LOS())
         sim_LOSs = sim_LOSs[::-1]
-        for num in range(len(sim_LOSs)):
-            sim_LOSs[num].tag = 'LOS{:02d}'.format(num)
 
         alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
 
@@ -2519,6 +2517,8 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
         alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
 
+    for num in range(len(sim_LOSs)):
+        sim_LOSs[num].tag = 'LOS{:03d}'.format(num)
 
     print(alts_sim)
     for pix in pixels:
