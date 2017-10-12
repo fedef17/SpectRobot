@@ -63,6 +63,10 @@ fio = open(cart+'data_cubes_VIMS_far.sav', 'w')
 pickle.dump(pix_cubes, fio)
 fio.close()
 
+nomefilebands = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/DATA/SAMPLE_DATA/band_titano_2006-2008__lat_EQ_sza30_pha63.dat'
+nomefilenoise = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/DATA/SAMPLE_DATA/error_2006-2008__lat_EQ_sza30_pha63.dat'
+cubo7418 = smm.comppix_to_pixels(pix_cubes['V1536397418'], nomefilebands, nomefilenoise)
+
 print('ciao')
 
 sys.exit()

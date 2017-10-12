@@ -2186,6 +2186,37 @@ def read_orbits(filename, formato = 'VIMSselect', tag = None):
         return orbits
 
 
+def comppix_to_pixels(comppix, nomefilebands, nomefilenoise):
+    names = comppix[0].dtype.names
+
+    wn_range = [min(comppix[0]['wl']), max(comppix[0]['wl'])]
+
+    bands = sbm.read_bands(nomefilebands, wn_range = wn_range)
+    noise = sbm.read_noise(nomefilenoise, wn_range = wn_range)
+
+    nameconv = ['CUBO', 'YEAR', 'DIST', 'LAT', 'LON', 'SZA', 'PHANG', 'ALT', 'SSLAT', 'SSLON', 'OBSLAT', 'OBSLON', 'PIXELROT']
+    nomiok = ['cube','year','limb_tg_lat','limb_tg_lon','limb_tg_sza','phase_ang','limb_tg_alt','sub_solar_lat','sub_solar_lon','sub_obs_lat','sub_obs_lon','pixel_rot']
+    dict_name = dict(zip(nameconv,nomiok))
+    pix_set = []
+    for pix in comppix:
+        vals = dict()
+        for nam,nunam in zip(nameconv, nomiok):
+            coso = pix[nam]
+            vals[nunam] = coso[0]
+
+        gri = spcl.SpectralGrid(pix['wl'], units = 'nm')
+        spet = spcl.SpectralIntensity(pix['spet'], gri, units = 'Wm2')
+        spet.add_mask(pix['bbl'])
+        spet.add_bands(bands)
+        spet.add_noise(noise)
+        vals['observation'] = spet
+
+        pixo = sbm.VIMSPixel(vals.keys(), vals.values())
+        pix_set.append(pixo)
+
+    return pix_set
+
+
 def read_input_observed(observed_cart, wn_range = None):
     """
     Reads inputs regarding observations. The folder observed_cart has to contain an "orbit_***.dat", an "observ_***.dat". If more files are found inside, all observations are read.
@@ -2670,9 +2701,10 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         for par in bayes_set.params():
             par.hires_deriv = None
         if debugfile is not None:
-            pickle.dump([num_it, obs, sims, noise, bayes_set, radtran_spline, deriv_splines], debugfile)
+            pickle.dump([num_it, obs, sims, bayes_set], debugfile)
 
         print('chi is: {}'.format(chi))
+        return
         if num_it > 0:
             if abs(chi-chi_old)/chi_old < chi_threshold:
                 print('FINISHEDDDD!! :D', chi)
