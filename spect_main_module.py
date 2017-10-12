@@ -2592,10 +2592,6 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
                 print('All processes ended')
                 time02 = time.time()
 
-                # processi = []
-                coda = []
-                outputs = []
-
                 for los, out in zip(losos,outputs):
                     radtran = out[0]
                     retsetmod = out[2]
@@ -2671,6 +2667,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         time0 = time.time()
 
         sims = []
+        print(radtrans.keys())
         radtrans_list = [radtrans[los.tag] for los in sim_LOSs]
         radtran_spline = make_radtran_spline(alts_sim, radtrans_list)
         deriv_splines = dict()
