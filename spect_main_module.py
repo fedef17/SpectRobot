@@ -2195,7 +2195,7 @@ def comppix_to_pixels(comppix, nomefilebands, nomefilenoise):
     noise = sbm.read_noise(nomefilenoise, wn_range = wn_range)
 
     nameconv = ['CUBO', 'YEAR', 'DIST', 'LAT', 'LON', 'SZA', 'PHANG', 'ALT', 'SSLAT', 'SSLON', 'OBSLAT', 'OBSLON', 'PIXELROT']
-    nomiok = ['cube','year','limb_tg_lat','limb_tg_lon','limb_tg_sza','phase_ang','limb_tg_alt','sub_solar_lat','sub_solar_lon','sub_obs_lat','sub_obs_lon','pixel_rot']
+    nomiok = ['cube','year','dist','limb_tg_lat','limb_tg_lon','limb_tg_sza','phase_ang','limb_tg_alt','sub_solar_lat','sub_solar_lon','sub_obs_lat','sub_obs_lon','pixel_rot']
     dict_name = dict(zip(nameconv,nomiok))
     pix_set = []
     for pix in comppix:
@@ -2430,7 +2430,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     return
 
 
-def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, LUTopt = dict(), test = False, g3D = False):
+def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, LUTopt = dict(), test = False, g3D = False, group_observations = False):
     """
     Main routine for retrieval. Fast version.
     """
@@ -2494,17 +2494,31 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
     # questo discorso è un po' pericoloso ad esempio per le derivate. bisogna stare attenti.
     # ad esempio che fare delle linee che intersecano più lat box? ehehehhe casino deh. NON esistono. Le metto o di qua o di là in base alla lat di tangenza. Fine.
 
-    #sim_LOSs = group_observations(pixels)
-    sim_LOSs = [pix.LOS() for pix in pixels]
-    sim_LOSs.insert(0, pixels[0].up_LOS())
-    sim_LOSs.append(pixels[-1].low_LOS())
-    sim_LOSs = sim_LOSs[::-1]
+    if group_observations:
+        #sim_LOSs = group_observations(pixels)
+        sim_LOSs = [pix.LOS() for pix in pixels]
+        sim_LOSs.insert(0, pixels[0].up_LOS())
+        sim_LOSs.append(pixels[-1].low_LOS())
+        sim_LOSs = sim_LOSs[::-1]
+        for num in range(len(sim_LOSs)):
+            sim_LOSs[num].tag = 'LOS{:02d}'.format(num)
 
-    alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
+        alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
 
-    ssps = [pix.sub_solar_point() for pix in pixels]
-    ssps.insert(0, pixels[0].sub_solar_point())
-    ssps.append(pixels[-1].sub_solar_point())
+        ssps = [pix.sub_solar_point() for pix in pixels]
+        ssps.insert(0, pixels[0].sub_solar_point())
+        ssps.append(pixels[-1].sub_solar_point())
+    else:
+        sim_LOSs = []
+        ssps = []
+        for pix in pixels:
+            sim_LOSs.append(pix.low_LOS())
+            sim_LOSs.append(pix.LOS())
+            sim_LOSs.append(pix.up_LOS())
+            ssps += 3*[pix.sub_solar_point()]
+
+        alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
+
 
     print(alts_sim)
     for pix in pixels:
@@ -2522,15 +2536,60 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
             hiresfile = open(cartOUT+'hires_radtran.pic', 'wb')
             lowresfile = open(cartOUT+'lowres_radtran.pic', 'wb')
 
+        ntot = 0
+        nlos = len(sim_LOSs)
+        proc_sims = []
+        time03 = time.time()
+        while ntot < nlos:
+            losos = sim_LOSs[ntot:ntot+n_threads]
+            sspsos = ssps[ntot:ntot+n_threads]
+            n_proc = len(losos)
+            time01 = time.time()
+            print('Lancio {} procs'.format(n_proc))
+            processi = []
+            coda = []
+            outputs = []
+            for los, ssp, i in zip(losos, sspsos, range(n_proc)):
+                los.calc_SZA_along_los(planet, ssp)
+                coda.append(Queue())
+                args = (planet, lines)
+                kwargs = {'queue': coda[i], 'calc_derivatives' : True, 'bayes_set' : bayes_set}
+                kwargs.update(radtran_opt)
+                processi.append(Process(target=los.calc_radtran_steps, args=args, kwargs=kwargs))
+                processi[i].start()
+
+            for i in range(n_proc):
+                outputs.append(coda[i].get())
+
+            for i in range(n_proc):
+                processi[i].join()
+
+            print('All processes ended')
+            time02 = time.time()
+
+            for los, out in zip(losos, outputs):
+                if los.tag == out.tag:
+                    proc_sims.append(out)
+                else:
+                    raise NameError('{} is not {}'.format(los.tag, out.tag))
+                print(los.tag, len(out.radtran_steps['step']))
+                #print(los.tag, len(los.radtran_steps['step']))
+                #print(len(sim_LOSs[los.tag].radtran_steps['step']))
+
+            ntot += n_proc
+
+        print('calc_radtran_steps done in {} min'.format((time.time()-time03)/60.))
+        sim_LOSs = proc_sims
+
         # fillo = open('calc_radtran_steps.pic', 'w')
         # for los, ssp in zip(sim_LOSs, ssps):
             # los.calc_SZA_along_los(planet, ssp)
             # los.calc_radtran_steps(planet, lines, calc_derivatives = True, bayes_set = bayes_set, **radtran_opt)
         # pickle.dump(sim_LOSs, fillo)
         # fillo.close()
-        fillo = open('calc_radtran_steps.pic', 'r')
-        sim_LOSs = pickle.load(fillo)
-        sim_LOSs = sim_LOSs[::-1]
+        # fillo = open('calc_radtran_steps.pic', 'r')
+        # sim_LOSs = pickle.load(fillo)
+        # sim_LOSs = sim_LOSs[::-1]
 
         for num in range(len(sim_LOSs)):
             sim_LOSs[num].tag = 'LOS{:02d}'.format(num)
@@ -2547,22 +2606,8 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
             for nam in LUTS:
                 LUTS[nam].load_split(nsp)
 
-            # qui comincia lavoro in parallelo
-            # multiprocessing pool?
-            # devo passargli multiprocessing.Array(LUTs) in modo da lascciare luts nella shared memory. Non si sa se funziona ma si spera di sì. lock = False.
-            # bisogna stare molto attenti perchè io chiamo delle funzioni (calculate) che sono metodi delle strutture salvate. Devo essere sicuuuuro che non vado a scrivere sui dati. Forse pandas sa fare questa cosa?
-
-            # qui eventuale ciclo per i diversi gruppi di los
-            # for sim_LOSs in LOS_groups:
-            #     ssp = None
-            #     if g3D:
-            #         ssp = pix.sub_solar_point()
-            # Ma per sanità mentale posso anche farlo fuori il ciclo
-
-            hi_res = dict()
-
             time0 = time.time()
-
+            hi_res = dict()
             ntot = 0
             nlos = len(sim_LOSs)
 
@@ -2623,37 +2668,9 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
                         else:
                             derivs[kiave] = derivva
 
-                ntot += n_threads
+                ntot += n_proc
                 print('tempo tot: {:5.1f} min'.format((time.time()-time01)/60.))
                 print('tempo single proc: {:5.1f} min'.format((time.time()-time02)/60.))
-
-            # for los in sim_LOSs:
-            #     time1 = time.time()
-            #     radtran = los.radtran_fast(sp_gri, planet, lines, cartLUTs = inputs['cart_LUTS'], cartDROP = inputs['out_dir'], calc_derivatives = True, bayes_set = bayes_set, LUTS = LUTS, radtran_opt = radtran_opt, g3D = g3D, sub_solar_point = ssp)
-            #
-            #     pio = open('hiresce','w')
-            #     pickle.dump(radtran, pio)
-            #     pio.close()
-            #     sys.exit()
-            #
-            #     hi_res[los.tag] = radtran
-            #
-            #     if los.tag in radtrans:
-            #         radtrans[los.tag] += radtran.hires_to_lowres(observ_sample, spectral_widths = spectral_widths)
-            #     else:
-            #         radtrans[los.tag] = radtran.hires_to_lowres(observ_sample, spectral_widths = spectral_widths)
-            #
-            #     for par in bayes_set.params():
-            #         if par.not_involved:
-            #             derivva = zeroder
-            #         else:
-            #             derivva = par.hires_deriv.hires_to_lowres(observ_sample, spectral_widths = spectral_widths)
-            #
-            #         kiave = (los.tag, par.nameset, par.key)
-            #         if kiave in derivs:
-            #             derivs[kiave] += derivva
-            #         else:
-            #             derivs[kiave] = derivva
 
                 print('split {}, {} to {} done'.format(nsp, losos[0].tag, losos[-1].tag))
 
@@ -2667,28 +2684,39 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         time0 = time.time()
 
         sims = []
-        print(radtrans.keys())
-        radtrans_list = [radtrans[los.tag] for los in sim_LOSs]
-        radtran_spline = make_radtran_spline(alts_sim, radtrans_list)
-        deriv_splines = dict()
-        for par in bayes_set.params():
-            deriv_par = [derivs[(los.tag, par.nameset, par.key)] for los in sim_LOSs]
-            deriv_splines[(par.nameset, par.key)] = make_radtran_spline(alts_sim, deriv_par)
-
-        for pix, num in zip(pixels, range(len(pixels))):
-            lineas = [pix.low_LOS(), pix.LOS(), pix.up_LOS()]
-
-            alts_pix = np.array([lin.get_tangent_point().Spherical()[2] for lin in lineas])
-            intens_FOV = np.array([radtran_spline(al) for al in alts_pix])
-            sim_FOV_ok = FOV_integr_1D(intens_FOV, pix.pixel_rot)
-            sims.append(sim_FOV_ok)
-
-            derivs_FOV = []
-            derivs_FOV.append(deriv_splines)
+        if group_observations:
+            radtrans_list = [radtrans[los.tag] for los in sim_LOSs]
+            radtran_spline = make_radtran_spline(alts_sim, radtrans_list)
+            deriv_splines = dict()
             for par in bayes_set.params():
-                ders = np.array([deriv_splines[(par.nameset, par.key)](al) for al in alts_pix])
-                der_FOV_ok = FOV_integr_1D(ders, pix.pixel_rot)
-                par.store_deriv(der_FOV_ok, num = num)
+                deriv_par = [derivs[(los.tag, par.nameset, par.key)] for los in sim_LOSs]
+                deriv_splines[(par.nameset, par.key)] = make_radtran_spline(alts_sim, deriv_par)
+
+            for pix, num in zip(pixels, range(len(pixels))):
+                lineas = [pix.low_LOS(), pix.LOS(), pix.up_LOS()]
+
+                alts_pix = np.array([lin.get_tangent_point().Spherical()[2] for lin in lineas])
+                intens_FOV = np.array([radtran_spline(al) for al in alts_pix])
+                sim_FOV_ok = FOV_integr_1D(intens_FOV, pix.pixel_rot)
+                sims.append(sim_FOV_ok)
+
+                derivs_FOV = []
+                derivs_FOV.append(deriv_splines)
+                for par in bayes_set.params():
+                    ders = np.array([deriv_splines[(par.nameset, par.key)](al) for al in alts_pix])
+                    der_FOV_ok = FOV_integr_1D(ders, pix.pixel_rot)
+                    par.store_deriv(der_FOV_ok, num = num)
+        else:
+            for pix, num in zip(pixels, range(len(pixels))):
+                loss = sim_LOSs[3*num:3*(num+1)]
+                intens_FOV = np.array([radtrans[lo.tag] for lo in loss])
+                sim_FOV_ok = FOV_integr_1D(intens_FOV, pix.pixel_rot)
+                sims.append(sim_FOV_ok)
+
+                for par in bayes_set.params():
+                    ders = np.array([derivs[(los.tag, par.nameset, par.key)] for los in loss])
+                    der_FOV_ok = FOV_integr_1D(ders, pix.pixel_rot)
+                    par.store_deriv(der_FOV_ok, num = num)
 
         print('FOV interp done in {:5.1f} min'.format((time.time()-time0)/60.))
 
@@ -2701,7 +2729,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
             pickle.dump([num_it, obs, sims, bayes_set], debugfile)
 
         print('chi is: {}'.format(chi))
-        return
+
         if num_it > 0:
             if abs(chi-chi_old)/chi_old < chi_threshold:
                 print('FINISHEDDDD!! :D', chi)

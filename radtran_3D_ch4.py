@@ -346,7 +346,7 @@ print([pix.limb_tg_alt for pix in pix_ok])
 
 #result = smm.inversion(inputs, planet, linee, baybau, pix_ok, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, useLUTs = True, LUTopt = LUTopt, g3D = True)
 
-result = smm.inversion_fast_limb(inputs, planet, linee, baybau, pix_ok, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = True)
+result = smm.inversion_fast_limb(inputs, planet, linee, baybau, pix_ok, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = True, group_observations = False)
 
 dampa.close()
 

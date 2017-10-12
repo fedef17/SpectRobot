@@ -21,8 +21,12 @@ import spect_main_module as smm
 import pickletools
 import cPickle as pickle
 
-cart = '/home/fedefab/Scrivania/Research/Dotto/Reports/Code_validation/3D_inversion/'
-fil = open(cart+'out_3D_light.pic','r')
+# i0 = 0
+# cart = '/home/fedefab/Scrivania/Research/Dotto/Reports/Code_validation/3D_inversion/'
+# fil = open(cart+'out_3D_light.pic','r')
+i0 = 200
+cart = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/Tests/'
+fil = open(cart+'out_3D_inversion_test_fast_emilia.pic','r')
 
 sims_it = dict()
 retset_it = dict()
@@ -39,15 +43,17 @@ for i in range(20):
 pl.ion()
 
 for num in sims_it:
+    if int(num) > 0:
+        break
     sims = sims_it[num]
-    pl.figure(50+num)
+    pl.figure(i0+num)
     j = 0
     for ob,si in zip(obs[::5],sims[::5]):
         ob.plot(label = 'obs {}'.format(j))
         si.plot(label = 'sim {}'.format(j))
         j+=1
     pl.legend(fontsize = 'small')
-    pl.figure(60+num)
+    pl.figure(i0+10+num)
     j = 0
     for ob,si in zip(obs[::5],sims[::5]):
         diff = ob-si
@@ -65,7 +71,7 @@ for num in sims_it:
         lats = [-90,-75,-60,-30,30,60,75]
         lats = [-60,-30]
         for il,lat in zip(range(len(lats)), lats):
-            pl.figure(90+il*10+j)
+            pl.figure(i0+100+il*10+j)
             pl.title('{} - lat {}'.format(cos, lat))
             pl.grid()
             retset.sets[cos].profile().plot(fix_lat = lat, label = 'It {}'.format(num), logplot = logpl)

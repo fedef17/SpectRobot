@@ -15,6 +15,7 @@ import scipy.stats as stats
 import scipy.stats as stats
 import time
 from matplotlib.ticker import FormatStrFormatter
+import spect_main_module as smm
 
 
 # def integr(wl,spe,Range,sol_lim):
@@ -46,7 +47,8 @@ from matplotlib.ticker import FormatStrFormatter
 
 ########################### MAIN #######################################################
 
-cub = 'PIXs_HCN-CH4-C2H2_season_szaall_far.sav'
+# cub = 'PIXs_HCN-CH4-C2H2_season_szaall_far.sav'
+cub = 'PIXs_HCN-CH4-C2H2_season_szaall_far_nu.sav'
 cart = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/DATA/'
 cubo = io.readsav(cart+cub)
 
@@ -68,6 +70,37 @@ nomefilenoise = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climato
 cubo7418 = smm.comppix_to_pixels(pix_cubes['V1536397418'], nomefilebands, nomefilenoise)
 
 print('ciao')
+
+
+alts = np.array([1045.12,   940.42,   885.04 ,  769.22,   660.85,   605.33,   501.11])
+lat = 50.
+sza = 65.
+
+oklats = [pix for pix in cubo7418 if abs(pix.limb_tg_lat-lat) < 5. and abs(pix.limb_tg_sza-sza) < 5.]
+oks = [pix for pix in oklats if min(abs(alts-pix.limb_tg_alt)) < 1.]
+
+
+oklats = [pix for pix in cubo7418 if abs(pix.limb_tg_lat-lat) < 5.]
+pl.ion()
+angsok = np.linspace(0,2*np.pi,50)
+pl.plot(np.cos(angsok),np.sin(angsok))
+pl.axis('equal')
+coordp = []
+for pix in cubo7418: coordp.append((pix.limb_tg_lat*np.pi/180., (2575.+pix.limb_tg_alt)/2575.))
+dists = [coo[1] for coo in coordp]
+angs = [coo[0] for coo in coordp]
+signs = []
+for pix in cubo7418:
+    if pix.limb_tg_lon < 180.:
+        signs.append(1)
+    else:
+        signs.append(-1)
+xs = np.array(dists)*np.cos(angs)*np.array(signs)
+ys = np.array(dists)*np.sin(angs)
+szas = [pix.limb_tg_sza for pix in cubo7418]
+pl.scatter(xs, ys, c = szas, s = 1)
+pl.colorbar()
+pl.grid()
 
 sys.exit()
 
