@@ -2430,7 +2430,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     return
 
 
-def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, LUTopt = dict(), test = False, g3D = False, group_observations = False):
+def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, LUTopt = dict(), test = False, g3D = False, group_observations = False, nome_inv = '1'):
     """
     Main routine for retrieval. Fast version.
     """
@@ -2538,8 +2538,8 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
     for num_it in range(max_it):
         print('we are at iteration: {}'.format(num_it))
         if save_hires:
-            hiresfile = open(cartOUT+'hires_radtran.pic', 'wb')
-            lowresfile = open(cartOUT+'lowres_radtran.pic', 'wb')
+            hiresfile = open(cartOUT+'hires_radtran_{}.pic'.format(nome_inv), 'wb')
+            lowresfile = open(cartOUT+'lowres_radtran_{}.pic'.format(nome_inv), 'wb')
 
         ntot = 0
         nlos = len(sim_LOSs)
@@ -2732,7 +2732,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
             par.hires_deriv = None
         if debugfile is not None:
             if num_it == 0:
-                pickle.dump(pixels, debugfile)
+                pickle.dump([pixels, sim_LOSs], debugfile)
             pickle.dump([num_it, obs, sims, bayes_set, radtrans, derivs], debugfile)
 
         print('chi is: {}'.format(chi))

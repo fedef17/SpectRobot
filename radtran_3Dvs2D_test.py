@@ -283,6 +283,10 @@ for pix in pixels:
     gri = pix.observation.spectral_grid.grid
     cond = (gri > 3190.) & (gri < 3295.)
     pix.observation.mask[cond] = 0
+    pix.observation.noise = copy.deepcopy(pix.observation)
+    pix.observation.noise.spectrum = 2.e-8*np.ones(len(pix.observation.spectrum))
+
+sys.exit()
 
 # bay1 = copy.deepcopy(baybau)
 # time0 = time.time()
@@ -298,7 +302,7 @@ for i in range(20):
 bay2 = copy.deepcopy(baybau)
 time0 = time.time()
 dampa = open('./out_2Dvs3D_3Dinversion.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = True)
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = True, nome_inv = '3los')
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
@@ -309,7 +313,7 @@ for i in range(20):
 bay3 = copy.deepcopy(baybau)
 time0 = time.time()
 dampa = open('./out_2Dvs3D_3Dinversion_groupobs.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay3, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = True, group_observations = True)
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay3, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = True, group_observations = True, nome_inv = 'group_obs')
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
@@ -324,7 +328,7 @@ radtran_opt['max_Plog_variation'] = 2.
 bay3 = copy.deepcopy(baybau)
 time0 = time.time()
 dampa = open('./out_2Dvs3D_3Dinversion_lessstep.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay3, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = True)
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay3, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = True, nome_inv = '3los_lessstep')
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
