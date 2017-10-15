@@ -2499,13 +2499,18 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         sim_LOSs = [pix.LOS() for pix in pixels]
         sim_LOSs.insert(0, pixels[0].up_LOS())
         sim_LOSs.append(pixels[-1].low_LOS())
-        sim_LOSs = sim_LOSs[::-1]
+        #sim_LOSs = sim_LOSs[::-1]
 
         alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
 
         ssps = [pix.sub_solar_point() for pix in pixels]
         ssps.insert(0, pixels[0].sub_solar_point())
         ssps.append(pixels[-1].sub_solar_point())
+
+        # ordering
+        ordlos = np.argsort(np.array(alts_sim))
+        sim_LOSs = list(np.array(sim_LOSs)[ordlos])
+        ssps = list(np.array(ssps)[ordlos])
     else:
         sim_LOSs = []
         ssps = []
@@ -2726,7 +2731,9 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         for par in bayes_set.params():
             par.hires_deriv = None
         if debugfile is not None:
-            pickle.dump([num_it, obs, sims, bayes_set], debugfile)
+            if num_it == 0:
+                pickle.dump(pixels, debugfile)
+            pickle.dump([num_it, obs, sims, bayes_set, radtrans, derivs], debugfile)
 
         print('chi is: {}'.format(chi))
 

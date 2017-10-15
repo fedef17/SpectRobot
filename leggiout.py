@@ -24,9 +24,11 @@ import cPickle as pickle
 # i0 = 0
 # cart = '/home/fedefab/Scrivania/Research/Dotto/Reports/Code_validation/3D_inversion/'
 # fil = open(cart+'out_3D_light.pic','r')
-i0 = 200
 cart = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/Tests/'
-fil = open(cart+'out_3D_inversion_test_fast_emilia.pic','r')
+# i0 = 200
+# fil = open(cart+'out_3D_inversion_test_fast_emilia.pic','r')
+i0 = 400
+fil = open(cart+'out_3D_inversion_test_fast_emilia_singlepix.pic','r')
 
 sims_it = dict()
 retset_it = dict()
@@ -43,8 +45,6 @@ for i in range(20):
 pl.ion()
 
 for num in sims_it:
-    if int(num) > 0:
-        break
     sims = sims_it[num]
     pl.figure(i0+num)
     j = 0
@@ -69,7 +69,7 @@ for num in sims_it:
         if cos == 'HCN' or cos == 'C2H2':
             logpl = True
         lats = [-90,-75,-60,-30,30,60,75]
-        lats = [-60,-30]
+        lats = [-30]
         for il,lat in zip(range(len(lats)), lats):
             pl.figure(i0+100+il*10+j)
             pl.title('{} - lat {}'.format(cos, lat))
