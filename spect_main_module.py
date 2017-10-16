@@ -188,6 +188,9 @@ class BayesSet(object):
                 pars.append(par)
         return pars
 
+    def n_used_par(self):
+        return sum([par.is_used for par in self.params()])
+
     def build_jacobian(self, masks = None):
         jac = []
         if masks is not None:
@@ -525,10 +528,15 @@ class RetParam(object):
         self.old_values = []
         self.constrain_positive = constrain_positive
         self.not_involved = False
+        self.is_used = False
         return
 
     def set_not_involved(self):
         self.not_involved = True
+        return
+
+    def set_used(self):
+        self.is_used = True
         return
 
     def set_involved(self):
@@ -2430,7 +2438,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     return
 
 
-def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, LUTopt = dict(), test = False, g3D = False, group_observations = False, nome_inv = '1'):
+def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, LUTopt = dict(), test = False, g3D = False, use_tangent_sza = False, group_observations = False, nome_inv = '1'):
     """
     Main routine for retrieval. Fast version.
     """
@@ -2502,6 +2510,10 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         sim_LOSs.append(pixels[-1].low_LOS())
         #sim_LOSs = sim_LOSs[::-1]
 
+        fszas = [pix.limb_tg_sza for pix in pixels]
+        fszas.insert(0, pixels[0].limb_tg_sza)
+        fszas.append(pixels[-1].limb_tg_sza)
+
         alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
         print(alts_sim)
 
@@ -2517,11 +2529,13 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
     else:
         sim_LOSs = []
         ssps = []
+        fszas = []
         for pix in pixels:
             sim_LOSs.append(pix.low_LOS())
             sim_LOSs.append(pix.LOS())
             sim_LOSs.append(pix.up_LOS())
             ssps += 3*[pix.sub_solar_point()]
+            fszas += 3*[pix.limb_tg_sza]
 
         alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
 
@@ -2559,6 +2573,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
             outputs = []
             for los, ssp, i in zip(losos, sspsos, range(n_proc)):
                 los.calc_SZA_along_los(planet, ssp)
+
                 coda.append(Queue())
                 args = (planet, lines)
                 kwargs = {'queue': coda[i], 'calc_derivatives' : True, 'bayes_set' : bayes_set}
@@ -2623,16 +2638,19 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
             while ntot < nlos:
                 losos = sim_LOSs[ntot:ntot+n_threads]
                 sspsos = ssps[ntot:ntot+n_threads]
+                fszasos = fszas[ntot:ntot+n_threads]
                 n_proc = len(losos)
                 time01 = time.time()
                 print('Lancio {} procs'.format(n_proc))
                 processi = []
                 coda = []
                 outputs = []
-                for los, ssp, i in zip(losos, sspsos, range(n_proc)):
+                for los, ssp, fsza, i in zip(losos, sspsos, fszasos, range(n_proc)):
+                    if not use_tangent_sza:
+                        fsza = None
                     coda.append(Queue())
                     args = (sp_grid_split, planet)
-                    kwargs = {'queue': coda[i], 'cartLUTs': inputs['cart_LUTS'], 'cartDROP' : inputs['out_dir'], 'calc_derivatives' : True, 'bayes_set' : bayes_set, 'LUTS' : LUTS, 'radtran_opt' : radtran_opt, 'g3D' : g3D, 'sub_solar_point' : ssp, 'store_abscoeff': False}
+                    kwargs = {'queue': coda[i], 'cartLUTs': inputs['cart_LUTS'], 'cartDROP' : inputs['out_dir'], 'calc_derivatives' : True, 'bayes_set' : bayes_set, 'LUTS' : LUTS, 'radtran_opt' : radtran_opt, 'g3D' : g3D, 'sub_solar_point' : ssp, 'store_abscoeff': False, 'fixed_sza' : fsza}
                     processi.append(Process(target=los.radtran_fast, args=args, kwargs=kwargs))
                     processi[i].start()
 
@@ -2669,6 +2687,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
                             derivva = zeroder
                         else:
                             derivva = par_mod.hires_deriv.hires_to_lowres(observ_sample, spectral_widths = spectral_widths)
+                            par.set_used()
 
                         kiave = (los.tag, par.nameset, par.key)
                         if kiave in derivs:
@@ -2729,7 +2748,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         print('FOV interp done in {:5.1f} min'.format((time.time()-time0)/60.))
 
         #INVERSIONE
-        chi = chicalc(obs, sims, noise, masks, bayes_set.n_tot)
+        chi = chicalc(obs, sims, noise, masks, bayes_set.n_used_par())
 
         for par in bayes_set.params():
             par.hires_deriv = None

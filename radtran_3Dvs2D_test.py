@@ -32,6 +32,8 @@ input_file = 'inputs_spect_robot_3D.in'
 
 cart_atm = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/Tit_atm/climat_0607_manuel/p-T_clima2_07-07/'
 
+cart_input_1D = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/Tests/INPUT_TEST_7418/'
+
 cart_LUTS = '/media/hd_B/Spect_data/LUTs/'
 
 cart_tvibs = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/T_vibs/clima_Maya_22_May_2017/'
@@ -42,10 +44,10 @@ cart_tvibs3 = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatolo
 
 hit12_25 = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/HITRAN/HITRAN2012_2-5mu.par'
 
-keys = 'cart_atm cart_observed cart_tvibs cart_tvibs2 cart_tvibs3 cart_LUTS out_dir hitran_db n_threads test n_split'
+keys = 'cart_atm cart_observed cart_tvibs cart_tvibs2 cart_tvibs3 cart_LUTS out_dir hitran_db n_threads test n_split cart_input_1D'
 keys = keys.split()
-itype = [str, str, str, str, str, str, str, str, int, bool, int]
-defaults = [cart_atm, None, cart_tvibs, cart_tvibs2, cart_tvibs3, cart_LUTS, None, hit12_25, 8, False, 5]
+itype = [str, str, str, str, str, str, str, str, int, bool, int, str]
+defaults = [cart_atm, None, cart_tvibs, cart_tvibs2, cart_tvibs3, cart_LUTS, None, hit12_25, 8, False, 5, cart_input_1D]
 inputs = sbm.read_inputs(input_file, keys, itype = itype, defaults = defaults, verbose = True)
 
 if not os.path.exists(inputs['cart_LUTS']):
@@ -95,7 +97,7 @@ print('Loading molecules...')
 
 n_alt_max = 151
 
-atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_atm'] + 'in_vmr_prof.dat', 'vmr', n_alt_max = n_alt_max)
+atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_input_1D'] + 'in_vmr_prof.dat', 'vmr', n_alt_max = n_alt_max)
 
 zold = np.linspace(0.,10*(n_alt_max-1),n_alt_max)
 gridvmr = sbm.AtmGrid(['lat', 'alt'], [lat_ext[:-1], zold])
@@ -286,24 +288,24 @@ for pix in pixels:
     pix.observation.noise = copy.deepcopy(pix.observation)
     pix.observation.noise.spectrum = 2.e-8*np.ones(len(pix.observation.spectrum))
 
-# bay1 = copy.deepcopy(baybau)
+# bay0 = copy.deepcopy(baybau)
 # time0 = time.time()
 # dampa = open('./out_2Dvs3D_2Dinversion.pic','wb')
-# result = smm.inversion_fast_limb(inputs, planet1D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = False)
+# result = smm.inversion_fast_limb(inputs, planet1D, linee, bay0, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = False)
 # dampa.close()
 # tot_time = time.time()-time0
 # print('Tempo totale: {} min'.format(tot_time/60.))
 
 # for i in range(20):
 #     print('\n')
-#
-# bay2 = copy.deepcopy(baybau)
-# time0 = time.time()
-# dampa = open('./out_2Dvs3D_3Dinversion.pic','wb')
-# result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = True, nome_inv = '3los')
-# dampa.close()
-# tot_time = time.time()-time0
-# print('Tempo totale: {} min'.format(tot_time/60.))
+
+bay1 = copy.deepcopy(baybau)
+time0 = time.time()
+dampa = open('./out_2Dvs3D_3Dinversion_nuapriori.pic','wb')
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = True, nome_inv = '3los_nuapriori')
+dampa.close()
+tot_time = time.time()-time0
+print('Tempo totale: {} min'.format(tot_time/60.))
 
 for i in range(20):
     print('\n')
@@ -311,7 +313,7 @@ for i in range(20):
 bay2 = copy.deepcopy(baybau)
 time0 = time.time()
 dampa = open(inputs['out_dir']+'./out_2Dvs3D_2Dinversion.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = False, nome_inv = '3los')
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = True, use_tangent_sza = True, nome_inv = '3los_fixedsza')
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
