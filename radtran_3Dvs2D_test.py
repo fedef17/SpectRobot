@@ -299,32 +299,35 @@ for pix in pixels:
 # for i in range(20):
 #     print('\n')
 
-bay1 = copy.deepcopy(baybau)
-time0 = time.time()
-dampa = open('./out_2Dvs3D_3Dinversion_nuapriori.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = True, nome_inv = '3los_nuapriori')
-dampa.close()
-tot_time = time.time()-time0
-print('Tempo totale: {} min'.format(tot_time/60.))
-
-for i in range(20):
-    print('\n')
-
 bay2 = copy.deepcopy(baybau)
 time0 = time.time()
 dampa = open(inputs['out_dir']+'./out_2Dvs3D_2Dinversion.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = True, use_tangent_sza = True, nome_inv = '3los_fixedsza')
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = '3los_fixedsza')
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
 for i in range(20):
     print('\n')
+
+sys.exit()
+
+bay1 = copy.deepcopy(baybau)
+time0 = time.time()
+dampa = open('./out_2Dvs3D_3Dinversion_nuapriori.pic','wb')
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = '3los_nuapriori')
+dampa.close()
+tot_time = time.time()-time0
+print('Tempo totale: {} min'.format(tot_time/60.))
+
+for i in range(20):
+    print('\n')
+
 
 bay3 = copy.deepcopy(baybau)
 time0 = time.time()
 dampa = open(inputs['out_dir']+'./out_2Dvs3D_3Dinversion_groupobs.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay3, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = True, group_observations = True, nome_inv = 'group_obs')
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay3, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, group_observations = True, nome_inv = 'group_obs')
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
@@ -339,7 +342,7 @@ radtran_opt['max_Plog_variation'] = 2.
 bay3 = copy.deepcopy(baybau)
 time0 = time.time()
 dampa = open(inputs['out_dir']+'./out_2Dvs3D_3Dinversion_lessstep.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay3, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = True, nome_inv = '3los_lessstep')
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay3, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = '3los_lessstep')
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))

@@ -28,7 +28,7 @@ cart = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/Test
 # i0 = 200
 # fil = open(cart+'out_3D_inversion_test_fast_emilia.pic','r')
 i0 = 400
-fil = open(cart+'out_3D_inversion_test_fast_emilia_singlepix.pic','r')
+fil = open(cart+'out_2Dvs3D_3Dinversion.pic','r')
 
 sims_it = dict()
 retset_it = dict()
@@ -36,10 +36,12 @@ retset_it = dict()
 for i in range(20):
     print('leggo',i)
     try:
-        [num, obs, sims, retset] = pickle.load(fil)
+        if i == 0:
+            [pixels, sim_LOSs] = pickle.load(fil)
+        [num, obs, sims, retset, radt_pix, radt_los] = pickle.load(fil)
         sims_it[num] = sims
         retset_it[num] = retset
-    except:
+    except EOFError:
         break
 
 pl.ion()
@@ -69,7 +71,7 @@ for num in sims_it:
         if cos == 'HCN' or cos == 'C2H2':
             logpl = True
         lats = [-90,-75,-60,-30,30,60,75]
-        lats = [-30]
+        lats = [30]
         for il,lat in zip(range(len(lats)), lats):
             pl.figure(i0+100+il*10+j)
             pl.title('{} - lat {}'.format(cos, lat))

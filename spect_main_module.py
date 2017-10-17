@@ -2438,7 +2438,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     return
 
 
-def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, LUTopt = dict(), test = False, g3D = False, use_tangent_sza = False, group_observations = False, nome_inv = '1'):
+def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1'):
     """
     Main routine for retrieval. Fast version.
     """
@@ -2565,14 +2565,19 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         while ntot < nlos:
             losos = sim_LOSs[ntot:ntot+n_threads]
             sspsos = ssps[ntot:ntot+n_threads]
+            fszasos = fszas[ntot:ntot+n_threads]
             n_proc = len(losos)
             time01 = time.time()
             print('Lancio {} procs'.format(n_proc))
             processi = []
             coda = []
             outputs = []
-            for los, ssp, i in zip(losos, sspsos, range(n_proc)):
-                los.calc_SZA_along_los(planet, ssp)
+            for los, ssp, fsza, i in zip(losos, sspsos, fszasos, range(n_proc)):
+                los.calc_atm_intersections(planet)
+                if use_tangent_sza:
+                    los.szas = np.ones(len(los.intersections))*fsza
+                else:
+                    los.calc_SZA_along_los(planet, ssp)
 
                 coda.append(Queue())
                 args = (planet, lines)
@@ -2637,20 +2642,16 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
             time01 = time.time()
             while ntot < nlos:
                 losos = sim_LOSs[ntot:ntot+n_threads]
-                sspsos = ssps[ntot:ntot+n_threads]
-                fszasos = fszas[ntot:ntot+n_threads]
                 n_proc = len(losos)
                 time01 = time.time()
                 print('Lancio {} procs'.format(n_proc))
                 processi = []
                 coda = []
                 outputs = []
-                for los, ssp, fsza, i in zip(losos, sspsos, fszasos, range(n_proc)):
-                    if not use_tangent_sza:
-                        fsza = None
+                for los, i in zip(losos, range(n_proc)):
                     coda.append(Queue())
                     args = (sp_grid_split, planet)
-                    kwargs = {'queue': coda[i], 'cartLUTs': inputs['cart_LUTS'], 'cartDROP' : inputs['out_dir'], 'calc_derivatives' : True, 'bayes_set' : bayes_set, 'LUTS' : LUTS, 'radtran_opt' : radtran_opt, 'g3D' : g3D, 'sub_solar_point' : ssp, 'store_abscoeff': False, 'fixed_sza' : fsza}
+                    kwargs = {'queue': coda[i], 'cartLUTs': inputs['cart_LUTS'], 'cartDROP' : inputs['out_dir'], 'calc_derivatives' : True, 'bayes_set' : bayes_set, 'LUTS' : LUTS, 'radtran_opt' : radtran_opt, 'store_abscoeff': False}
                     processi.append(Process(target=los.radtran_fast, args=args, kwargs=kwargs))
                     processi[i].start()
 
