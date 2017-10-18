@@ -59,14 +59,22 @@ wn_ranges['HCN'] = [3200.,3400.]
 wn_ranges['C2H2'] = [3175.,3375.]
 wn_ranges['CH4'] = [2825.,3225.]
 
-for gas in planet.gases:
-    print(gas)
-    linee = spcl.read_line_database(db_file, freq_range = wn_ranges[gas])
-    linee = smm.check_lines_mols(linee, [planet.gases[gas]])
-    abs_coeff = smm.prepare_spe_grid(wn_ranges[gas])
-    sp_grid = abs_coeff.spectral_grid
+# for gas in planet.gases:
+#     print(gas)
+#     linee = spcl.read_line_database(db_file, freq_range = wn_ranges[gas])
+#     linee = smm.check_lines_mols(linee, [planet.gases[gas]])
+#     abs_coeff = smm.prepare_spe_grid(wn_ranges[gas])
+#     sp_grid = abs_coeff.spectral_grid
+#
+#     LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [planet.gases[gas]], atmosphere = planet.atmosphere, LUTopt = LUTopt)
 
-    LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [planet.gases[gas]], atmosphere = planet.atmosphere, LUTopt = LUTopt)
+gas = 'HCN'
+linee = spcl.read_line_database(db_file, freq_range = wn_ranges[gas])
+linee = smm.check_lines_mols(linee, [planet.gases[gas]])
+abs_coeff = smm.prepare_spe_grid(wn_ranges[gas])
+sp_grid = abs_coeff.spectral_grid
+
+LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [planet.gases[gas]], atmosphere = planet.atmosphere, LUTopt = LUTopt)
 
 #PTtest = [[3.0, 170.], [4.0, 160.], [2.0, 110.]]
 # PTtest = [[3.0, 170.], [4.0, 160.]]

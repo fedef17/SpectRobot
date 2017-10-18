@@ -202,21 +202,23 @@ for gas in planet.gases:
     for iso in planet.gases[gas].all_iso:
         print([gas,iso], getattr(planet.gases[gas], iso).levels)
 
-keep_levels = dict()
-keep_levels[('CH4', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02', 'lev_09', 'lev_07', 'lev_14', 'lev_08', 'lev_06', 'lev_03', 'lev_05', 'lev_04', 'lev_10']
-# keep_levels[('CH4', 'iso_1')] = ['lev_00', 'lev_01', 'lev_09', 'lev_07', 'lev_08', 'lev_06', 'lev_03', 'lev_10']
-keep_levels[('CH4', 'iso_2')] = ['lev_00', 'lev_02', 'lev_03']
-keep_levels[('HCN', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02', 'lev_04', 'lev_10', 'lev_07']
-# keep_levels[('HCN', 'iso_1')] = ['lev_00', 'lev_04']
-keep_levels[('C2H2', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02']
-
-smm.keep_levels(planet, keep_levels)
+# keep_levels = dict()
+# keep_levels[('CH4', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02', 'lev_09', 'lev_07', 'lev_14', 'lev_08', 'lev_06', 'lev_03', 'lev_05', 'lev_04', 'lev_10']
+# # keep_levels[('CH4', 'iso_1')] = ['lev_00', 'lev_01', 'lev_09', 'lev_07', 'lev_08', 'lev_06', 'lev_03', 'lev_10']
+# keep_levels[('CH4', 'iso_2')] = ['lev_00', 'lev_02', 'lev_03']
+# keep_levels[('HCN', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02', 'lev_04', 'lev_10', 'lev_07']
+# # keep_levels[('HCN', 'iso_1')] = ['lev_00', 'lev_04']
+# keep_levels[('C2H2', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02']
+#
+# smm.keep_levels(planet, keep_levels)
 
 for gas in planet.gases:
     for iso in planet.gases[gas].all_iso:
         print([gas,iso], getattr(planet.gases[gas], iso).levels)
 
 pickle.dump(planet, open(inputs['cart_tvibs']+'planet.pic','w'))
+
+sys.exit()
 
 planet3D = planet
 
