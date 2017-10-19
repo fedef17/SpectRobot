@@ -433,6 +433,8 @@ class LinearProfile_1D_new(RetSet):
         self.name = name
         self.set = []
         self.n_par = len(alt_nodes)
+        self.alts = list(alt_nodes)
+
         if first_guess_prof is None:
             first_guess_prof = apriori_prof
 

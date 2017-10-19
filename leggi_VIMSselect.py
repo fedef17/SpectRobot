@@ -102,6 +102,21 @@ pl.scatter(xs, ys, c = szas, s = 1)
 pl.colorbar()
 pl.grid()
 
+indok = np.array(szas) < 27.
+xsok = xs[indok]
+ysok = ys[indok]
+
+pixsza30 = [pix for pix in pixels if pix.limb_tg_sza < 27.]
+pl.scatter(xsok,ysok,c='red', s=2)
+
+lats = np.array([pi.limb_tg_lat for pi in pixels])
+indok = (np.array(szas) > 80.) & (np.array(szas) < 90.) & (lats > 0)
+xsok = xs[indok]
+ysok = ys[indok]
+
+pixsza80 = [pix for pix in pixels if pix.limb_tg_sza > 80. and pix.limb_tg_sza < 90. and pix.limb_tg_lat > 0.]
+pl.scatter(xsok,ysok,c='red', s = 2)
+
 sys.exit()
 
 t1 = time.time()
