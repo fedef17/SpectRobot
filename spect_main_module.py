@@ -467,7 +467,7 @@ class LinearProfile_1D_new(RetSet):
         return prof
 
     def check_involved(self, parkey, coord_range):
-        indp = self.alts.index(parkey[1])
+        indp = self.alts.index(parkey)
         involved = True
         altz = coord_range['alt']
 
