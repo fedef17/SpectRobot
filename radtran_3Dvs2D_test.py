@@ -318,6 +318,7 @@ for pix in pixels:
     pix.observation.noise = copy.deepcopy(pix.observation)
     pix.observation.noise.spectrum = 2.e-8*np.ones(len(pix.observation.spectrum))
 
+pixels.sort(key = lambda x: x.limb_tg_alt)
 
 bay0 = copy.deepcopy(baybau1D)
 time0 = time.time()
