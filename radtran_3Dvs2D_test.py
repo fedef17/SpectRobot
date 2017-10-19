@@ -288,8 +288,6 @@ linee = smm.check_lines_mols(linee, planet3D.gases.values())
 smm.keep_levels_wlines(planet3D, linee)
 smm.keep_levels_wlines(planet1D, linee)
 
-sys.exit()
-
 pickle.dump(planet3D, open(inputs['cart_tvibs']+'planet_3D.pic','w'))
 pickle.dump(planet1D, open(inputs['cart_tvibs']+'planet_1D.pic','w'))
 
