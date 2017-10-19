@@ -2461,6 +2461,8 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
     print('Begin inversion..')
     cartOUT = inputs['out_dir']
 
+    pixels.sort(key = lambda x: x.limb_tg_alt)
+
     if sp_gri is None:
         if wn_range is None:
             sp_gri = pixels[0].observation.spectral_grid

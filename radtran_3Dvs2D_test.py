@@ -178,6 +178,7 @@ for gas in baybau.sets.keys():
 
 planet3D = planet
 
+planet.gases['CH4'].iso_1.erase_level('lev_12')
 ############################################################
 
 # keep_levels = dict()
@@ -339,13 +340,90 @@ dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
-
 for i in range(20):
     print('\n')
 
 bay2 = copy.deepcopy(baybau1D)
 time0 = time.time()
 teag = '2Dvs3D_3Dtemp_noszavar'
+dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag)
+dampa.close()
+tot_time = time.time()-time0
+print('Tempo totale: {} min'.format(tot_time/60.))
+
+sys.exit()
+
+fil = open(inputs['cart_observed']+'pix7418_sza80.pic','r')
+pixels = pickle.load(fil)
+fil.close()
+
+for pix in pixels:
+    print('Masking CH4 R branch')
+    gri = pix.observation.spectral_grid.grid
+    cond = (gri > 3190.) & (gri < 3295.)
+    pix.observation.mask[cond] = 0
+    pix.observation.noise = copy.deepcopy(pix.observation)
+    pix.observation.noise.spectrum = 2.e-8*np.ones(len(pix.observation.spectrum))
+
+for i in range(20):
+    print('\n')
+
+bay1 = copy.deepcopy(baybau1D)
+time0 = time.time()
+teag = '2Dvs3D_sza80_szavar'
+dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = teag)
+dampa.close()
+tot_time = time.time()-time0
+print('Tempo totale: {} min'.format(tot_time/60.))
+
+
+for i in range(20):
+    print('\n')
+
+bay2 = copy.deepcopy(baybau1D)
+time0 = time.time()
+teag = '2Dvs3D_sza80_noszavar'
+dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag)
+dampa.close()
+tot_time = time.time()-time0
+print('Tempo totale: {} min'.format(tot_time/60.))
+
+
+fil = open(inputs['cart_observed']+'pix7418_sza30.pic','r')
+pixels = pickle.load(fil)
+fil.close()
+
+for pix in pixels:
+    print('Masking CH4 R branch')
+    gri = pix.observation.spectral_grid.grid
+    cond = (gri > 3190.) & (gri < 3295.)
+    pix.observation.mask[cond] = 0
+    pix.observation.noise = copy.deepcopy(pix.observation)
+    pix.observation.noise.spectrum = 2.e-8*np.ones(len(pix.observation.spectrum))
+
+
+for i in range(20):
+    print('\n')
+
+bay1 = copy.deepcopy(baybau1D)
+time0 = time.time()
+teag = '2Dvs3D_sza30_szavar'
+dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = teag)
+dampa.close()
+tot_time = time.time()-time0
+print('Tempo totale: {} min'.format(tot_time/60.))
+
+
+for i in range(20):
+    print('\n')
+
+bay2 = copy.deepcopy(baybau1D)
+time0 = time.time()
+teag = '2Dvs3D_sza30_noszavar'
 dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
 result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag)
 dampa.close()
