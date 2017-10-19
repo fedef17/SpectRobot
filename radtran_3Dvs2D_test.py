@@ -176,6 +176,100 @@ baybau.add_set(set_)
 for gas in baybau.sets.keys():
     planet.gases[gas].add_clim(baybau.sets[gas].profile())
 
+planet3D = planet
+
+############################################################
+
+# keep_levels = dict()
+# keep_levels[('CH4', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02', 'lev_09', 'lev_07', 'lev_14', 'lev_08', 'lev_06', 'lev_03', 'lev_05', 'lev_04', 'lev_10']
+# # keep_levels[('CH4', 'iso_1')] = ['lev_00', 'lev_01', 'lev_09', 'lev_07', 'lev_08', 'lev_06', 'lev_03', 'lev_10']
+# keep_levels[('CH4', 'iso_2')] = ['lev_00', 'lev_02', 'lev_03']
+# keep_levels[('HCN', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02', 'lev_04', 'lev_10', 'lev_07']
+# # keep_levels[('HCN', 'iso_1')] = ['lev_00', 'lev_04']
+# keep_levels[('C2H2', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02']
+#
+# smm.keep_levels(planet, keep_levels)
+
+# for gas in planet.gases:
+#     for iso in planet.gases[gas].all_iso:
+#         print([gas,iso], getattr(planet.gases[gas], iso).levels)
+
+######################
+
+planet = sbm.Titan(1500.)
+n_alt_max = 151
+
+temp_old = sbm.read_input_prof_gbb(inputs['cart_input_1D'] + 'in_temp.dat', 'temp')
+pres_old = sbm.read_input_prof_gbb(inputs['cart_input_1D'] + 'in_pres.dat', 'pres')
+
+zold = np.linspace(0.,10*(n_alt_max-1),n_alt_max)
+alt_gri = sbm.AtmGrid('alt', zold)
+
+Atm = sbm.AtmProfile(alt_gri, temp_old, 'temp', 'lin')
+Atm.add_profile(pres_old, 'pres', 'exp')
+
+planet.add_atmosphere(Atm)
+
+ciup = copy.deepcopy(planet3D.gases)
+mol1 = sbm.read_tvib_gbb(inputs['cart_input_1D']+'in_vibtemp_HCN-C2H2.dat', Atm.get('temp'), ciup)
+mol1 = sbm.read_tvib_gbb(inputs['cart_input_1D']+'in_vibtemp_CH4.dat', Atm.get('temp'), mol1)
+
+atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_input_1D'] + 'in_vmr_prof.dat', 'vmr', n_alt_max = n_alt_max)
+
+for gas in atm_gases_old:
+    atm_gases_old[gas] = sbm.AtmProfile(alt_gri, atm_gases_old[gas], profname='vmr', interp = 'lin')
+
+for molec in mol1.values():
+    molec.link_to_atmos(Atm)
+    try:
+        molec.add_clim(atm_gases_old[molec.name])
+        planet.add_gas(molec)
+    except:
+        for n in range(30): print(' ')
+        print('ATTENZZZZIONEEE: gas {} not found in input vmr profiles'.format(molec.name))
+        time.sleep(5)
+
+planet1D = planet
+
+##### SETTING THE BAYESSET:
+baybau1D = smm.BayesSet(tag = 'test_CH4_HCN_C2H2_1D')
+alt_nodes = np.arange(450., 1050., 100.)
+
+cososo = atm_gases_old['CH4']
+prf = []
+for alt in alt_nodes:
+    prf.append(cososo.calc(alt))
+apriori_prof = np.array(prf)
+apriori_prof_err = apriori_prof+0.015
+set_ = smm.LinearProfile_1D_new('CH4', alt_gri, alt_nodes, apriori_prof, apriori_prof_err)
+baybau1D.add_set(set_)
+
+alt_nodes = np.arange(550., 1050., 100.)
+
+cososo = atm_gases_old['HCN']
+prf = []
+for alt in alt_nodes:
+    prf.append(cososo.calc(alt))
+apriori_prof = np.array(prf)
+apriori_prof_err = apriori_prof+3.e-4
+set_ = smm.LinearProfile_1D_new('HCN', alt_gri, alt_nodes, apriori_prof, apriori_prof_err)
+baybau1D.add_set(set_)
+
+cososo = atm_gases_old['C2H2']
+prf = []
+for alt in alt_nodes:
+    prf.append(cososo.calc(alt))
+apriori_prof = np.array(prf)
+apriori_prof_err = apriori_prof+1.e-4
+set_ = smm.LinearProfile_1D_new('C2H2', alt_gri, alt_nodes, apriori_prof, apriori_prof_err)
+baybau1D.add_set(set_)
+
+### updating the profile of gases in bayesset
+for gas in baybau.sets.keys():
+    planet1D.gases[gas].add_clim(baybau.sets[gas].profile())
+
+###############################################################
+
 wn_range = [2850.,3450.]
 wn_range_obs = [spcl.convertto_nm(wn_range[1], 'cm_1')+10., spcl.convertto_nm(wn_range[0], 'cm_1')-10.]
 print(wn_range_obs)
@@ -190,79 +284,13 @@ linee = spcl.read_line_database(db_file, freq_range = wn_range)
 
 # planet = pickle.load(open(inputs['cart_tvibs']+'planet.pic'))
 
-planetmols = [gas.mol for gas in planet.gases.values()]
-
-linee = [lin for lin in linee if lin.Freq >= wn_range[0] and lin.Freq <= wn_range[1]]
-
-
-linee = smm.check_lines_mols(linee, planet.gases.values())
-smm.keep_levels_wlines(planet, linee)
-
-for gas in planet.gases:
-    for iso in planet.gases[gas].all_iso:
-        print([gas,iso], getattr(planet.gases[gas], iso).levels)
-
-# keep_levels = dict()
-# keep_levels[('CH4', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02', 'lev_09', 'lev_07', 'lev_14', 'lev_08', 'lev_06', 'lev_03', 'lev_05', 'lev_04', 'lev_10']
-# # keep_levels[('CH4', 'iso_1')] = ['lev_00', 'lev_01', 'lev_09', 'lev_07', 'lev_08', 'lev_06', 'lev_03', 'lev_10']
-# keep_levels[('CH4', 'iso_2')] = ['lev_00', 'lev_02', 'lev_03']
-# keep_levels[('HCN', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02', 'lev_04', 'lev_10', 'lev_07']
-# # keep_levels[('HCN', 'iso_1')] = ['lev_00', 'lev_04']
-# keep_levels[('C2H2', 'iso_1')] = ['lev_00', 'lev_01', 'lev_02']
-#
-# smm.keep_levels(planet, keep_levels)
-
-for gas in planet.gases:
-    for iso in planet.gases[gas].all_iso:
-        print([gas,iso], getattr(planet.gases[gas], iso).levels)
-
-pickle.dump(planet, open(inputs['cart_tvibs']+'planet.pic','w'))
-
-sys.exit()
-
-planet3D = planet
-
-######################
-
-# planet = sbm.Titan(1500.)
-# n_alt_max = 151
-#
-# temp_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_temp_co_ref_07_25s.dat', 'temp')
-# pres_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_pres_co_ref_07_25s.dat', 'pres')
-#
-# zold = np.linspace(0.,10*(n_alt_max-1),n_alt_max)
-#
-# grid = sbm.AtmGrid(['lat', 'alt'], [lat_ext[:-1], zold])
-#
-# TT = np.vstack(7*[temp_old])
-# PP = np.vstack(7*[pres_old])
-#
-# Atm = sbm.AtmProfile(grid, TT, 'temp', ['box','lin'])
-# Atm.add_profile(PP, 'pres', ['box','exp'])
-#
-# planet.add_atmosphere(Atm)
-#
-# filetvi = inputs['cart_molecs']+'vt_co__07_25s_sza30_vmr04_7.62.1_0050'
-# nlte_molecs = sbm.add_nLTE_molecs_from_tvibmanuel(planet, filetvi)
-#
-# atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_molecs'] + 'in_vmr_prof.dat', 'vmr', n_alt_max = n_alt_max)
-#
-# for gas in atm_gases_old:
-#     atm_gases_old[gas] = sbm.AtmProfile(alt_gri, atm_gases_old[gas], profname='vmr', interp = 'lin')
-#
-# for molec in nlte_molecs.values():
-#     molec.link_to_atmos(Atm)
-#     try:
-#         molec.add_clim(atm_gases_old[molec.name])
-#         planet.add_gas(molec)
-#     except:
-#         for n in range(30): print(' ')
-#         print('ATTENZZZZIONEEE: gas {} not found in input vmr profiles'.format(molec.name))
-#         time.sleep(5)
-#
-# planet1D = planet
+linee = smm.check_lines_mols(linee, planet3D.gases.values())
+smm.keep_levels_wlines(planet3D, linee)
+smm.keep_levels_wlines(planet1D, linee)
 
 
+pickle.dump(planet3D, open(inputs['cart_tvibs']+'planet_3D.pic','w'))
+pickle.dump(planet1D, open(inputs['cart_tvibs']+'planet_1D.pic','w'))
 
 
 LUTopt = dict()
@@ -290,41 +318,45 @@ for pix in pixels:
     pix.observation.noise = copy.deepcopy(pix.observation)
     pix.observation.noise.spectrum = 2.e-8*np.ones(len(pix.observation.spectrum))
 
-# bay0 = copy.deepcopy(baybau)
-# time0 = time.time()
-# dampa = open('./out_2Dvs3D_2Dinversion.pic','wb')
-# result = smm.inversion_fast_limb(inputs, planet1D, linee, bay0, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, g3D = False)
-# dampa.close()
-# tot_time = time.time()-time0
-# print('Tempo totale: {} min'.format(tot_time/60.))
 
-# for i in range(20):
-#     print('\n')
-
-bay2 = copy.deepcopy(baybau)
+bay0 = copy.deepcopy(baybau1D)
 time0 = time.time()
-dampa = open(inputs['out_dir']+'./out_2Dvs3D_2Dinversion.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = '3los_fixedsza')
+teag = '2Dvs3D_oldtemp_check'
+dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
+result = smm.inversion_fast_limb(inputs, planet1D, linee, bay0, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag)
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
 for i in range(20):
     print('\n')
+
+bay1 = copy.deepcopy(baybau1D)
+time0 = time.time()
+teag = '2Dvs3D_3Dtemp_szavar'
+dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = teag)
+dampa.close()
+tot_time = time.time()-time0
+print('Tempo totale: {} min'.format(tot_time/60.))
+
+
+for i in range(20):
+    print('\n')
+
+bay2 = copy.deepcopy(baybau1D)
+time0 = time.time()
+teag = '2Dvs3D_3Dtemp_noszavar'
+dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag)
+dampa.close()
+tot_time = time.time()-time0
+print('Tempo totale: {} min'.format(tot_time/60.))
 
 sys.exit()
 
-bay1 = copy.deepcopy(baybau)
-time0 = time.time()
-dampa = open('./out_2Dvs3D_3Dinversion_nuapriori.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = '3los_nuapriori')
-dampa.close()
-tot_time = time.time()-time0
-print('Tempo totale: {} min'.format(tot_time/60.))
-
 for i in range(20):
     print('\n')
-
 
 bay3 = copy.deepcopy(baybau)
 time0 = time.time()
