@@ -234,7 +234,7 @@ planet1D = planet
 
 ##### SETTING THE BAYESSET:
 baybau1D = smm.BayesSet(tag = 'test_CH4_HCN_C2H2_1D')
-alt_nodes = np.arange(450., 1050., 100.)
+alt_nodes = np.arange(450., 1051., 100.)
 
 cososo = atm_gases_old['CH4']
 prf = []
@@ -245,7 +245,7 @@ apriori_prof_err = apriori_prof+0.015
 set_ = smm.LinearProfile_1D_new('CH4', alt_gri, alt_nodes, apriori_prof, apriori_prof_err)
 baybau1D.add_set(set_)
 
-alt_nodes = np.arange(550., 1050., 100.)
+alt_nodes = np.arange(550., 1051., 100.)
 
 cososo = atm_gases_old['HCN']
 prf = []
@@ -320,14 +320,28 @@ for pix in pixels:
 
 pixels.sort(key = lambda x: x.limb_tg_alt)
 
+obs_shift = pickle.load(open(inputs['cart_inputs']+'obs_shifted.pic'))
+for pix, obshi in zip(pixels, obs_shift):
+    pix.observation.spectrum = obs_shift.spectrum
+    pix.observation.spectral_grid = obs_shift.spectral_grid
+    pix.observation.noise = copy.deepcopy(obs_shift)
+    pix.observation.noise.spectrum = 1.5e-8*np.ones(len(pix.observation.spectrum))
+    pix.observation.bands = copy.deepcopy(obs_shift)
+    pix.observation.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
+    pix.observation.mask = np.ones(len(pix.observation.spectrum))
+
+
 bay0 = copy.deepcopy(baybau1D)
 time0 = time.time()
-teag = '2Dvs3D_oldtemp_check'
+teag = '2Dvs3D_oldtemp_NEWcheck_shifted'
 dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
 result = smm.inversion_fast_limb(inputs, planet1D, linee, bay0, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag)
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
+
+sys.exit()
+
 
 for i in range(20):
     print('\n')

@@ -2512,6 +2512,10 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
     n_threads = inputs['n_threads']
     LUTS, n_split, sp_grids = split_and_compress_LUTS(sp_gri, LUTS, inputs['cart_LUTS'], n_threads, n_split = inputs['n_split'])
 
+    print(n_split)
+    for sp_gr, u in zip(sp_grids, range(n_split)):
+        print('split {}: {:5.1f} - {:5.1f}'.format(u,sp_gr.grid.min(),sp_gr.grid.max()))
+
     # lancio calc_radtran_steps e decido quante los calcolare davvero
     # ho una lista di los fittizie in uscita
     # se i pixels appartengono a cubi diversi o intersecano il pianeta in lats diverse devo separare in diversi gruppi
@@ -2645,7 +2649,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
         time00 = time.time()
         for nsp, sp_grid_split in zip(range(n_split), sp_grids):
-            print('Split # {} of {}'.format(nsp, n_split))
+            print('Split # {} of {}: {:5.1f} to {:5.1f} cm-1'.format(nsp, n_split, sp_grid_split.grid.min(), sp_grid_split.grid.max()))
 
             for nam in LUTS:
                 LUTS[nam].load_split(nsp)

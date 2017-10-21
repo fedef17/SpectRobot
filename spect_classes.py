@@ -776,7 +776,7 @@ class SpectralObject(object):
 
             # Problema: se freq è fuori da self.spectral_grid qui mi fa la convoluz sbagliata
             ind, fr_grid_ok = closest_grid_ext(self.spectral_grid, freq)
-            lin_grid_ok = SpectralGrid(lin_grid+fr_grid_ok, units = 'cm_1')
+            lin_grid_ok = SpectralGrid(lin_grid+fr_grid_ok, units = self.spectral_grid.units)
 
             spect_old = self[lin_grid_ok.grid[0],lin_grid_ok.grid[-1]]
 
@@ -786,7 +786,12 @@ class SpectralObject(object):
 
             if len(spect_old.spectrum) < len(gigi):
                 zero = SpectralObject(np.zeros(len(lin_grid_ok.grid)), lin_grid_ok)
-                zero.add_to_spectrum(spect_old)
+                print(len(spect_old.spectrum), len(gigi), len(zero.spectrum), lin_grid_ok.grid.max(), lin_grid_ok.grid.min(), spect_old.spectral_grid.grid.max(), spect_old.spectral_grid.grid.min())
+                try:
+                    zero.add_to_spectrum(spect_old)
+                except:
+                    pickle.dump([zero,spect_old], open('/home/fedefab/Scrivania/Research/Dotto/Git/tullettini/probl.pic','w'))
+                    raise ValueError
                 spect_old = zero
 
             spectrum[num] = conv_single(spect_old, gigi, new_spectral_grid.step())
@@ -794,6 +799,40 @@ class SpectralObject(object):
         convolved.spectral_grid = copy.deepcopy(new_spectral_grid)
         convolved.spectrum = copy.deepcopy(spectrum)
         #convolved = SpectralObject(spectrum, new_spectral_grid)
+        return convolved
+
+    def convolve_to_grid_from_irregular(self, new_spectral_grid, spectral_widths = None, conv_type = 'gaussian', n_sigma = 5.):
+        """
+        Convolution of the spectrum to a different grid.
+        Self.spectral_grid can be irregular. Slower process, suggested on low resolution grid.
+        """
+        new_len = len(new_spectral_grid.grid)
+        if spectral_widths is None:
+            weed = new_spectral_grid.step()
+            spectral_widths = [weed]*new_len
+        elif type(spectral_widths) is int or type(spectral_widths) is float:
+            spectral_widths = [spectral_widths]*new_len
+
+        spectrum = np.zeros(new_len, dtype = float)
+
+        for num, freq, wid in zip(range(new_len), new_spectral_grid.grid, spectral_widths):
+            ok_po = (self.spectral_grid.grid >= freq-n_sigma*wid) & (self.spectral_grid.grid <= freq+n_sigma*wid)
+
+            lin_grid_ok = self.spectral_grid.grid[ok_po]
+            #spect_old = self[lin_grid_ok.grid[0],lin_grid_ok.grid[-1]]
+            spect_old = self.spectrum[ok_po]
+            if len(spect_old) == 0:
+                spectrum[num] = 0.0
+                continue
+            spect_old = SpectralObject(spect_old, SpectralGrid(lin_grid_ok, units = self.spectral_grid.units))
+
+            gigi = gaussian(lin_grid_ok, freq, wid)
+            spectrum[num] = conv_single(spect_old, gigi, wid)
+
+        convolved = copy.deepcopy(self)
+        convolved.spectral_grid = copy.deepcopy(new_spectral_grid)
+        convolved.spectrum = copy.deepcopy(spectrum)
+
         return convolved
 
     def interp_to_regular_grid(self):
@@ -1051,7 +1090,20 @@ class SpectralIntensity(SpectralObject):
 
         return
 
-    def hires_to_lowres(self, lowres_obs, spectral_widths = None):
+    def hires_to_lowres(self, lowres_obs, spectral_widths = None, keep_original_hires = True):
+        if keep_original_hires:
+            gigi = copy.deepcopy(self)
+            gigi.convert_grid_to(lowres_obs.spectral_grid.units)
+            lowres = gigi.convolve_to_grid_from_irregular(lowres_obs.spectral_grid, spectral_widths = spectral_widths)
+            lowres.convertto(lowres_obs.units)
+        else:
+            self.convert_grid_to(lowres_obs.spectral_grid.units)
+            lowres = self.convolve_to_grid_from_irregular(lowres_obs.spectral_grid, spectral_widths = spectral_widths)
+            lowres.convertto(lowres_obs.units)
+
+        return lowres
+
+    def hires_to_lowres_old(self, lowres_obs, spectral_widths = None):
         self.convert_grid_to(lowres_obs.spectral_grid.units)
         self.interp_to_regular_grid()
         lowres = self.convolve_to_grid(lowres_obs.spectral_grid, spectral_widths = spectral_widths)
