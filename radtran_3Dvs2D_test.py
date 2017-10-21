@@ -331,6 +331,18 @@ for pix, obshi in zip(pixels, obs_shift):
     pix.observation.mask = np.ones(len(pix.observation.spectrum))
 
 
+for gas in planet1D.gases:
+    gasso = planet1D.gases[gas]
+    for iso in gasso.all_iso:
+        isom = getattr(gasso, iso)
+        for lev in isom.levels:
+            levvo = getattr(isom, lev)
+            print(gas,iso,lev,levvo.vibtemp.profile().max(),levvo.vibtemp.profile().min())
+
+print(planet1D.atmosphere.profile()['temp'].min(), planet1D.atmosphere.profile()['temp'].max())
+
+sys.exit()
+
 bay0 = copy.deepcopy(baybau1D)
 time0 = time.time()
 teag = '2Dvs3D_oldtemp_NEWcheck_shifted'
