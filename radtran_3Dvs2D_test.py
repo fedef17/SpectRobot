@@ -322,11 +322,11 @@ pixels.sort(key = lambda x: x.limb_tg_alt)
 
 obs_shift = pickle.load(open(inputs['cart_inputs']+'obs_shifted.pic'))
 for pix, obshi in zip(pixels, obs_shift):
-    pix.observation.spectrum = obs_shift.spectrum
-    pix.observation.spectral_grid = obs_shift.spectral_grid
-    pix.observation.noise = copy.deepcopy(obs_shift)
+    pix.observation.spectrum = obshi.spectrum
+    pix.observation.spectral_grid = obshi.spectral_grid
+    pix.observation.noise = copy.deepcopy(obshi)
     pix.observation.noise.spectrum = 1.5e-8*np.ones(len(pix.observation.spectrum))
-    pix.observation.bands = copy.deepcopy(obs_shift)
+    pix.observation.bands = copy.deepcopy(obshi)
     pix.observation.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
     pix.observation.mask = np.ones(len(pix.observation.spectrum))
 
