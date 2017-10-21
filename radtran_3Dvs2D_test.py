@@ -44,10 +44,10 @@ cart_tvibs3 = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatolo
 
 hit12_25 = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/HITRAN/HITRAN2012_2-5mu.par'
 
-keys = 'cart_atm cart_observed cart_tvibs cart_tvibs2 cart_tvibs3 cart_LUTS out_dir hitran_db n_threads test n_split cart_input_1D'
+keys = 'cart_atm cart_observed cart_tvibs cart_tvibs2 cart_tvibs3 cart_LUTS out_dir hitran_db n_threads test n_split cart_input_1D cart_inputs'
 keys = keys.split()
-itype = [str, str, str, str, str, str, str, str, int, bool, int, str]
-defaults = [cart_atm, None, cart_tvibs, cart_tvibs2, cart_tvibs3, cart_LUTS, None, hit12_25, 8, False, 5, cart_input_1D]
+itype = [str, str, str, str, str, str, str, str, int, bool, int, str, str]
+defaults = [cart_atm, None, cart_tvibs, cart_tvibs2, cart_tvibs3, cart_LUTS, None, hit12_25, 8, False, 5, cart_input_1D, None]
 inputs = sbm.read_inputs(input_file, keys, itype = itype, defaults = defaults, verbose = True)
 
 if not os.path.exists(inputs['cart_LUTS']):
