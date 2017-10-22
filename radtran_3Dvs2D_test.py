@@ -329,6 +329,7 @@ for pix, obshi in zip(pixels, obs_shift):
     pix.observation.bands = copy.deepcopy(obshi)
     pix.observation.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
     pix.observation.mask = np.ones(len(pix.observation.spectrum))
+    pix.pixel_rot = 0.0
 
 
 for gas in planet1D.gases:
@@ -341,11 +342,10 @@ for gas in planet1D.gases:
 
 print(planet1D.atmosphere.profile()['temp'].min(), planet1D.atmosphere.profile()['temp'].max())
 
-sys.exit()
 
 bay0 = copy.deepcopy(baybau1D)
 time0 = time.time()
-teag = '2Dvs3D_oldtemp_NEWcheck_shifted'
+teag = '2Dvs3D_oldtemp_NEWcheck_shifted_nopixrot'
 dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
 result = smm.inversion_fast_limb(inputs, planet1D, linee, bay0, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag)
 dampa.close()
