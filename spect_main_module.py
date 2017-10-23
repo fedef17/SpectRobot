@@ -1061,7 +1061,7 @@ class LutSet(object):
             gigi = spcl.SpectralGcoeff(ctype, spectral_grid, self.mol, self.iso, self.MM, minimal_level_string, unidentified_lines = self.unidentified_lines)
             gigi.BuildCoeff(lines, Temp, Pres, preCalc_shapes = True)
 
-            #print('iiiii add_PT iiiiii {} {} {}'.format(ctype, np.max(gigi.spectrum),np.min(gigi.spectrum)))
+            print('iiiii add_PT iiiiii {} {} {}'.format(ctype, np.max(gigi.spectrum),np.min(gigi.spectrum)))
 
             #print(np.max(gigi.spectrum))
 
