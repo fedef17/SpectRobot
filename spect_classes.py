@@ -250,12 +250,18 @@ class SpectLine(object):
             lev_energy_lo = self.E_vib_lo
             lev_energy_up = self.E_vib_up
 
-        G_co = Einstein_A_to_Gcoeff_spem(self, Temp, lev_energy_up)
-        values.append(G_co)
-        G_co = Einstein_A_to_Gcoeff_indem(self, Temp, lev_energy_up)
-        values.append(G_co)
-        G_co = Einstein_A_to_Gcoeff_abs(self, Temp, lev_energy_lo)
-        values.append(G_co)
+        if self.A_coeff != 0.0 and self.g_lo != 0.0 and self.g_up != 0.0:
+            G_co = Einstein_A_to_Gcoeff_spem(self, Temp, lev_energy_up)
+            values.append(G_co)
+            G_co = Einstein_A_to_Gcoeff_indem(self, Temp, lev_energy_up)
+            values.append(G_co)
+            G_co = Einstein_A_to_Gcoeff_abs(self, Temp, lev_energy_lo)
+            values.append(G_co)
+        else:
+            print('linea non defined')
+            self.Print()
+            #G_co = self.CalcStrength(Temp)*BB
+            values = [0.,0.,0.]
 
         G_coeffs = dict(zip(ctypes,values))
 
