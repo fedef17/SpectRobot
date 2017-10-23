@@ -2802,6 +2802,339 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
     return
 
 
+def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radtran_opt = dict(), save_hires = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1'):
+    """
+    Main routine for retrieval. Fast version.
+    """
+
+    lines = check_lines_mols(lines, planet.gases.values())
+    print('Begin inversion..')
+    cartOUT = inputs['out_dir']
+
+    pixels.sort(key = lambda x: x.limb_tg_alt)
+
+    if sp_gri is None:
+        if wn_range is None:
+            sp_gri = pixels[0].observation.spectral_grid
+            sp_gri.grid[0] -= 2*pixels[0].observation.bands.spectrum[0]
+            sp_gri.grid[-1] += 2*pixels[0].observation.bands.spectrum[-1]
+            sp_gri.convertto_cm_1()
+            wn_range = [sp_gri.grid[0], sp_gri.grid[-1]]
+            print(wn_range)
+            sp_gri = prepare_spe_grid(wn_range)
+            sp_gri = sp_gri.spectral_grid
+        else:
+            sp_gri = prepare_spe_grid(wn_range)
+            sp_gri = sp_gri.spectral_grid
+
+    alt_tg = []
+    lat_tg = []
+    pres_max = []
+    tg_points = []
+    for pix in pixels:
+        linea_0 = pix.low_LOS()
+        tg_point = linea_0.get_tangent_point()
+        tg_points.append(tg_point)
+        if 'max_pres' not in LUTopt:
+            pres_max.append(planet.atmosphere.calc(tg_point, profname = 'pres'))
+        alt_tg.append(tg_point.Spherical()[2])
+        lat_tg.append(tg_point.Spherical()[0])
+
+    if 'max_pres' not in LUTopt:
+        pres_max = max(pres_max)
+        LUTopt['max_pres'] = pres_max
+    PTcoup_needed = calc_PT_couples_atmosphere(lines, planet.gases.values(), planet.atmosphere, **LUTopt)
+
+    LUTS = check_and_build_allluts(inputs, sp_gri, lines, planet.gases.values(), PTcouples = PTcoup_needed, LUTopt = LUTopt)
+    n_lut_tot = len(PTcoup_needed)
+    print('{} PT couples needed'.format(n_lut_tot))
+
+    sims = []
+    obs = [pix.observation for pix in pixels]
+    masks = [pix.observation.mask for pix in pixels]
+    noise = [pix.observation.noise for pix in pixels]
+
+    # FASE 0: decidere in quanti pezzi splittare le LUTS. le splitto. se tengo tutto raddoppia la dimensione su disco. butto via i Gcoeff nulli.
+    n_threads = inputs['n_threads']
+    LUTS, n_split, sp_grids = split_and_compress_LUTS(sp_gri, LUTS, inputs['cart_LUTS'], n_threads, n_split = inputs['n_split'])
+
+    print(n_split)
+    for sp_gr, u in zip(sp_grids, range(n_split)):
+        print('split {}: {:5.1f} - {:5.1f}'.format(u,sp_gr.grid.min(),sp_gr.grid.max()))
+
+    # lancio calc_radtran_steps e decido quante los calcolare davvero
+    # ho una lista di los fittizie in uscita
+    # se i pixels appartengono a cubi diversi o intersecano il pianeta in lats diverse devo separare in diversi gruppi
+    # questo discorso è un po' pericoloso ad esempio per le derivate. bisogna stare attenti.
+    # ad esempio che fare delle linee che intersecano più lat box? ehehehhe casino deh. NON esistono. Le metto o di qua o di là in base alla lat di tangenza. Fine.
+
+    if group_observations:
+        print('Group observations')
+        #sim_LOSs = group_observations(pixels)
+        sim_LOSs = [pix.LOS() for pix in pixels]
+        sim_LOSs.insert(0, pixels[0].up_LOS())
+        sim_LOSs.append(pixels[-1].low_LOS())
+        #sim_LOSs = sim_LOSs[::-1]
+
+        fszas = [pix.limb_tg_sza for pix in pixels]
+        fszas.insert(0, pixels[0].limb_tg_sza)
+        fszas.append(pixels[-1].limb_tg_sza)
+
+        alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
+        print(alts_sim)
+
+        ssps = [pix.sub_solar_point() for pix in pixels]
+        ssps.insert(0, pixels[0].sub_solar_point())
+        ssps.append(pixels[-1].sub_solar_point())
+
+        # ordering
+        ordlos = np.argsort(np.array(alts_sim))
+        sim_LOSs = list(np.array(sim_LOSs)[ordlos])
+        ssps = list(np.array(ssps)[ordlos])
+        alts_sim = list(np.sort(np.array(alts_sim)))
+    else:
+        sim_LOSs = []
+        ssps = []
+        fszas = []
+        for pix in pixels:
+            sim_LOSs.append(pix.low_LOS())
+            sim_LOSs.append(pix.LOS())
+            sim_LOSs.append(pix.up_LOS())
+            ssps += 3*[pix.sub_solar_point()]
+            fszas += 3*[pix.limb_tg_sza]
+
+        alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
+
+    for num in range(len(sim_LOSs)):
+        sim_LOSs[num].tag = 'LOS{:03d}'.format(num)
+
+    print(alts_sim)
+    for pix in pixels:
+        print(pix.limb_tg_lat, pix.limb_tg_lon, pix.limb_tg_alt)
+    #sys.exit()
+
+    observ_sample = pixels[0].observation
+    spectral_widths = pixels[0].observation.bands.spectrum
+    zeroder = observ_sample*0.0
+
+    time0 = time.time()
+    for num_it in range(max_it):
+        print('we are at iteration: {}'.format(num_it))
+        if save_hires:
+            hiresfile = open(cartOUT+'hires_radtran_{}.pic'.format(nome_inv), 'wb')
+            lowresfile = open(cartOUT+'lowres_radtran_{}.pic'.format(nome_inv), 'wb')
+
+        ntot = 0
+        nlos = len(sim_LOSs)
+        proc_sims = []
+        time03 = time.time()
+        while ntot < nlos:
+            losos = sim_LOSs[ntot:ntot+n_threads]
+            sspsos = ssps[ntot:ntot+n_threads]
+            fszasos = fszas[ntot:ntot+n_threads]
+            n_proc = len(losos)
+            time01 = time.time()
+            print('Lancio {} procs'.format(n_proc))
+            processi = []
+            coda = []
+            outputs = []
+            for los, ssp, fsza, i in zip(losos, sspsos, fszasos, range(n_proc)):
+                los.calc_atm_intersections(planet)
+                if use_tangent_sza:
+                    los.szas = np.ones(len(los.intersections))*fsza
+                else:
+                    los.calc_SZA_along_los(planet, ssp)
+
+                coda.append(Queue())
+                args = (planet, lines)
+                kwargs = {'queue': coda[i], 'calc_derivatives' : False}
+                kwargs.update(radtran_opt)
+                processi.append(Process(target=los.calc_radtran_steps, args=args, kwargs=kwargs))
+                processi[i].start()
+
+            for i in range(n_proc):
+                outputs.append(coda[i].get())
+
+            for i in range(n_proc):
+                processi[i].join()
+
+            print('All processes ended')
+            time02 = time.time()
+
+            for los, out in zip(losos, outputs):
+                if los.tag == out.tag:
+                    proc_sims.append(out)
+                else:
+                    raise NameError('{} is not {}'.format(los.tag, out.tag))
+                print(los.tag, len(out.radtran_steps['step']))
+                #print(los.tag, len(los.radtran_steps['step']))
+                #print(len(sim_LOSs[los.tag].radtran_steps['step']))
+
+            ntot += n_proc
+
+        print('calc_radtran_steps done in {} min'.format((time.time()-time03)/60.))
+        sim_LOSs = proc_sims
+
+        # fillo = open('calc_radtran_steps.pic', 'w')
+        # for los, ssp in zip(sim_LOSs, ssps):
+            # los.calc_SZA_along_los(planet, ssp)
+            # los.calc_radtran_steps(planet, lines, calc_derivatives = True, bayes_set = bayes_set, **radtran_opt)
+        # pickle.dump(sim_LOSs, fillo)
+        # fillo.close()
+        # fillo = open('calc_radtran_steps.pic', 'r')
+        # sim_LOSs = pickle.load(fillo)
+        # sim_LOSs = sim_LOSs[::-1]
+
+        for num in range(len(sim_LOSs)):
+            sim_LOSs[num].tag = 'LOS{:02d}'.format(num)
+            print('{} - {} steps'.format(sim_LOSs[num].tag, len(sim_LOSs[num].radtran_steps['step'])))
+        #sim_LOSs = sim_LOSs[::-1]
+
+        radtrans = dict()
+        derivs = dict()
+
+        time00 = time.time()
+        for nsp, sp_grid_split in zip(range(n_split), sp_grids):
+            print('Split # {} of {}: {:5.1f} to {:5.1f} cm-1'.format(nsp, n_split, sp_grid_split.grid.min(), sp_grid_split.grid.max()))
+
+            for nam in LUTS:
+                LUTS[nam].load_split(nsp)
+
+            time0 = time.time()
+            hi_res = dict()
+            ntot = 0
+            nlos = len(sim_LOSs)
+
+            time01 = time.time()
+            while ntot < nlos:
+                losos = sim_LOSs[ntot:ntot+n_threads]
+                n_proc = len(losos)
+                time01 = time.time()
+                print('Lancio {} procs'.format(n_proc))
+                processi = []
+                coda = []
+                outputs = []
+                for los, i in zip(losos, range(n_proc)):
+                    coda.append(Queue())
+                    args = (sp_grid_split, planet)
+                    kwargs = {'queue': coda[i], 'cartLUTs': inputs['cart_LUTS'], 'cartDROP' : inputs['out_dir'], 'calc_derivatives' : False, 'LUTS' : LUTS, 'radtran_opt' : radtran_opt, 'store_abscoeff': False}
+                    processi.append(Process(target=los.radtran_fast, args=args, kwargs=kwargs))
+                    processi[i].start()
+
+                for i in range(n_proc):
+                    outputs.append(coda[i].get())
+
+                for i in range(n_proc):
+                    processi[i].join()
+
+                print('All processes ended')
+                time02 = time.time()
+
+                for los, out in zip(losos,outputs):
+                    radtran = out[0]
+                    retsetmod = out[2]
+                    hi_res[los.tag] = out[0]
+
+                    # coda.append(Queue())
+                    # args = (old_lowres, observ_sample)
+                    # kwargs = {'queue': coda[i], 'spectral_widths': spectral_widths, 'cartDROP' : inputs['out_dir'], 'calc_derivatives' : True, 'bayes_set' : bayes_set, 'LUTS' : LUTS, 'radtran_opt' : radtran_opt, 'g3D' : g3D, 'sub_solar_point' : ssp, 'store_abscoeff': False}
+                    # processi.append(Process(target=out_to_lowres, args=args, kwargs=kwargs))
+                    # processi[i].start()
+
+                    if los.tag in radtrans:
+                        radtrans[los.tag] += radtran.hires_to_lowres(observ_sample, spectral_widths = spectral_widths)
+                    else:
+                        radtrans[los.tag] = radtran.hires_to_lowres(observ_sample, spectral_widths = spectral_widths)
+
+                ntot += n_proc
+                print('tempo tot: {:5.1f} min'.format((time.time()-time01)/60.))
+                print('tempo single proc: {:5.1f} min'.format((time.time()-time02)/60.))
+
+                print('split {}, {} to {} done'.format(nsp, losos[0].tag, losos[-1].tag))
+
+            if save_hires:
+                pickle.dump([nsp,hi_res], hiresfile)
+            print('split {}: {} LOS done in {:5.1f} min'.format(nsp, len(sim_LOSs), (time.time()-time0)/60.))
+
+        if save_hires:
+            hiresfile.close()
+        print('Tempo los sim all wn_range: {} min'.format((time.time()-time00)/60.))
+        time0 = time.time()
+        if solo_simulation:
+            print('Solo simulation. returning..')
+            return None
+
+        sims = []
+        if group_observations:
+            radtrans_list = [radtrans[los.tag] for los in sim_LOSs]
+            radtran_spline = make_radtran_spline(alts_sim, radtrans_list)
+            deriv_splines = dict()
+            for par in bayes_set.params():
+                deriv_par = [derivs[(los.tag, par.nameset, par.key)] for los in sim_LOSs]
+                deriv_splines[(par.nameset, par.key)] = make_radtran_spline(alts_sim, deriv_par)
+
+            for pix, num in zip(pixels, range(len(pixels))):
+                lineas = [pix.low_LOS(), pix.LOS(), pix.up_LOS()]
+
+                alts_pix = np.array([lin.get_tangent_point().Spherical()[2] for lin in lineas])
+                intens_FOV = np.array([radtran_spline(al) for al in alts_pix])
+                sim_FOV_ok = FOV_integr_1D(intens_FOV, pix.pixel_rot)
+                sims.append(sim_FOV_ok)
+
+                derivs_FOV = []
+                derivs_FOV.append(deriv_splines)
+                for par in bayes_set.params():
+                    ders = np.array([deriv_splines[(par.nameset, par.key)](al) for al in alts_pix])
+                    der_FOV_ok = FOV_integr_1D(ders, pix.pixel_rot)
+                    par.store_deriv(der_FOV_ok, num = num)
+        else:
+            for pix, num in zip(pixels, range(len(pixels))):
+                loss = sim_LOSs[3*num:3*(num+1)]
+                intens_FOV = np.array([radtrans[lo.tag] for lo in loss])
+                sim_FOV_ok = FOV_integr_1D(intens_FOV, pix.pixel_rot)
+                sims.append(sim_FOV_ok)
+
+                for par in bayes_set.params():
+                    ders = np.array([derivs[(los.tag, par.nameset, par.key)] for los in loss])
+                    der_FOV_ok = FOV_integr_1D(ders, pix.pixel_rot)
+                    par.store_deriv(der_FOV_ok, num = num)
+
+        print('FOV interp done in {:5.1f} min'.format((time.time()-time0)/60.))
+
+        #INVERSIONE
+        chi = chicalc(obs, sims, noise, masks, bayes_set.n_used_par())
+
+        for par in bayes_set.params():
+            par.hires_deriv = None
+        if debugfile is not None:
+            if num_it == 0:
+                pickle.dump([pixels, sim_LOSs], debugfile)
+            pickle.dump([num_it, obs, sims, bayes_set, radtrans, derivs], debugfile)
+
+        print('chi is: {}'.format(chi))
+
+        if num_it > 0:
+            if abs(chi-chi_old)/chi_old < chi_threshold:
+                print('FINISHEDDDD!! :D', chi)
+                return
+            elif chi > chi_old:
+                print('mmm chi has raised', chi)
+                return
+        chi_old = chi
+        print('old', [par.value for par in bayes_set.params()])
+        inversion_algebra(obs, sims, noise, bayes_set, lambda_LM = lambda_LM, L1_reg = L1_reg, masks = masks)
+        print('new', [par.value for par in bayes_set.params()])
+
+        # Update the VMRs of the retrieved gases with the new values
+        for gas in bayes_set.sets.keys():
+            planet.gases[gas].add_clim(bayes_set.sets[gas].profile())
+
+    return
+
+
+
+
+
 def group_observations(pixels, lat_limits = None, alt_grid = None):
     """
     Builds a set of LOS for the forward model. pixels are grouped depending on observation cube and lat_band. For each group, a set of LOSs to calculate the radtran in that cube is given.

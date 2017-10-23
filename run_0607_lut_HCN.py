@@ -43,7 +43,7 @@ print('Loading planet...')
 
 planet = sbm.Titan(1500.)
 
-planet = pickle.load(open(inputs['cart_LUTS']+'planet_3D_chc.pic', 'r'))
+planet = pickle.load(open(inputs['cart_LUTS']+'planet_3D_chc_e_LTEgases.pic', 'r'))
 
 db_file = inputs['hitran_db']
 
@@ -68,13 +68,21 @@ wn_ranges['CH4'] = [2825.,3225.]
 #
 #     LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [planet.gases[gas]], atmosphere = planet.atmosphere, LUTopt = LUTopt)
 
-gas = 'HCN'
-linee = spcl.read_line_database(db_file, freq_range = wn_ranges[gas])
-linee = smm.check_lines_mols(linee, [planet.gases[gas]])
-abs_coeff = smm.prepare_spe_grid(wn_ranges[gas])
-sp_grid = abs_coeff.spectral_grid
+gassettinuovi = planet.gases.keys()
+gassettinuovi.pop('HCN')
+gassettinuovi.pop('CH4')
+gassettinuovi.pop('C2H2')
 
-LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [planet.gases[gas]], atmosphere = planet.atmosphere, LUTopt = LUTopt)
+print(gassettinuovi)
+
+for gas in gassettinuovi:
+    print(gas)
+    linee = spcl.read_line_database(db_file, freq_range = wn_ranges['CH4'])
+    linee = smm.check_lines_mols(linee, [planet.gases[gas]])
+    abs_coeff = smm.prepare_spe_grid(wn_ranges['CH4'])
+    sp_grid = abs_coeff.spectral_grid
+
+    LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [planet.gases[gas]], atmosphere = planet.atmosphere, LUTopt = LUTopt)
 
 #PTtest = [[3.0, 170.], [4.0, 160.], [2.0, 110.]]
 # PTtest = [[3.0, 170.], [4.0, 160.]]

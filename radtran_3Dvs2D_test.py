@@ -125,9 +125,16 @@ for molec in nlte_molecs.values():
         print('ATTENZZZZIONEEE: gas {} not found in input vmr profiles'.format(molec.name))
         time.sleep(5)
 
+LTE_molecs = [27, 38]
+for num in LTE_molecs:
+    mola = sbm.add_molec_HITRAN(num)
+    mola.add_clim(atm_gases_old[mola.name])
+    planet.add_gas(mola)
+
+
 ##### SETTING THE BAYESSET:
 baybau = smm.BayesSet(tag = 'test_CH4_HCN_C2H2_3D')
-alt_nodes = np.arange(450., 1050., 100.)
+alt_nodes = np.arange(450., 1051., 100.)
 lat_limits = lat_ext[:-1]
 
 apriori_profs = []
@@ -143,7 +150,7 @@ apriori_prof_errs = apriori_profs+0.015
 set_ = smm.LinearProfile_2D('CH4', planet.atmosphere, alt_nodes, lat_limits, apriori_profs, apriori_prof_errs)
 baybau.add_set(set_)
 
-
+alt_nodes = np.arange(550., 1051., 100.)
 apriori_profs = []
 cososo = atm_gases_old['HCN']
 for lat in lat_limits:
@@ -179,6 +186,9 @@ for gas in baybau.sets.keys():
 planet3D = planet
 
 planet.gases['CH4'].iso_1.erase_level('lev_12')
+
+pickle.dump(planet, open('./planet_3D_chc_e_LTEgases.pic','w'))
+sys.exit()
 ############################################################
 
 # keep_levels = dict()
@@ -331,6 +341,7 @@ for pix, obshi in zip(pixels, obs_shift):
     pix.observation.mask = np.ones(len(pix.observation.spectrum))
     pix.pixel_rot = 0.0
 
+sys.exit()
 
 for gas in planet1D.gases:
     gasso = planet1D.gases[gas]
