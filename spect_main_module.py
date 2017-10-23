@@ -2452,7 +2452,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     return
 
 
-def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1'):
+def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1', solo_simulation = False):
     """
     Main routine for retrieval. Fast version.
     """
@@ -2730,6 +2730,9 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
             hiresfile.close()
         print('Tempo los sim all wn_range: {} min'.format((time.time()-time00)/60.))
         time0 = time.time()
+        if solo_simulation:
+            print('Solo simulation. returning..')
+            return None
 
         sims = []
         if group_observations:
