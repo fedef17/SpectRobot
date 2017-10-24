@@ -1552,16 +1552,43 @@ def split_and_compress_LUTS(spectral_grid, allLUTs, cartLUTs, n_threads, n_split
             allLUTs[lutnam].add_split_file(nuovonome)
 
         isomol = allLUTs[lutnam].isomolec
-        for lev in isomol.levels:
-            levello = getattr(isomol, lev)
-            ok, lev_lut = allLUTs[lutnam].find_lev(levello.lev_string)
-            if not ok:
-                raise ValueError('mol {} iso {} Level {} not found'.format(isomolec.mol, isomolec.iso, levello.lev_string))
+        if not allLUTs[lutnam].LTE:
+            for lev in isomol.levels:
+                levello = getattr(isomol, lev)
+                ok, lev_lut = allLUTs[lutnam].find_lev(levello.lev_string)
+                if not ok:
+                    raise ValueError('mol {} iso {} Level {} not found'.format(isomolec.mol, isomolec.iso, levello.lev_string))
 
-            allLUTs[lutnam].sets[lev_lut].load_from_files(cartLUTs = cartLUTs)
+                allLUTs[lutnam].sets[lev_lut].load_from_files(cartLUTs = cartLUTs)
+
+                for nsp, spgri, splitfile in zip(range(n_split), sp_grids, splitfiles):
+                    nuset = copy.deepcopy(allLUTs[lutnam].sets[lev_lut])
+                    splitset = []
+                    for sett in nuset.sets:
+                        settino = dict()
+                        for cos in sett:
+                            gigi = sett[cos].interp_to_grid(spgri)
+                            if gigi.max() > 0.0:
+                                gigi.erase_grid()
+                                gigi.half_precision()
+                                settino[cos] = gigi
+                            else:
+                                settino[cos] = None
+                        splitset.append(settino)
+                    nuset.sets = splitset
+                    nuset.spectral_grid = spgri
+
+                    pickle.dump([lev_lut, nuset], splitfile, protocol=-1)
+
+                allLUTs[lutnam].sets[lev_lut].free_memory()
+
+            for fio in splitfiles:
+                fio.close()
+        else:
+            allLUTs[lutnam].sets['all'].load_from_files(cartLUTs = cartLUTs)
 
             for nsp, spgri, splitfile in zip(range(n_split), sp_grids, splitfiles):
-                nuset = copy.deepcopy(allLUTs[lutnam].sets[lev_lut])
+                nuset = copy.deepcopy(allLUTs[lutnam].sets['all'])
                 splitset = []
                 for sett in nuset.sets:
                     settino = dict()
@@ -1577,12 +1604,11 @@ def split_and_compress_LUTS(spectral_grid, allLUTs, cartLUTs, n_threads, n_split
                 nuset.sets = splitset
                 nuset.spectral_grid = spgri
 
-                pickle.dump([lev_lut, nuset], splitfile, protocol=-1)
+                pickle.dump(['all', nuset], splitfile, protocol=-1)
 
-            allLUTs[lutnam].sets[lev_lut].free_memory()
-
-        for fio in splitfiles:
-            fio.close()
+            allLUTs[lutnam].sets['all'].free_memory()
+            for fio in splitfiles:
+                fio.close()
 
     for nam in allLUTs:
         if already_done[nam]:

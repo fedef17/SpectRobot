@@ -340,8 +340,7 @@ for pix, obshi in zip(pixels, obs_shift):
     pix.observation.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
     pix.observation.mask = np.ones(len(pix.observation.spectrum))
     pix.pixel_rot = 0.0
-
-sys.exit()
+    
 
 for gas in planet1D.gases:
     gasso = planet1D.gases[gas]
