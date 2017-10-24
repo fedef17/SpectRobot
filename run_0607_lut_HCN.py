@@ -68,14 +68,7 @@ wn_ranges['CH4'] = [2825.,3225.]
 #
 #     LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [planet.gases[gas]], atmosphere = planet.atmosphere, LUTopt = LUTopt)
 
-gassettinuovi = planet.gases
-gassettinuovi.pop('HCN')
-gassettinuovi.pop('CH4')
-gassettinuovi.pop('C2H2')
-
-print(gassettinuovi)
-
-for gas in gassettinuovi:
+for gas in planet.gases:
     print(gas)
     linee = spcl.read_line_database(db_file, freq_range = wn_ranges['CH4'])
     linee = smm.check_lines_mols(linee, [planet.gases[gas]])

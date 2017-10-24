@@ -132,6 +132,7 @@ for num in LTE_molecs:
     planet.add_gas(mola)
 
 planet.gases['C2H6'].del_iso('iso_2')
+planet.gases['CH4'].add_all_iso_from_HITRAN(n_max = 3)
 
 ##### SETTING THE BAYESSET:
 baybau = smm.BayesSet(tag = 'test_CH4_HCN_C2H2_3D')
@@ -189,6 +190,7 @@ planet3D = planet
 planet.gases['CH4'].iso_1.erase_level('lev_12')
 
 pickle.dump(planet, open('./planet_3D_chc_e_LTEgases.pic','w'))
+
 ############################################################
 
 # keep_levels = dict()
@@ -340,7 +342,7 @@ for pix, obshi in zip(pixels, obs_shift):
     pix.observation.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
     pix.observation.mask = np.ones(len(pix.observation.spectrum))
     pix.pixel_rot = 0.0
-    
+
 
 for gas in planet1D.gases:
     gasso = planet1D.gases[gas]
@@ -352,6 +354,25 @@ for gas in planet1D.gases:
 
 print(planet1D.atmosphere.profile()['temp'].min(), planet1D.atmosphere.profile()['temp'].max())
 
+
+
+atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_input_1D'] + 'in_vmr_prof_final_gbb.dat', 'vmr', n_alt_max = n_alt_max)
+
+for gas in atm_gases_old:
+    atm_gases_old[gas] = sbm.AtmProfile(alt_gri, atm_gases_old[gas], profname='vmr', interp = 'lin')
+
+for molec in planet1D.gases.values():
+    molec.add_clim(atm_gases_old[molec.name])
+
+teag = '2Dvs3D_check_radtran_finalVMR_ch3d'
+dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
+result = smm.radtrans(inputs, planet1D, linee, pixels, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, save_hires = True, group_observations = True)
+pickle.dump(results, dampa)
+dampa.close()
+tot_time = time.time()-time0
+print('Tempo totale: {} min'.format(tot_time/60.))
+
+sys.exit()
 
 bay0 = copy.deepcopy(baybau1D)
 time0 = time.time()
