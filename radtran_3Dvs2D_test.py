@@ -355,6 +355,16 @@ for gas in planet1D.gases:
 print(planet1D.atmosphere.profile()['temp'].min(), planet1D.atmosphere.profile()['temp'].max())
 
 
+bay0 = copy.deepcopy(baybau1D)
+time0 = time.time()
+teag = '2Dvs3D_oldtemp_NEWcheck_shifted_nopixrot_groupobs'
+dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
+result = smm.inversion_fast_limb(inputs, planet1D, linee, bay0, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, group_observations = True)
+dampa.close()
+tot_time = time.time()-time0
+print('Tempo totale: {} min'.format(tot_time/60.))
+
+##### SETTING THE BAYESSET:
 
 atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_input_1D'] + 'in_vmr_prof_final_gbb.dat', 'vmr', n_alt_max = n_alt_max)
 
@@ -373,57 +383,6 @@ tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
 sys.exit()
-
-bay0 = copy.deepcopy(baybau1D)
-time0 = time.time()
-teag = '2Dvs3D_oldtemp_NEWcheck_shifted_nopixrot_groupobs'
-dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet1D, linee, bay0, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, group_observations = True)
-dampa.close()
-tot_time = time.time()-time0
-print('Tempo totale: {} min'.format(tot_time/60.))
-
-atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_input_1D'] + 'in_vmr_prof_final_gbb.dat', 'vmr', n_alt_max = n_alt_max)
-
-for gas in atm_gases_old:
-    atm_gases_old[gas] = sbm.AtmProfile(alt_gri, atm_gases_old[gas], profname='vmr', interp = 'lin')
-
-##### SETTING THE BAYESSET:
-baybau1D = smm.BayesSet(tag = 'test_CH4_HCN_C2H2_1D')
-alt_nodes = np.arange(450., 1051., 100.)
-
-cososo = atm_gases_old['CH4']
-prf = []
-for alt in alt_nodes:
-    prf.append(cososo.calc(alt))
-apriori_prof = np.array(prf)
-apriori_prof_err = apriori_prof+0.015
-set_ = smm.LinearProfile_1D_new('CH4', alt_gri, alt_nodes, apriori_prof, apriori_prof_err)
-baybau1D.add_set(set_)
-
-alt_nodes = np.arange(550., 1051., 100.)
-
-cososo = atm_gases_old['HCN']
-prf = []
-for alt in alt_nodes:
-    prf.append(cososo.calc(alt))
-apriori_prof = np.array(prf)
-apriori_prof_err = apriori_prof+3.e-4
-set_ = smm.LinearProfile_1D_new('HCN', alt_gri, alt_nodes, apriori_prof, apriori_prof_err)
-baybau1D.add_set(set_)
-
-cososo = atm_gases_old['C2H2']
-prf = []
-for alt in alt_nodes:
-    prf.append(cososo.calc(alt))
-apriori_prof = np.array(prf)
-apriori_prof_err = apriori_prof+1.e-4
-set_ = smm.LinearProfile_1D_new('C2H2', alt_gri, alt_nodes, apriori_prof, apriori_prof_err)
-baybau1D.add_set(set_)
-
-### updating the profile of gases in bayesset
-for gas in baybau.sets.keys():
-    planet1D.gases[gas].add_clim(baybau.sets[gas].profile())
 
 bay0 = copy.deepcopy(baybau1D)
 time0 = time.time()
