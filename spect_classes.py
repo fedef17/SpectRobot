@@ -1178,6 +1178,7 @@ class SpectralGcoeff(SpectralObject):
             self.lev_string = minimal_level_string
             self.unidentified_lines = False
         else:
+            self.lev_string = None
             self.unidentified_lines = True
         self.ctype = ctype
         self.spectral_grid = copy.deepcopy(spectral_grid)
@@ -1321,6 +1322,8 @@ class SpectralGcoeff(SpectralObject):
         """
         Interpolates self with another Gcoeff coeff2, considering the parameters given. The two coeffs should either have the same pressure (and in this case the desired Temp is given in the call) or the same temperature (Pres is given in the call).
         """
+        if not hasattr(self, lev_string):
+            self.lev_string = None
 
         if not sbm.isclose(self.temp, coeff2.temp) and not sbm.isclose(self.pres, coeff2.pres):
             raise ValueError('The two coeffs have both different temperatures and pressures! cannot interpolate')
