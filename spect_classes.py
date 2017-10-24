@@ -1322,7 +1322,7 @@ class SpectralGcoeff(SpectralObject):
         """
         Interpolates self with another Gcoeff coeff2, considering the parameters given. The two coeffs should either have the same pressure (and in this case the desired Temp is given in the call) or the same temperature (Pres is given in the call).
         """
-        if not hasattr(self, lev_string):
+        if not hasattr(self, 'lev_string'):
             self.lev_string = None
 
         if not sbm.isclose(self.temp, coeff2.temp) and not sbm.isclose(self.pres, coeff2.pres):
