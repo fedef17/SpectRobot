@@ -2526,15 +2526,21 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         print('Group observations')
         #sim_LOSs = group_observations(pixels)
         sim_LOSs = [pix.LOS() for pix in pixels]
-        sim_LOSs.insert(0, pixels[0].up_LOS())
-        sim_LOSs.append(pixels[-1].low_LOS())
+        first_los = pixels[0].low_LOS()
+        if first_los.get_tangent_altitude() > pixels[0].limb_tg_alt:
+            first_los = pixels[0].up_LOS()
+        sim_LOSs.insert(0, first_los)
+        last_los = pixels[-1].up_LOS()
+        if last_los.get_tangent_altitude() < pixels[-1].limb_tg_alt:
+            last_los = pixels[-1].low_LOS()
+        sim_LOSs.append(last_los)
         #sim_LOSs = sim_LOSs[::-1]
 
         fszas = [pix.limb_tg_sza for pix in pixels]
         fszas.insert(0, pixels[0].limb_tg_sza)
         fszas.append(pixels[-1].limb_tg_sza)
 
-        alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
+        alts_sim = [los.get_tangent_altitude() for los in sim_LOSs]
         print(alts_sim)
 
         ssps = [pix.sub_solar_point() for pix in pixels]
@@ -2557,7 +2563,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
             ssps += 3*[pix.sub_solar_point()]
             fszas += 3*[pix.limb_tg_sza]
 
-        alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
+        alts_sim = [los.get_tangent_altitude() for los in sim_LOSs]
 
     for num in range(len(sim_LOSs)):
         sim_LOSs[num].tag = 'LOS{:03d}'.format(num)

@@ -131,6 +131,7 @@ for num in LTE_molecs:
     mola.add_clim(atm_gases_old[mola.name])
     planet.add_gas(mola)
 
+planet.gases['C2H6'].del_iso('iso_2')
 
 ##### SETTING THE BAYESSET:
 baybau = smm.BayesSet(tag = 'test_CH4_HCN_C2H2_3D')
@@ -188,7 +189,6 @@ planet3D = planet
 planet.gases['CH4'].iso_1.erase_level('lev_12')
 
 pickle.dump(planet, open('./planet_3D_chc_e_LTEgases.pic','w'))
-sys.exit()
 ############################################################
 
 # keep_levels = dict()
