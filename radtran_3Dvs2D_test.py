@@ -187,8 +187,6 @@ for gas in baybau.sets.keys():
 
 planet3D = planet
 
-planet.gases['CH4'].iso_1.erase_level('lev_12')
-
 pickle.dump(planet, open('./planet_3D_chc_e_LTEgases.pic','w'))
 
 ############################################################
@@ -294,12 +292,26 @@ radtran_opt['max_Plog_variation'] = 1.
 print('Loading lines...')
 db_file = inputs['hitran_db']
 linee = spcl.read_line_database(db_file, freq_range = wn_range)
-
+linee = smm.check_lines_mols(linee, planet3D.gases.values())
 # planet = pickle.load(open(inputs['cart_tvibs']+'planet.pic'))
 
-linee = smm.check_lines_mols(linee, planet3D.gases.values())
+nuca = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/CH4_newband/'
+linee_0020 = spcl.read_line_database(nuca+'P4mP2_prediction_0020-0010')
+linee_0012 = spcl.read_line_database(nuca+'P4mP2_prediction_0012-0002')
+linee_0111 = spcl.read_line_database(nuca+'P4mP2_prediction_0111-0101')
+
+linee_0020_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-30]
+linee_0012_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-30]
+linee_0111_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-29]
+
+linee += linee_0020_sel
+linee += linee_0012_sel
+linee += linee_0111_sel
+
 smm.keep_levels_wlines(planet3D, linee)
 smm.keep_levels_wlines(planet1D, linee)
+planet1D.gases['CH4'].iso_1.erase_level('lev_12')
+planet3D.gases['CH4'].iso_1.erase_level('lev_12')
 
 pickle.dump(planet3D, open(inputs['cart_tvibs']+'planet_3D.pic','w'))
 pickle.dump(planet1D, open(inputs['cart_tvibs']+'planet_1D.pic','w'))

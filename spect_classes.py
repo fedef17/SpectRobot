@@ -1493,6 +1493,10 @@ def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev 
                 break
         if (linea['Mol'] == mol or mol is None) and (linea['Iso'] == iso or iso is None) and (linea['Up_lev_str'] == up_lev or up_lev is None) and (linea['Lo_lev_str'] == down_lev or down_lev is None):
             line = SpectLine(linea)
+            if line.Air_broad == 0.0:
+                line.Air_broad = 0.05
+            if line.Self_broad == 0.0:
+                line.Self_broad = 0.07
             if verbose: print(linea)
             if link_to_isomolecs is not None:
                 IsoMolecol = [molecolo for molecolo in link_to_isomolecs if (molecolo.mol == mol and molecolo.iso == iso)]

@@ -68,14 +68,27 @@ wn_ranges['CH4'] = [2825.,3225.]
 #
 #     LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [planet.gases[gas]], atmosphere = planet.atmosphere, LUTopt = LUTopt)
 
-for gas in planet.gases:
-    print(gas)
-    linee = spcl.read_line_database(db_file, freq_range = wn_ranges['CH4'])
-    linee = smm.check_lines_mols(linee, [planet.gases[gas]])
-    abs_coeff = smm.prepare_spe_grid(wn_ranges['CH4'])
-    sp_grid = abs_coeff.spectral_grid
+linee = spcl.read_line_database(db_file, freq_range = wn_ranges['CH4'])
+linee = smm.check_lines_mols(linee, [planet.gases['CH4']])
 
-    LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [planet.gases[gas]], atmosphere = planet.atmosphere, LUTopt = LUTopt)
+nuca = '/work/localuser/fedef/SPECT_ROBOT_RUN/CH4_newband/'
+#nuca = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/CH4_newband/'
+linee_0020 = spcl.read_line_database(nuca+'P4mP2_prediction_0020-0010')
+linee_0012 = spcl.read_line_database(nuca+'P4mP2_prediction_0012-0002')
+linee_0111 = spcl.read_line_database(nuca+'P4mP2_prediction_0111-0101')
+
+linee_0020_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-30]
+linee_0012_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-30]
+linee_0111_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-29]
+
+linee += linee_0020_sel
+linee += linee_0012_sel
+linee += linee_0111_sel
+
+abs_coeff = smm.prepare_spe_grid(wn_ranges['CH4'])
+sp_grid = abs_coeff.spectral_grid
+
+LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [planet.gases['CH4']], atmosphere = planet.atmosphere, LUTopt = LUTopt)
 
 #PTtest = [[3.0, 170.], [4.0, 160.], [2.0, 110.]]
 # PTtest = [[3.0, 170.], [4.0, 160.]]
