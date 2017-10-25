@@ -77,9 +77,9 @@ linee_0020 = spcl.read_line_database(nuca+'P4mP2_prediction_0020-0010')
 linee_0012 = spcl.read_line_database(nuca+'P4mP2_prediction_0012-0002')
 linee_0111 = spcl.read_line_database(nuca+'P4mP2_prediction_0111-0101')
 
-linee_0020_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-30]
-linee_0012_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-30]
-linee_0111_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-29]
+linee_0020_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-29]
+linee_0012_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-29]
+linee_0111_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-28]
 
 linee += linee_0020_sel
 linee += linee_0012_sel
