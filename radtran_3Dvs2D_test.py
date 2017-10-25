@@ -241,6 +241,7 @@ for molec in mol1.values():
         time.sleep(5)
 
 planet1D = planet
+pickle.dump(planet, open('./planet_1D_chc_e_LTEgases.pic','w'))
 
 ##### SETTING THE BAYESSET:
 baybau1D = smm.BayesSet(tag = 'test_CH4_HCN_C2H2_1D')
@@ -301,9 +302,9 @@ linee_0020 = spcl.read_line_database(nuca+'P4mP2_prediction_0020-0010')
 linee_0012 = spcl.read_line_database(nuca+'P4mP2_prediction_0012-0002')
 linee_0111 = spcl.read_line_database(nuca+'P4mP2_prediction_0111-0101')
 
-linee_0020_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-29]
-linee_0012_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-29]
-linee_0111_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-28]
+linee_0020_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-28]
+linee_0012_sel = [lin for lin in linee_0012 if lin.Strength > 1.e-27]
+linee_0111_sel = [lin for lin in linee_0111 if lin.Strength > 1.e-27]
 
 linee += linee_0020_sel
 linee += linee_0012_sel
@@ -319,15 +320,15 @@ pickle.dump(planet1D, open(inputs['cart_tvibs']+'planet_1D.pic','w'))
 
 
 LUTopt = dict()
-LUTopt['max_pres'] = 2.0 # hPa circa 200 km
+LUTopt['max_pres'] = 0.1 # hPa circa 200 km
 LUTopt['temp_step'] = 5.
 LUTopt['pres_step_log'] = 1.0
 
 sp_gri = smm.prepare_spe_grid(wn_range).spectral_grid
 
-PTcoup_needed = smm.calc_PT_couples_atmosphere(linee, planet.gases.values(), planet.atmosphere, **LUTopt)
+PTcoup_needed = smm.calc_PT_couples_atmosphere(linee, planet1D.gases.values(), planet.atmosphere, **LUTopt)
 
-LUTS = smm.check_and_build_allluts(inputs, sp_gri, linee, planet.gases.values(), PTcouples = PTcoup_needed, LUTopt = LUTopt)
+LUTS = smm.check_and_build_allluts(inputs, sp_gri, linee, planet1D.gases.values(), PTcouples = PTcoup_needed, LUTopt = LUTopt)
 
 # sys.exit()
 
@@ -370,7 +371,7 @@ print(planet1D.atmosphere.profile()['temp'].min(), planet1D.atmosphere.profile()
 
 bay0 = copy.deepcopy(baybau1D)
 time0 = time.time()
-teag = '2Dvs3D_oldtemp_NEWcheck_shifted_nopixrot_groupobs'
+teag = '2Dvs3D_oldtemp_NEWBANDS'
 dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
 result = smm.inversion_fast_limb(inputs, planet1D, linee, bay0, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, group_observations = True)
 dampa.close()
@@ -387,7 +388,7 @@ for gas in atm_gases_old:
 for molec in planet1D.gases.values():
     molec.add_clim(atm_gases_old[molec.name])
 
-teag = '2Dvs3D_check_radtran_finalVMR_ch3d'
+teag = '2Dvs3D_check_radtran_finalVMR_NEWbands'
 dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
 result = smm.radtrans(inputs, planet1D, linee, pixels, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, save_hires = True, group_observations = True)
 pickle.dump(results, dampa)

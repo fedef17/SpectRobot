@@ -43,14 +43,15 @@ print('Loading planet...')
 
 planet = sbm.Titan(1500.)
 
-planet = pickle.load(open(inputs['cart_LUTS']+'planet_3D_chc_e_LTEgases.pic', 'r'))
+# planet = pickle.load(open(inputs['cart_LUTS']+'planet_1D_chc_e_LTEgases.pic', 'r'))
+planet = pickle.load(open('planet_1D_chc_e_LTEgases.pic', 'r'))
 
 db_file = inputs['hitran_db']
 
 ########################################################
 
 LUTopt = dict()
-LUTopt['max_pres'] = 2.0 # hPa circa 120 km
+LUTopt['max_pres'] = 0.1 # hPa circa 120 km
 LUTopt['temp_step'] = 5.
 LUTopt['pres_step_log'] = 1.0
 
@@ -71,20 +72,25 @@ wn_ranges['CH4'] = [2825.,3225.]
 linee = spcl.read_line_database(db_file, freq_range = wn_ranges['CH4'])
 linee = smm.check_lines_mols(linee, [planet.gases['CH4']])
 
+PTcouples = smm.calc_PT_couples_atmosphere(linee, [planet.gases['CH4']], planet.atmosphere, **LUTopt)
+
 nuca = '/work/localuser/fedef/SPECT_ROBOT_RUN/CH4_newband/'
-#nuca = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/CH4_newband/'
+nuca = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/CH4_newband/'
 linee_0020 = spcl.read_line_database(nuca+'P4mP2_prediction_0020-0010')
 linee_0012 = spcl.read_line_database(nuca+'P4mP2_prediction_0012-0002')
 linee_0111 = spcl.read_line_database(nuca+'P4mP2_prediction_0111-0101')
 
-linee_0020_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-29]
-linee_0012_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-29]
-linee_0111_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-28]
+linee_0020_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-28]
+print(len(linee_0020_sel))
+linee_0012_sel = [lin for lin in linee_0012 if lin.Strength > 1.e-27]
+print(len(linee_0012_sel))
+linee_0111_sel = [lin for lin in linee_0111 if lin.Strength > 1.e-27]
+print(len(linee_0111_sel))
 
+sys.exit()
 linee += linee_0020_sel
 linee += linee_0012_sel
 linee += linee_0111_sel
-
 abs_coeff = smm.prepare_spe_grid(wn_ranges['CH4'])
 sp_grid = abs_coeff.spectral_grid
 
