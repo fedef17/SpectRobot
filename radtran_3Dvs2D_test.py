@@ -347,6 +347,7 @@ for pix in pixels:
 pixels.sort(key = lambda x: x.limb_tg_alt)
 
 obs_shift = pickle.load(open(inputs['cart_inputs']+'obs_shifted.pic'))
+i=0
 for pix, obshi in zip(pixels, obs_shift):
     pix.observation.spectrum = obshi.spectrum
     pix.observation.spectral_grid = obshi.spectral_grid
@@ -355,7 +356,13 @@ for pix, obshi in zip(pixels, obs_shift):
     pix.observation.bands = copy.deepcopy(obshi)
     pix.observation.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
     pix.observation.mask = np.ones(len(pix.observation.spectrum))
+    if i == 0:
+        pix.observation.mask[4] = 0
+        pix.observation.mask[5] = 0
+    if i == 5:
+        pix.observation.mask[16] = 0
     pix.pixel_rot = 0.0
+    i+=1
 
 
 for gas in planet1D.gases:
