@@ -69,10 +69,13 @@ wn_ranges['CH4'] = [2825.,3225.]
 #
 #     LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [planet.gases[gas]], atmosphere = planet.atmosphere, LUTopt = LUTopt)
 
+ch4 = planet.gases['CH4']
+ch4.del_iso('iso_2')
+ch4.del_iso('iso_3')
 linee = spcl.read_line_database(db_file, freq_range = wn_ranges['CH4'])
-linee = smm.check_lines_mols(linee, [planet.gases['CH4']])
+linee = smm.check_lines_mols(linee, [ch4])
 
-PTcouples = smm.calc_PT_couples_atmosphere(linee, [planet.gases['CH4']], planet.atmosphere, **LUTopt)
+PTcouples = smm.calc_PT_couples_atmosphere(linee, [ch4], planet.atmosphere, **LUTopt)
 
 nuca = '/work/localuser/fedef/SPECT_ROBOT_RUN/CH4_newband/'
 nuca = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/CH4_newband/'
@@ -87,14 +90,19 @@ print(len(linee_0012_sel))
 linee_0111_sel = [lin for lin in linee_0111 if lin.Strength > 1.e-27]
 print(len(linee_0111_sel))
 
-sys.exit()
-linee += linee_0020_sel
-linee += linee_0012_sel
-linee += linee_0111_sel
+linee_sel = []
+linee_sel += linee_0020_sel
+linee_sel += linee_0012_sel
+linee_sel += linee_0111_sel
+print('moltiplico per il misterioso fattore 0.337')
+for lin in linee_sel:
+    lin.A_coeff = lin.A_coeff*0.33709
+
+linee += linee_sel
 abs_coeff = smm.prepare_spe_grid(wn_ranges['CH4'])
 sp_grid = abs_coeff.spectral_grid
 
-LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [planet.gases['CH4']], atmosphere = planet.atmosphere, LUTopt = LUTopt)
+LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [ch4], atmosphere = planet.atmosphere, LUTopt = LUTopt)
 
 #PTtest = [[3.0, 170.], [4.0, 160.], [2.0, 110.]]
 # PTtest = [[3.0, 170.], [4.0, 160.]]

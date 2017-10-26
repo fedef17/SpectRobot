@@ -190,7 +190,7 @@ class BayesSet(object):
 
     def update_parerror(self):
         for par, num in zip(self.params(), range(self.n_tot)):
-            par.ret_error = self.VCM[num,num]
+            par.ret_error = np.sqrt(self.VCM[num,num])
         return
 
     def n_used_par(self):
@@ -513,7 +513,7 @@ class LinearProfile_1D_new(RetSet):
             parerr.append(par.ret_error)
         if with_err:
             pl.errorbar(parval, alts, xerr=parerr, linewidth=linewidth)
-        pl.scatter(parval, alts, label = label, linewidth=linewidth)
+        #pl.scatter(parval, alts, label = label, linewidth=linewidth)
 
         if logplot:
             pl.xscale('log')
