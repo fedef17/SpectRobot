@@ -378,12 +378,14 @@ print(planet1D.atmosphere.profile()['temp'].min(), planet1D.atmosphere.profile()
 
 bay0 = copy.deepcopy(baybau1D)
 time0 = time.time()
-teag = '2Dvs3D_oldtemp_NEWBANDS'
+teag = '2Dvs3D_oldtemp_NEWBANDS_0337_nuchi'
 dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
 result = smm.inversion_fast_limb(inputs, planet1D, linee, bay0, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, group_observations = True)
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
+
+sys.exit()
 
 ##### SETTING THE BAYESSET:
 

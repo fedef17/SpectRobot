@@ -3261,7 +3261,7 @@ def genvec(obs, sims, noise, masks = None):
 def chicalc(obs, sims, noise, masks, n_ret):
     obs_vec, sim_vec, noi_vec = genvec(obs, sims, noise, masks = masks)
 
-    chi = np.sqrt(np.sum(((obs_vec-sim_vec)/noi_vec)**2))
+    chi = np.sum(((obs_vec-sim_vec)/noi_vec)**2)
     chi = chi/(len(obs_vec)-n_ret)
     return chi
 

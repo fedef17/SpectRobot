@@ -93,6 +93,9 @@ class SpectLine(object):
             ofile.write('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}{:8.3f}{:8.3f}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.E_lower,self.Up_lev_str,self.Lo_lev_str,self.g_lo,self.g_up))
         return
 
+    def Print_all_quanta(self):
+        print('{:4d}{:2d}{:8.2f}{:15s}{:15s}{:15s}{:15s}{:8.3f}{:8.3f}'.format(self.Mol,self.Iso,self.Freq,self.Up_lev_str,self.Lo_lev_str,self.Q_num_up, self.Q_num_lo, self.g_lo,self.g_up))
+        return
 
     def ShowCalc(self, T, P = 1, nlte_ratio = 1):
         pass
