@@ -243,6 +243,9 @@ for molec in mol1.values():
 planet1D = planet
 pickle.dump(planet, open('./planet_1D_chc_e_LTEgases.pic','w'))
 
+print('reading modified planet')
+planet1D = pickle.load(open('./planet_1D_ratioinstability.pic'))
+
 ##### SETTING THE BAYESSET:
 baybau1D = smm.BayesSet(tag = 'test_CH4_HCN_C2H2_1D')
 alt_nodes = np.arange(450., 1051., 100.)
@@ -378,14 +381,12 @@ print(planet1D.atmosphere.profile()['temp'].min(), planet1D.atmosphere.profile()
 
 bay0 = copy.deepcopy(baybau1D)
 time0 = time.time()
-teag = '2Dvs3D_oldtemp_NEWBANDS_0337_nuchi'
+teag = '2Dvs3D_oldtemp_NEWBANDS_0337_nuchi_ratioinstability'
 dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
 result = smm.inversion_fast_limb(inputs, planet1D, linee, bay0, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, group_observations = True)
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
-
-sys.exit()
 
 ##### SETTING THE BAYESSET:
 
@@ -397,10 +398,10 @@ for gas in atm_gases_old:
 for molec in planet1D.gases.values():
     molec.add_clim(atm_gases_old[molec.name])
 
-teag = '2Dvs3D_check_radtran_finalVMR_NEWbands'
+teag = '2Dvs3D_check_radtran_finalVMR_NEWbands_ratioinstability'
 dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
 result = smm.radtrans(inputs, planet1D, linee, pixels, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, save_hires = True, group_observations = True)
-pickle.dump(results, dampa)
+pickle.dump(result, dampa)
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))

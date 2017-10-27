@@ -83,19 +83,27 @@ class SpectLine(object):
         for nome in cose_mas:
             setattr(self,nome,None)
 
+        for nome in cose_hit:
+            if not hasattr(self, nome):
+                setattr(self, nome, None)
+
         return
 
 
     def Print(self, ofile = None):
         if ofile is None:
-            print('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}{:8.3f}{:8.3f}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.E_lower,self.Up_lev_str,self.Lo_lev_str,self.g_lo,self.g_up))
+            print('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}{:15s}{:15s}{:8.3f}{:8.3f}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.E_lower,self.Up_lev_str,self.Lo_lev_str,self.Q_num_up, self.Q_num_lo, self.g_up,self.g_lo))
         else:
-            ofile.write('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}{:8.3f}{:8.3f}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.E_lower,self.Up_lev_str,self.Lo_lev_str,self.g_lo,self.g_up))
+            ofile.write('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}{:8.3f}{:8.3f}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.E_lower,self.Up_lev_str,self.Lo_lev_str,self.g_up,self.g_lo))
         return
 
-    def Print_all_quanta(self):
-        print('{:4d}{:2d}{:8.2f}{:15s}{:15s}{:15s}{:15s}{:8.3f}{:8.3f}'.format(self.Mol,self.Iso,self.Freq,self.Up_lev_str,self.Lo_lev_str,self.Q_num_up, self.Q_num_lo, self.g_lo,self.g_up))
-        return
+    def Print_gbb(self, ofile = None):
+        stringa = '{:2d}{:1d}{:12.6f}{:10.3e}{:10.3e}{:6.4f}{:6.3f}{:10.4f}{:4.2f}{:8.6f}{:15s}{:15s}{:15s}{:15s}{:8.3f}{:8.3f}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.A_coeff,self.Air_broad,self.Self_broad,self.E_lower,self.T_dep_broad, self.P_shift, self.Up_lev_str,self.Lo_lev_str, self.Q_num_up, self.Q_num_lo, self.g_up,self.g_lo)
+        if ofile is None:
+            print(stringa)
+        else:
+            ofile.write(stringa)
+        return stringa
 
     def ShowCalc(self, T, P = 1, nlte_ratio = 1):
         pass
@@ -237,6 +245,27 @@ class SpectLine(object):
             raise cazzillo
 
         return iso_ab*S_ab, iso_ab*S_em
+
+
+    def calc_A_coeff_from_strength(self, iso_ab = None, Q_part = None, set_attr = False):
+        """
+        Inverse of the method CalcStrength_from_Einstein.
+        Statistical weights need to be defined before calling.
+        """
+        Temp = 296.0
+
+        if Q_part is None:
+            Q_part = CalcPartitionSum(self.Mol, self.Iso, temp = Temp)
+        if iso_ab is None:
+            iso_ab = sbm.find_molec_metadata(self.Mol, self.Iso)['iso_ratio']
+
+        B_21 = self.Strength*(4*np.pi*Q_part)/((Boltz_ratio_nodeg(self.E_lower, Temp) - Boltz_ratio_nodeg(self.E_lower+self.Freq, Temp))*h_cgs*c_cgs*self.Freq * self.g_up * iso_ab)
+
+        A = Einstein_B21_to_A(B_21, self.Freq)
+        if set_attr:
+            self.A_coeff = A
+
+        return A
 
 
     def Calc_Gcoeffs(self, Temp, isomolec = None):
@@ -1522,6 +1551,47 @@ def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev 
     return linee_sel
 
 
+def calc_stat_weights_linear_molec(gi, gs, Q_num_up, Q_num_lo, formato = 'HITRAN'):
+    """
+    gi is the state independent degeneracy factor. (1 for CH4; 6 for HCN)
+    gs is the state dependent degeneracy factor. (2,3 or 5 for CH4; 1 for HCN)
+
+    La formula è: g = gi*gs*(2*J+1)
+    Il J contenuto in Q_num_lo è quello del livello basso.
+
+    As explained in Einstein A-coefficients and statistical weights for molecular
+absorption transitions in the HITRAN database. Marie Šimečková, David Jacquemart, Laurence S. Rothman, Robert R. Gamache, Aaron Goldman. (2006)
+    """
+
+    if formato == 'HITRAN':
+        coso = Q_num_lo.split()
+        try:
+            J = int(coso[1])
+        except:
+            J = int(coso[1][:-1])
+        br = coso[0]
+        if br == 'Q':
+            q_up = gs*gi*(2*J+1)
+            q_lo = gs*gi*(2*J+1)
+        elif br == 'P':
+            q_up = gs*gi*(2*(J-1)+1)
+            q_lo = gs*gi*(2*J+1)
+        else:
+            q_up = gs*gi*(2*(J+1)+1)
+            q_lo = gs*gi*(2*J+1)
+    elif formato == 'GEISA':
+        try:
+            J_up = int(Q_num_up.split()[0])
+            J_lo = int(Q_num_lo.split()[0])
+        except:
+            J_up = int(Q_num_up.split()[0][:-1])
+            J_lo = int(Q_num_lo.split()[0][:-1])
+        q_up = gs*gi*(2*J_up+1)
+        q_lo = gs*gi*(2*J_lo+1)
+
+    return q_up, q_lo
+
+
 def ImportPartitionSumTable(mol,iso):
     """
     Loads the tabulated values for the internal partition sum.
@@ -1598,6 +1668,27 @@ def Einstein_A_to_B(A_coeff, wavenumber, units = 'cm3ergcm2'):
     return B_coeff
 
 
+def Einstein_B21_to_A(B21, wavenumber, units = 'cm3ergcm2'):
+    """
+    Calculates the Eintein A coeff from the B coeff for induced absorption. B is expressed in m^3/J*s and is defined so that in the expression for the light absorption it appears with the radiation density rho (not with the number of photons, other possible definition for B).
+    """
+    nu = convertto_hz(wavenumber, 'cm_1')
+
+    fact = 8*np.pi*const.constants.h*nu**3/const.constants.c**3
+    fact_2 = 2*h_cgs*c_cgs**2*wavenumber**3
+    fact_3 = 2*h_cgs*nu**3/c_cgs**2
+    #print(h_cgs,wavenumber,fact_2,c_cgs)
+
+    if units == 'm3Js': # SI units
+        A_coeff = B21*fact
+    elif units == 'cm3ergcm2': # my units (freq in cm-1)
+        A_coeff = B21*fact_2
+    elif units == 'cm3ergs': # Vardavas units (freq in Hz)
+        A_coeff = B21*fact_3
+
+    return A_coeff
+
+
 def Einstein_B21_to_B12(B_21, g_1, g_2):
     """
     Calculates the inverse Eintein B coeff for induced absorption.
@@ -1640,6 +1731,16 @@ def Einstein_A_to_Gcoeff_abs(line, Temp, E_vib):
     G_co = h_cgs*c_cgs*line.Freq * rot_pop * B_12 / (4*np.pi)
 
     return G_co
+
+# G_co_ab = h_cgs*c_cgs*line.Freq * Boltz_ratio_nodeg(line.E_lower, Temp) * B_21*line.g_up / (4*np.pi)
+#
+# G_co_in = h_cgs*c_cgs*line.Freq * line.g_up * Boltz_ratio_nodeg(line.E_lower+line.Freq, Temp) * B_21 / (4*np.pi)
+#
+# S = (G_co_ab - G_co_in)/Q_part
+#
+# S = h_cgs*c_cgs*line.Freq * line.g_up * B_21/ (4*np.pi*Q_part) *(Boltz_ratio_nodeg(line.E_lower, Temp) - Boltz_ratio_nodeg(line.E_lower+line.Freq, Temp))
+#
+# B_21 = S*(4*np.pi*Q_part)/((Boltz_ratio_nodeg(line.E_lower, Temp) - Boltz_ratio_nodeg(line.E_lower+line.Freq, Temp))*h_cgs*c_cgs*line.Freq * line.g_up * iso_ab)
 
 
 def Einstein_A_to_Gcoeff_indem(line, Temp, E_vib):
