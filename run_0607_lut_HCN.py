@@ -78,31 +78,24 @@ linee = smm.check_lines_mols(linee, [ch4])
 PTcouples = smm.calc_PT_couples_atmosphere(linee, [ch4], planet.atmosphere, **LUTopt)
 
 nuca = '/work/localuser/fedef/SPECT_ROBOT_RUN/CH4_newband/'
-nuca = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/CH4_newband/'
-linee_0020 = spcl.read_line_database(nuca+'P4mP2_prediction_0020-0010')
-linee_0012 = spcl.read_line_database(nuca+'P4mP2_prediction_0012-0002')
-linee_0111 = spcl.read_line_database(nuca+'P4mP2_prediction_0111-0101')
+linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0020.dat', freq_range = wn_ranges['CH4'])
+linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0012.dat', freq_range = wn_ranges['CH4'])
+linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0111.dat', freq_range = wn_ranges['CH4'])
 
-linee_0020_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-28]
-print(len(linee_0020_sel))
-linee_0012_sel = [lin for lin in linee_0012 if lin.Strength > 1.e-27]
-print(len(linee_0012_sel))
-linee_0111_sel = [lin for lin in linee_0111 if lin.Strength > 1.e-27]
-print(len(linee_0111_sel))
-
-linee_sel = []
-linee_sel += linee_0020_sel
-linee_sel += linee_0012_sel
-linee_sel += linee_0111_sel
-print('moltiplico per il misterioso fattore 0.337')
-for lin in linee_sel:
-    lin.A_coeff = lin.A_coeff*0.33709
-
-linee += linee_sel
 abs_coeff = smm.prepare_spe_grid(wn_ranges['CH4'])
 sp_grid = abs_coeff.spectral_grid
 
 LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [ch4], atmosphere = planet.atmosphere, LUTopt = LUTopt)
+
+nuca2 = '/work/localuser/fedef/SPECT_ROBOT_RUN/HCN_newband/'
+linee = spcl.read_line_database(nuca2+'HCN_new_hitcomplete.dat', freq_range = wn_ranges['HCN'])
+hcn = planet.gases['HCN']
+linee = smm.check_lines_mols(linee, [hcn])
+
+abs_coeff = smm.prepare_spe_grid(wn_ranges['HCN'])
+sp_grid = abs_coeff.spectral_grid
+
+LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [hcn], atmosphere = planet.atmosphere, LUTopt = LUTopt)
 
 #PTtest = [[3.0, 170.], [4.0, 160.], [2.0, 110.]]
 # PTtest = [[3.0, 170.], [4.0, 160.]]

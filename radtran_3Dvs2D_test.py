@@ -243,8 +243,8 @@ for molec in mol1.values():
 planet1D = planet
 pickle.dump(planet, open('./planet_1D_chc_e_LTEgases.pic','w'))
 
-print('reading modified planet')
-planet1D = pickle.load(open('./planet_1D_ratioinstability.pic'))
+# print('reading modified planet')
+# planet1D = pickle.load(open('./planet_1D_ratioinstability.pic'))
 
 ##### SETTING THE BAYESSET:
 baybau1D = smm.BayesSet(tag = 'test_CH4_HCN_C2H2_1D')
@@ -299,19 +299,14 @@ linee = spcl.read_line_database(db_file, freq_range = wn_range)
 linee = smm.check_lines_mols(linee, planet3D.gases.values())
 # planet = pickle.load(open(inputs['cart_tvibs']+'planet.pic'))
 
-nuca = '/work/localuser/fedef/SPECT_ROBOT_RUN/CH4_newband/'
 #nuca = '/home/fedefab/Scrivania/Research/Dotto/Spect_data/CH4_newband/'
-linee_0020 = spcl.read_line_database(nuca+'P4mP2_prediction_0020-0010')
-linee_0012 = spcl.read_line_database(nuca+'P4mP2_prediction_0012-0002')
-linee_0111 = spcl.read_line_database(nuca+'P4mP2_prediction_0111-0101')
+nuca = '/work/localuser/fedef/SPECT_ROBOT_RUN/CH4_newband/'
+linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0020.dat')
+linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0012.dat')
+linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0111.dat')
 
-linee_0020_sel = [lin for lin in linee_0020 if lin.Strength > 1.e-28]
-linee_0012_sel = [lin for lin in linee_0012 if lin.Strength > 1.e-27]
-linee_0111_sel = [lin for lin in linee_0111 if lin.Strength > 1.e-27]
-
-linee += linee_0020_sel
-linee += linee_0012_sel
-linee += linee_0111_sel
+nuca2 = '/work/localuser/fedef/SPECT_ROBOT_RUN/HCN_newband/'
+linee += spcl.read_line_database(nuca2+'HCN_new_hitcomplete.dat')
 
 smm.keep_levels_wlines(planet3D, linee)
 smm.keep_levels_wlines(planet1D, linee)
@@ -320,7 +315,6 @@ planet3D.gases['CH4'].iso_1.erase_level('lev_12')
 
 pickle.dump(planet3D, open(inputs['cart_tvibs']+'planet_3D.pic','w'))
 pickle.dump(planet1D, open(inputs['cart_tvibs']+'planet_1D.pic','w'))
-
 
 LUTopt = dict()
 LUTopt['max_pres'] = 0.1 # hPa circa 200 km

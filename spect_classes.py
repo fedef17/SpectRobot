@@ -94,15 +94,18 @@ class SpectLine(object):
         if ofile is None:
             print('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}{:15s}{:15s}{:8.3f}{:8.3f}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.E_lower,self.Up_lev_str,self.Lo_lev_str,self.Q_num_up, self.Q_num_lo, self.g_up,self.g_lo))
         else:
-            ofile.write('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}{:8.3f}{:8.3f}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.E_lower,self.Up_lev_str,self.Lo_lev_str,self.g_up,self.g_lo))
+            ofile.write('{:4d}{:2d}{:8.2f}{:10.3e}{:8.2f}{:15s}{:15s}{:8.3f}{:8.3f}\n'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.E_lower,self.Up_lev_str,self.Lo_lev_str,self.g_up,self.g_lo))
         return
 
-    def Print_gbb(self, ofile = None):
-        stringa = '{:2d}{:1d}{:12.6f}{:10.3e}{:10.3e}{:6.4f}{:6.3f}{:10.4f}{:4.2f}{:8.6f}{:15s}{:15s}{:15s}{:15s}{:8.3f}{:8.3f}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.A_coeff,self.Air_broad,self.Self_broad,self.E_lower,self.T_dep_broad, self.P_shift, self.Up_lev_str,self.Lo_lev_str, self.Q_num_up, self.Q_num_lo, self.g_up,self.g_lo)
+    def Print_hitran(self, ofile = None):
+        oth = self.others
+        if oth is None:
+            oth = ''
+        stringa = '{:2d}{:1d}{:12.6f}{:10.3e}{:10.3e}{:5.3f}{:5.3f}{:10.4f}{:4.2f}{:8.5f}{:15s}{:15s}{:15s}{:15s}{:19s}{:7.2f}{:7.2f}'.format(self.Mol,self.Iso,self.Freq,self.Strength,self.A_coeff,self.Air_broad,self.Self_broad,self.E_lower,self.T_dep_broad, self.P_shift, self.Up_lev_str,self.Lo_lev_str, self.Q_num_up, self.Q_num_lo, oth,self.g_up,self.g_lo)
         if ofile is None:
             print(stringa)
         else:
-            ofile.write(stringa)
+            ofile.write(stringa+'\n')
         return stringa
 
     def ShowCalc(self, T, P = 1, nlte_ratio = 1):
@@ -202,10 +205,13 @@ class SpectLine(object):
 
         return shape #, lw, dw
 
-    def CalcStrength_nonLTE(self, T_vib_lower, T_vib_upper, Q_part):
+    def CalcStrength_nonLTE(self, Temp, T_vib_lower, T_vib_upper, Q_part = None):
         """
         Calculates the line strength S in nonLTE conditions.
         """
+        if Q_part is None:
+            Q_part = CalcPartitionSum(self.Mol, self.Iso, temp = Temp)
+
         S = Einstein_A_to_LineStrength_nonLTE(self.A_coeff, self.Freq, self.E_lower, T_vib_lower, T_vib_upper, self.g_lo, self.g_up, Q_part)
 
         return S
@@ -1479,6 +1485,48 @@ def read_mw_list(db_cart, nome = 'mw_list.dat'):
     return n_mws, mw_tags, mw_ranges
 
 
+def sum_strength_lowres(lines, wn_range, mol, iso, Temp = None, ratios = None, res = 5.0):
+    """
+    Fast check of intensity at low_res.
+    vibtemps is a dict with level strings.
+    """
+    arr_low = np.arange(wn_range[0], wn_range[1]+res/2., res)
+
+    lines_ok = [lin for lin in lines if lin.Mol == mol and lin.Iso == iso]
+
+    up_levs = np.unique([lin.minimal_level_string_up() for lin in lines_ok])
+    lo_levs = np.unique([lin.minimal_level_string_lo() for lin in lines_ok])
+
+    for lev1 in up_levs:
+        for lev2 in lo_levs:
+            lin_band = [lin for lin in lines_ok if lin.minimal_level_string_up() == lev1 and lin.minimal_level_string_lo() == lev2]
+            if len(lin_band) == 0:
+                continue
+
+            freqs = np.array([lin.Freq for lin in lin_band])
+            if Temp is None:
+                strengts = np.array([lin.Strength for lin in lin_band])
+            else:
+                strengts = np.array([lin.CalcStrength_from_Einstein(Temp) for lin in lin_band])
+
+            if ratios is not None:
+                ratio = ratios[lev1]
+                #è sbagliatooooo
+            else:
+                ratio = 1.0
+            spet = []
+            for fr in arr_low:
+                okfr = (freqs > fr-res/2.0) & (freqs < fr+res/2.0)
+                punto = ratio*np.sum(strengts[okfr])
+                spet.append(punto)
+            pl.plot(arr_low, spet, label = lev1+' -> '+lev2)
+
+    pl.legend()
+    pl.grid()
+
+    return
+
+
 def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev = None, fraction_to_keep = None, db_format = 'HITRAN', freq_range = None, n_skip = 0, link_to_isomolecs = None, verbose = False):
     """
     Reads line spectral data.
@@ -1549,6 +1597,41 @@ def read_line_database(nome_sp, mol = None, iso = None, up_lev = None, down_lev 
 
     infi.close()
     return linee_sel
+
+
+def calc_stat_weights_CH4(Q_num_up, Q_num_lo, formato = 'HITRAN'):
+    """
+    gi is the state independent degeneracy factor. (1 for CH4)
+    gs is the state dependent degeneracy factor. (2,3 or 5 for CH4)
+
+    La formula è: g = gi*gs*(2*J+1)
+    Il J contenuto in Q_num_lo è quello del livello basso.
+
+    As explained in Einstein A-coefficients and statistical weights for molecular
+absorption transitions in the HITRAN database. Marie Šimečková, David Jacquemart, Laurence S. Rothman, Robert R. Gamache, Aaron Goldman. (2006)
+    """
+
+    gs = dict()
+    gs['A'] = 5
+    gs['E'] = 2
+    gs['F'] = 3
+
+    if formato == 'HITRAN':
+        J_up = int(Q_num_up[2:5])
+        state_up = Q_num_up[5]
+        J_lo = int(Q_num_lo[2:5])
+        state_lo = Q_num_lo[5]
+    elif formato == 'hot_bands':
+        J_up = int(Q_num_up.split()[0])
+        J_lo = int(Q_num_lo.split()[0])
+        state_up = Q_num_up.split()[1][0]
+        state_lo = Q_num_lo.split()[1][0]
+
+    q_up = gs[state_up]*(2*J_up+1)
+    q_lo = gs[state_lo]*(2*J_lo+1)
+
+    return q_up, q_lo
+
 
 
 def calc_stat_weights_linear_molec(gi, gs, Q_num_up, Q_num_lo, formato = 'HITRAN'):
