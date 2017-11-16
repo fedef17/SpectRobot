@@ -669,6 +669,10 @@ class LookUpTable(object):
         """
         To make a single lut from two luts with different ptcouples but same levels.
         """
+        if self.wn_range != LUT.wn_range:
+            print('Attention! The wn_range of the two LUTs is different!')
+            raise ValueError('Incompatible LUTs, different wn_ranges: {} {}'.format(self.wn_range, LUT.wn_range))
+
         for lev_name in self.sets.keys():
             lev1 = self.sets[lev_name]
             lev2 = LUT.sets[lev_name]
@@ -720,6 +724,7 @@ class LookUpTable(object):
             print('Calculating shapes for PTcouple {} out of {}. P = {}, T = {}'.format(num,len(PTcouples),Pres,Temp))
 
             time1 = time.time()
+            lines_proc = None
             lines_proc = spcl.calc_shapes_lines(spectral_grid, lines, Temp, Pres, self.isomolec)
 
             print("PTcouple {} out of {}. P = {}, T = {}. Lineshapes calculated in {:5.1f} s, time from start {:7.1f} min".format(num,len(PTcouples),Pres,Temp,time.time()-time1,(time.time()-time0)/60.))
@@ -983,7 +988,7 @@ class LutSet(object):
             coeff_ok2 = self.sets[ok2]
             set_ = dict()
             for ctype in ctypes:
-                if coeff_ok1[ctype] is None:
+                if coeff_ok1[ctype] is None or coeff_ok2[ctype] is None:
                     set_[ctype] = None
                     continue
                 set_[ctype] = coeff_ok1[ctype].interpolate(coeff_ok2[ctype], Temp = Temp)
@@ -1012,7 +1017,7 @@ class LutSet(object):
 
             set_ = dict()
             for ctype in ctypes:
-                if coeff_ok1[ctype] is None:
+                if coeff_ok1[ctype] is None or coeff_ok2[ctype] is None or coeff_ok3[ctype] is None or coeff_ok4[ctype] is None:
                     set_[ctype] = None
                     continue
                 coeff_ok13_cty = coeff_ok1[ctype].interpolate(coeff_ok3[ctype], Pres = Pres)
@@ -1103,7 +1108,7 @@ class LutSet(object):
             gigi = spcl.SpectralGcoeff(ctype, spectral_grid, self.mol, self.iso, self.MM, minimal_level_string, unidentified_lines = self.unidentified_lines)
             gigi.BuildCoeff(lines, Temp, Pres, preCalc_shapes = True)
 
-            print('iiiii add_PT iiiiii {} {} {}'.format(ctype, np.max(gigi.spectrum),np.min(gigi.spectrum)))
+            print('iiiii add_PT iiiiii {} {} {} {}'.format(ctype, np.max(gigi.spectrum),np.min(gigi.spectrum),gigi.integrate()))
 
             #print(np.max(gigi.spectrum))
 
@@ -1366,10 +1371,12 @@ def check_LUT_exists(PTcouples, cartLUTs, mol, iso, LTE):
 
     pt_done = []
     pt_map = []
+    sp_grids = []
     for fil in fileok:
         print(cartLUTs+fil)
         fio = open(cartLUTs+fil, 'rb')
         lut_fil = pickle.load(fio)
+        sp_grids.append(lut_fil.spectral_grid)
         try:
             pt_fil = lut_fil.PTcouples
         except: # for compatibility with old LUTS
@@ -1398,10 +1405,27 @@ def check_LUT_exists(PTcouples, cartLUTs, mol, iso, LTE):
         print(mol, iso)
         print('LUT does not exist at all')
 
-    return True, pt_to_do, pt_map
+    wn_ranges = [spgri.wn_range() for spgri in sp_grids]
+    w1s = []
+    w2s = []
+    for [w1, w2] in wn_ranges:
+        w1s.append(w1)
+        w2s.append(w2)
+
+    ok1 = np.all([sbm.isclose(w,w1s[0]) for w in w1s])
+    ok2 = np.all([sbm.isclose(w,w2s[0]) for w in w2s])
+
+    if ok1 and ok2:
+        print('wn_range check ok')
+    else:
+        print('wn_ranges are different!')
+        for fil, wnr in zip(fileok, wn_ranges):
+            print(fil, wnr)
+
+    return True, pt_to_do, pt_map, wn_ranges
 
 
-def check_and_build_allluts(inputs, sp_grid, lines, molecs, atmosphere = None, PTcouples = None, LUTopt = dict()):
+def check_and_build_allluts(inputs, sp_grid, lines, molecs, atmosphere = None, PTcouples = None, LUTopt = dict(), check_wn_range = True):
     """
     Given the molecs in molecs, checks in the folder and builds the list of LUTS. If LUTS are missing runs the lut calculation?
     """
@@ -1415,7 +1439,7 @@ def check_and_build_allluts(inputs, sp_grid, lines, molecs, atmosphere = None, P
     for molec in molecs:
         for isoname in molec.all_iso:
             isomol = getattr(molec, isoname)
-            exists, pt_to_do, pt_map = check_LUT_exists(PTcouples, inputs['cart_LUTS'], isomol.mol, isomol.iso, isomol.is_in_LTE)
+            exists, pt_to_do, pt_map, wn_ranges = check_LUT_exists(PTcouples, inputs['cart_LUTS'], isomol.mol, isomol.iso, isomol.is_in_LTE)
 
             if exists and len(pt_to_do) == 0:
                 #leggi (hai solo una entry nel pt_map nel caso base)
@@ -1436,6 +1460,12 @@ def check_and_build_allluts(inputs, sp_grid, lines, molecs, atmosphere = None, P
                         with open(fi, 'r') as coso:
                             LUT_isomol.merge(pickle.load(coso))
                 print('Loaded {} existing PTcouples, producing new LUTs for {} PTcouples'.format(len(PTcouples)-len(pt_to_do), len(pt_to_do)))
+
+                if not sbm.isclose(sp_grid.wn_range()[0],wn_ranges[0][0]) or not sbm.isclose(sp_grid.wn_range()[1],wn_ranges[0][1]):
+                    print('ATTENTION building LUT for a different wn_range')
+                    if check_wn_range:
+                        raise ValueError('ATTENTION desired wn_range {} is different from the existing one {}'.format(sp_grid.wn_range(), wn_ranges[0]))
+
                 LUT_isomol_new = makeLUT_nonLTE_Gcoeffs(sp_grid, lines, isomol, isomol.is_in_LTE, PTcouples = pt_to_do, cartLUTs = inputs['cart_LUTS'], n_threads = inputs['n_threads'], **LUTopt)
 
                 LUT_isomol.merge(LUT_isomol_new)
@@ -1491,7 +1521,7 @@ def compress_LUTS(molecs, cartLUTs, n_threads, ram_max = 8., dim_tot = 20., low_
     for molec in molecs:
         for isoname in molec.all_iso:
             isomol = getattr(molec, isoname)
-            exists, pt_to_do, pt_map = check_LUT_exists([], cartLUTs, isomol.mol, isomol.iso, isomol.is_in_LTE)
+            exists, pt_to_do, pt_map, wn_ranges = check_LUT_exists([], cartLUTs, isomol.mol, isomol.iso, isomol.is_in_LTE)
 
             if exists:
                 filos = pt_map[0][0]
@@ -1679,12 +1709,10 @@ def group_observations(pixels, ret_set):
 
     # potrei trovare punto di ingresso e uscita da atm anche
 
-
-
     pass
 
 
-def calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, temp_step = 5.0, max_pres = None, thres = 0.01):
+def calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, temp_step = 5.0, max_pres = None, thres = 0.01, add_lowpres = True):
     """
     Define pressure levels, for each pres check which temps are needed for the full atm and define a set of temperatures to be used at that pressure. Build something to be given as input to make LUTs.
     """
@@ -1774,6 +1802,11 @@ def calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, t
 
     for Temp in temps_lowpres:
         PTcouples_ok.insert(0, [Pres_0, Temp])
+
+    if add_lowpres:
+        presmin = np.exp(logpresMIN)
+        for Temp in temps_lowpres:
+            PTcouples_ok.insert(0, [presmin, Temp])
 
     PTcouples = PTcouples_ok
 
@@ -1913,6 +1946,8 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
             #print(time.ctime())
             #print(isomolec.levels)
             lines_proc = spcl.calc_shapes_lines(spectral_grid, lines, Temp, Pres, isomolec)
+            intli = [lin.shape.integrate() for lin in lines_proc]
+            print('shape',numh,max(intli),min(intli))
             #print(len(lines_proc))
             if not unidentified_lines:
                 for lev in isomolec.levels:
@@ -2007,6 +2042,8 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
                 pop = spcl.Boltz_ratio_nodeg(levello.energy, vibt) / Q_part
                 timhhh += time.time()-time2
                 time1 = time.time()
+                # print(num, Temps[num], lev, vibt, Q_part, pop)
+                # print(Gco['absorption'].integrate(), Gco['ind_emission'].integrate(), Gco['sp_emission'].integrate())
                 abs_coeff += Gco['absorption']*pop
                 abs_coeff -= Gco['ind_emission']*pop
                 emi_coeff += Gco['sp_emission']*pop
@@ -2017,6 +2054,8 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
                         abs_coeff_level[lev] += Gco['absorption']*pop
                         abs_coeff_level[lev] -= Gco['ind_emission']*pop
                         emi_coeff_level[lev] += Gco['sp_emission']*pop
+
+            # print(num, abs_coeff.integrate(), emi_coeff.integrate())
 
         if not store_in_memory:
             abs_coeffs.add_set(abs_coeff)
@@ -2169,6 +2208,7 @@ def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, t
                 timecalc += time.time()-time2
 
                 pop = spcl.Boltz_ratio_nodeg(levello.energy, vibt) / Q_part
+                print('{:4d} {:10s} {:10s} {:12.2f} {:15s} {:12.3f}'.format(num, lev, lev_lut, levello.energy, levello.lev_string, vibt))
                 time2 = time.time()
                 if Gco['absorption'] is not None:
                     abs_coeff += Gco['absorption']*pop
@@ -2520,7 +2560,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     return
 
 
-def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1', solo_simulation = False):
+def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1', solo_simulation = False, invert_LOS_direction = False):
     """
     Main routine for retrieval. Fast version.
     """
@@ -2667,7 +2707,10 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
             coda = []
             outputs = []
             for los, ssp, fsza, i in zip(losos, sspsos, fszasos, range(n_proc)):
-                los.calc_atm_intersections(planet)
+                if invert_LOS_direction:
+                    los.calc_atm_intersections(planet, LOS_order = 'photon')
+                else:
+                    los.calc_atm_intersections(planet)
                 if use_tangent_sza:
                     los.szas = np.ones(len(los.intersections))*fsza
                 else:

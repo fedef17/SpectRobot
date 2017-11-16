@@ -174,7 +174,7 @@ for gas in baybau.sets.keys():
 
 planet3D = planet
 
-planet.gases['CH4'].iso_1.erase_level('lev_12')
+#planet.gases['CH4'].iso_1.erase_level('lev_12')
 ############################################################
 
 # keep_levels = dict()
@@ -278,6 +278,25 @@ radtran_opt['max_Plog_variation'] = 1.
 print('Loading lines...')
 db_file = inputs['hitran_db']
 linee = spcl.read_line_database(db_file, freq_range = wn_range)
+linee = smm.check_lines_mols(linee, planet3D.gases.values())
+
+nuca = '/work/localuser/fedef/SPECT_ROBOT_RUN/CH4_newband/'
+linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0020.dat')
+linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0012.dat')
+linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0111.dat')
+
+nuca2 = '/work/localuser/fedef/SPECT_ROBOT_RUN/HCN_newband/'
+linee += spcl.read_line_database(nuca2+'HCN_new_hitcomplete.dat')
+
+smm.keep_levels_wlines(planet3D, linee)
+smm.keep_levels_wlines(planet1D, linee)
+planet1D.gases['CH4'].iso_1.erase_level('lev_12')
+planet3D.gases['CH4'].iso_1.erase_level('lev_12')
+
+
+print('Loading lines...')
+db_file = inputs['hitran_db']
+linee = spcl.read_line_database(db_file, freq_range = wn_range)
 
 # planet = pickle.load(open(inputs['cart_tvibs']+'planet.pic'))
 
@@ -341,6 +360,18 @@ dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
+for i in range(20):
+    print('\n')
+
+bay2 = copy.deepcopy(baybau1D)
+time0 = time.time()
+teag = '2Dvs3D_sza80_inverseLOS'
+dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, invert_LOS_direction = True)
+dampa.close()
+tot_time = time.time()-time0
+print('Tempo totale: {} min'.format(tot_time/60.))
+
 
 fil = open(inputs['cart_inputs']+'pix7418_sza30.pic','r')
 pixels = pickle.load(fil)
@@ -376,6 +407,18 @@ time0 = time.time()
 teag = '2Dvs3D_sza30_noszavar'
 dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
 result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag)
+dampa.close()
+tot_time = time.time()-time0
+print('Tempo totale: {} min'.format(tot_time/60.))
+
+for i in range(20):
+    print('\n')
+
+bay2 = copy.deepcopy(baybau1D)
+time0 = time.time()
+teag = '2Dvs3D_sza30_inverseLOS'
+dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, invert_LOS_direction = True)
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))

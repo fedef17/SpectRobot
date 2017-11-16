@@ -226,6 +226,7 @@ mol1 = sbm.read_tvib_gbb(inputs['cart_input_1D']+'in_vibtemp_HCN-C2H2.dat', Atm.
 mol1 = sbm.read_tvib_gbb(inputs['cart_input_1D']+'in_vibtemp_CH4.dat', Atm.get('temp'), mol1)
 
 atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_input_1D'] + 'in_vmr_prof.dat', 'vmr', n_alt_max = n_alt_max)
+# atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_input_1D'] + 'in_vmr_prof_final_gbb.dat', 'vmr', n_alt_max = n_alt_max)
 
 for gas in atm_gases_old:
     atm_gases_old[gas] = sbm.AtmProfile(alt_gri, atm_gases_old[gas], profname='vmr', interp = 'lin')
@@ -241,7 +242,9 @@ for molec in mol1.values():
         time.sleep(5)
 
 planet1D = planet
-pickle.dump(planet, open('./planet_1D_chc_e_LTEgases.pic','w'))
+pickle.dump(planet, open('./planet_1D_chc_e_LTEgases_initvmr.pic','w'))
+
+sys.exit()
 
 # print('reading modified planet')
 # planet1D = pickle.load(open('./planet_1D_ratioinstability.pic'))

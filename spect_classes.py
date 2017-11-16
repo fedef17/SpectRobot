@@ -21,7 +21,7 @@ from multiprocessing import Process, Queue
 import cPickle as pickle
 #from numba import jit
 
-n_threads = 8
+n_threads = 4
 
 # Fortran code parameters
 imxsig = 13010
@@ -253,6 +253,41 @@ class SpectLine(object):
         return iso_ab*S_ab, iso_ab*S_em
 
 
+    def CalcStrength_from_Strength(self, Temp, Q_part = None, iso_ab = None, isomolec = None, T_vib_lower = None, T_vib_upper = None, E_vib_lo = None, E_vib_up = None):
+        """
+        Calculates the line strength S in nonLTE conditions, starting from the Line strength at 296 K.
+        """
+
+        if T_vib_lower is None:
+            T_vib_lower = Temp
+        if T_vib_upper is None:
+            T_vib_upper = Temp
+
+        if Q_part is None:
+            Q_part = CalcPartitionSum(self.Mol, self.Iso, temp = Temp)
+
+        if iso_ab is None:
+            iso_ab = sbm.find_molec_metadata(self.Mol, self.Iso)['iso_ratio']
+
+        if E_vib_lo is None and E_vib_up is None:
+            try:
+                E_vib_lo = self.E_vib_lo
+                E_vib_up = self.E_vib_up
+            except:
+                E_vib_lo = 0.0
+                E_vib_up = 0.0
+
+        r1 = sbm.vibtemp_to_ratio(E_vib_lo, T_vib_lower, Temp)
+        r2 = sbm.vibtemp_to_ratio(E_vib_up, T_vib_upper, Temp)
+        Gm = Boltz_ratio_nodeg(self.Freq, Temp)
+        alpha = r1 * (1-Gm*r2/r1)/(1-Gm)
+
+        S_ab = self.CalcStrength(Temp)*alpha
+        S_em = self.CalcStrength(Temp)*r2*BB_erg(Temp, self.Freq)
+
+        return S_ab, S_em
+
+
     def calc_A_coeff_from_strength(self, iso_ab = None, Q_part = None, set_attr = False):
         """
         Inverse of the method CalcStrength_from_Einstein.
@@ -430,7 +465,7 @@ class SpectralObject(object):
             if len(obj2.spectrum) == len(self.spectrum):
                 coso.spectrum += obj2.spectrum
             else:
-                print(len(obj2.spectrum),len(self.spectrum))
+                #print(len(obj2.spectrum),len(self.spectrum))
                 coso.add_to_spectrum(obj2)
         else:
             coso.spectrum += obj2
@@ -830,7 +865,7 @@ class SpectralObject(object):
 
             if len(spect_old.spectrum) < len(gigi):
                 zero = SpectralObject(np.zeros(len(lin_grid_ok.grid)), lin_grid_ok)
-                print(len(spect_old.spectrum), len(gigi), len(zero.spectrum), lin_grid_ok.grid.max(), lin_grid_ok.grid.min(), spect_old.spectral_grid.grid.max(), spect_old.spectral_grid.grid.min())
+                #print(len(spect_old.spectrum), len(gigi), len(zero.spectrum), lin_grid_ok.grid.max(), lin_grid_ok.grid.min(), spect_old.spectral_grid.grid.max(), spect_old.spectral_grid.grid.min())
                 try:
                     zero.add_to_spectrum(spect_old)
                 except:
@@ -981,6 +1016,7 @@ class SpectralObject(object):
 
         To be added:
             - adaptation to large set of lines (for now max = 20000)
+            - computation of far wings (at least till some 25 cm-1)
         """
         #print('Inside add_lines_to_spectrum.. summing up all the lines!')
 
@@ -1363,13 +1399,16 @@ class SpectralGcoeff(SpectralObject):
         if not hasattr(self, 'lev_string'):
             self.lev_string = None
 
+        if coeff2 is None:
+            return None
+
         if not sbm.isclose(self.temp, coeff2.temp) and not sbm.isclose(self.pres, coeff2.pres):
             raise ValueError('The two coeffs have both different temperatures and pressures! cannot interpolate')
 
         if Pres is not None:
             if not sbm.isclose(self.temp, coeff2.temp):
                 raise ValueError('The two coeffs have different temperatures! You should specify the interpolation temperature, not the pressure')
-            w1, w2 = sbm.weight(Pres, self.pres, coeff2.pres, itype='exp')
+            w1, w2 = sbm.weight(Pres, self.pres, coeff2.pres, itype='lin')
             new_spect = w1 * self.spectrum + w2 * coeff2.spectrum
             gigi = SpectralGcoeff(self.ctype, self.spectral_grid, self.mol, self.iso, self.MM, self.lev_string, spectrum = new_spect, Pres = Pres, Temp = self.temp)
         elif Temp is not None:
@@ -1484,6 +1523,11 @@ def read_mw_list(db_cart, nome = 'mw_list.dat'):
 
     return n_mws, mw_tags, mw_ranges
 
+
+def alpha_nlte(Freq, Temp, r1, r2):
+    Gm = Boltz_ratio_nodeg(Freq, Temp)
+    alpha = r1 * (1-Gm*r2/r1)/(1-Gm)
+    return alpha
 
 def sum_strength_lowres(lines, wn_range, mol, iso, Temp = None, ratios = None, res = 5.0):
     """
@@ -1721,8 +1765,9 @@ def CalcStrength_at_T(mol, iso, S_ref, w, E_low, T, T_ref=296.):
     """
 
     def fu_exp(mol,iso,E_low,w,T):
-        g_nuc, Q_T = Q_calc(mol, iso, T)
-        li = mt.exp(-E_low/(kbc*T)) * (1 - mt.exp(-w/(kbc*T))) / Q_T
+        Q_part = CalcPartitionSum(mol, iso, temp = T)
+        #li = mt.exp(-E_low/(kbc*T)) * (1 - mt.exp(-w/(kbc*T))) / Q_part
+        li = Boltz_ratio_nodeg(E_low, T) * (1 - Boltz_ratio_nodeg(w,T)) / Q_part
         return li
 
     S = S_ref * fu_exp(mol, iso, E_low, w, T)/fu_exp(mol, iso, E_low, w, T_ref)
@@ -1732,7 +1777,7 @@ def CalcStrength_at_T(mol, iso, S_ref, w, E_low, T, T_ref=296.):
 
 def Einstein_A_to_B(A_coeff, wavenumber, units = 'cm3ergcm2'):
     """
-    Calculates the Eintein B coeff for induced absorption. B is expressed in m^3/J*s and is defined so that in the expression for the light absorption it appears with the radiation density rho (not with the number of photons, other possible definition for B).
+    Calculates the Eintein B coeff for induced absorption. B is expressed in m^3/J*s and is defined so that in the expression for the light absorption it appears with the radiation density rho (not with the number of photons, other possible definition for B). Units used in the radtran code are cm^3/(erg * cm^2).
     """
     nu = convertto_hz(wavenumber, 'cm_1')
 
@@ -2071,6 +2116,21 @@ def BB(T,w):
     :return:
     """
     rc1 = 1.1904e-3
+    rhck = 1.4388
+
+    BB = rc1 * w**3 / (mt.exp(w*rhck/T)-1)
+
+    return BB
+
+
+def BB_erg(T, w):
+    """
+    Black body at temp. T in units of erg/(cm2*cm-1).
+    :param T: Temperature
+    :param w: Wavenumber (cm-1)
+    :return:
+    """
+    rc1 = 1.1904e-5
     rhck = 1.4388
 
     BB = rc1 * w**3 / (mt.exp(w*rhck/T)-1)
