@@ -1370,7 +1370,7 @@ class SpectralGcoeff(SpectralObject):
             maxi = [np.max(hap.spectrum*gco) for hap,gco in zip(shapes_tot, G_coeffs_tot)]
             mini = [np.min(hap.spectrum*gco) for hap,gco in zip(shapes_tot, G_coeffs_tot)]
             #print('cazzzzuuuuuuuuuuuuuuuu {} {}'.format(max(maxi),min(mini)))
-            self.add_lines_to_spectrum(shapes_tot, Strengths = G_coeffs_tot)
+            self.add_lines_to_spectrum(shapes_tot, Strengths = G_coeffs_tot, n_threads = n_threads)
             maxi = [np.max(hap.spectrum*gco) for hap,gco in zip(shapes_tot, G_coeffs_tot)]
             mini = [np.min(hap.spectrum*gco) for hap,gco in zip(shapes_tot, G_coeffs_tot)]
             #print('cazzzzuuuuuuuuuuuuuuuu {} {}'.format(max(maxi),min(mini)))
@@ -1421,7 +1421,7 @@ class SpectralGcoeff(SpectralObject):
         return gigi
 
 
-def calc_shapes_lines(wn_arr, lines, Temp, Pres, isomolec):
+def calc_shapes_lines(wn_arr, lines, Temp, Pres, isomolec, n_threads = n_threads):
     """
     Calculates the line shapes and attaches new attributes "shape" and "Gcoeffs" to the line objects. line.Gcoeffs is a dict with three elements: sp_emission, ind_emission and absorption. Multiplying line.shape by line.Gcoeffs one has the three SpectralGcoeffs contributions of each line.
     """
@@ -1441,7 +1441,7 @@ def calc_shapes_lines(wn_arr, lines, Temp, Pres, isomolec):
 
     for i in range(n_threads):
         coda.append(Queue())
-        processi.append(Process(target=do_for_th_calc,args=(wn_arr, lines, Temp, Pres, isomolec, i, coda[i])))
+        processi.append(Process(target=do_for_th_calc,args=(wn_arr, lines, Temp, Pres, isomolec, i, coda[i]), kwargs = {'n_threads': n_threads}))
         processi[i].start()
 
     for i in range(n_threads):
@@ -1458,7 +1458,7 @@ def calc_shapes_lines(wn_arr, lines, Temp, Pres, isomolec):
     return lines_new
 
 
-def do_for_th_calc(wn_arr, linee_tot, Temp, Pres, isomolec, i, coda):
+def do_for_th_calc(wn_arr, linee_tot, Temp, Pres, isomolec, i, coda, n_threads = n_threads):
     """
     Single process called by calc_shapes_lines.
     """

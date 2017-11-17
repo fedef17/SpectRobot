@@ -44,7 +44,7 @@ print('Loading planet...')
 planet = sbm.Titan(1500.)
 
 # planet = pickle.load(open(inputs['cart_LUTS']+'planet_1D_chc_e_LTEgases.pic', 'r'))
-planet = pickle.load(open('planet_1D_chc_e_LTEgases.pic', 'r'))
+planet = pickle.load(open('planet_3D_chc_e_LTEgases.pic', 'r'))
 
 db_file = inputs['hitran_db']
 
@@ -75,7 +75,7 @@ linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0111.dat', freq_range =
 nuca2 = '/work/localuser/fedef/SPECT_ROBOT_RUN/HCN_newband/'
 linee += spcl.read_line_database(nuca2+'HCN_new_hitcomplete.dat', freq_range = wn_ranges['HCN'])
 
-linee = smm.check_lines_mols(linee, [planet.gases.values()])
+linee = smm.check_lines_mols(linee, planet.gases.values())
 
 # abs_coeff = smm.prepare_spe_grid(wn_ranges['CH4'])
 # sp_grid = abs_coeff.spectral_grid
@@ -94,6 +94,8 @@ print(planet.gases.keys())
 for gas in planet.gases:
     print(gas)
     linee_ok = smm.check_lines_mols(linee, [planet.gases[gas]])
+    if len(linee_ok) == 0:
+        continue
     abs_coeff = smm.prepare_spe_grid(wn_ranges[gas])
     sp_grid = abs_coeff.spectral_grid
 

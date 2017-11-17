@@ -684,7 +684,7 @@ class LookUpTable(object):
         self.PTcouples += LUT.PTcouples
         return
 
-    def make(self, spectral_grid, lines, PTcouples, export_levels = True, cartLUTs = None, control = True):
+    def make(self, spectral_grid, lines, PTcouples, export_levels = True, cartLUTs = None, control = True, n_threads = n_threads):
         """
         Builds the LUT for isomolec in nonLTE: one LutSet for each level, vibrational population is left outside to be added later.
         """
@@ -725,7 +725,7 @@ class LookUpTable(object):
 
             time1 = time.time()
             lines_proc = None
-            lines_proc = spcl.calc_shapes_lines(spectral_grid, lines, Temp, Pres, self.isomolec)
+            lines_proc = spcl.calc_shapes_lines(spectral_grid, lines, Temp, Pres, self.isomolec, n_threads = n_threads)
 
             print("PTcouple {} out of {}. P = {}, T = {}. Lineshapes calculated in {:5.1f} s, time from start {:7.1f} min".format(num,len(PTcouples),Pres,Temp,time.time()-time1,(time.time()-time0)/60.))
 
@@ -738,9 +738,9 @@ class LookUpTable(object):
             if not self.LTE:
                 for lev in self.isomolec.levels:
                     #print('Building LutSet for level {} of mol {}, iso {}'.format(lev,self.mol,self.iso))
-                    self.sets[lev].add_PT(spectral_grid, lines_proc, Pres, Temp, keep_memory = False)
+                    self.sets[lev].add_PT(spectral_grid, lines_proc, Pres, Temp, keep_memory = False, n_threads = n_threads)
             else:
-                self.sets['all'].add_PT(spectral_grid, lines_proc, Pres, Temp, keep_memory = False)
+                self.sets['all'].add_PT(spectral_grid, lines_proc, Pres, Temp, keep_memory = False, n_threads = n_threads)
 
             mess = "Extracted single levels G_coeffs in {:5.1f} s. PT couple completed. Saving..".format(time.time()-time1)
             #print(mess)
@@ -1088,7 +1088,7 @@ class LutSet(object):
         return
 
 
-    def add_PT(self, spectral_grid, lines, Pres, Temp, keep_memory = False, control = True):
+    def add_PT(self, spectral_grid, lines, Pres, Temp, keep_memory = False, control = True, n_threads = n_threads):
         """
         Adds a single PT couple to the set. If keep_memory is set to True, the resulting G coeffs are stored in the set, instead are just dumped in the pickle file.
         """
@@ -1106,7 +1106,7 @@ class LutSet(object):
         for ctype in ctypes:
             #print('Producing set for '+ctype+'...')
             gigi = spcl.SpectralGcoeff(ctype, spectral_grid, self.mol, self.iso, self.MM, minimal_level_string, unidentified_lines = self.unidentified_lines)
-            gigi.BuildCoeff(lines, Temp, Pres, preCalc_shapes = True)
+            gigi.BuildCoeff(lines, Temp, Pres, preCalc_shapes = True, n_threads = n_threads)
 
             print('iiiii add_PT iiiiii {} {} {} {}'.format(ctype, np.max(gigi.spectrum),np.min(gigi.spectrum),gigi.integrate()))
 
@@ -1836,7 +1836,7 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, isomol, LTE, atmosphere = None,
     print(time.ctime())
     print("Hopefully this calculation will take about {} minutes, but actually I really don't know, take your time :)".format(LUT.CPU_time_estimate(lines, PTcouples)))
 
-    LUT.make(spectral_grid, lines, PTcouples, export_levels = True, cartLUTs = cartLUTs)
+    LUT.make(spectral_grid, lines, PTcouples, export_levels = True, cartLUTs = cartLUTs, n_threads = n_threads)
     print(time.ctime())
 
     filename = cartLUTs+LUT.tag+date_stamp()+'.pic'
@@ -1846,7 +1846,7 @@ def makeLUT_nonLTE_Gcoeffs(spectral_grid, lines, isomol, LTE, atmosphere = None,
     return LUT
 
 
-def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, allLUTs = None, useLUTs = False, lines = None, store_in_memory = False, tagLOS = None, cartDROP = None, track_levels = None):
+def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, allLUTs = None, useLUTs = False, lines = None, store_in_memory = False, tagLOS = None, cartDROP = None, track_levels = None, n_threads = n_threads):
     """
     Builds the absorption and emission coefficients for isomolec, both in LTE and non-LTE. If in non-LTE, isomolec levels have to contain the attribute local_vibtemp, produced by calling level.add_local_vibtemp(). If LTE is set to True, LTE populations are used.
     LUT is the object created by makeLUT_nonLTE_Gcoeffs(). Contains
@@ -1953,10 +1953,10 @@ def make_abscoeff_isomolec(wn_range_tot, isomolec, Temps, Press, LTE = True, all
                 for lev in isomolec.levels:
                     #print('Siamo a mol {}, iso {}, lev {} bauuuuuuuuu'.format(isomolec.mol, isomolec.iso, lev))
                     levello = getattr(isomolec, lev)
-                    set_tot[lev].add_PT(spectral_grid, lines_proc, Pres, Temp)
+                    set_tot[lev].add_PT(spectral_grid, lines_proc, Pres, Temp, n_threads = n_threads)
             else:
                 #print('Siamo a mol {}, iso {}, all_levssss miaoooooooooooo'.format(isomolec.mol, isomolec.iso))
-                set_tot['all'].add_PT(spectral_grid, lines_proc, Pres, Temp)
+                set_tot['all'].add_PT(spectral_grid, lines_proc, Pres, Temp, n_threads = n_threads)
 
     else:
         if not unidentified_lines:
