@@ -1294,69 +1294,16 @@ class SpectralGcoeff(SpectralObject):
             #print('Calculating shapes..')
             lines_new = self.calc_shapes(lines, Temp, Pres)
 
-        #print(len(lines_new))
-        #print('aaaaaaaaaaazzzulegnaaaaaaaaaaaaaaaa')
-
         if not self.unidentified_lines:
             if self.ctype == 'sp_emission' or self.ctype == 'ind_emission':
                 lin_ok_levup = [lin for lin in lines_new if lin.Mol == self.mol and lin.Iso == self.iso and self.lev_string == lin.minimal_level_string_up()]
                 shapes_tot = [lin.shape for lin in lin_ok_levup]
                 G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lin_ok_levup]
 
-                if debug:
-                    print(self.lev_string, self.mol, self.iso)
-                    print('NAUUiii------------- EMM')
-                    print(self.ctype)
-
-                    coil = sbm.find_molec_metadata(6, 1)
-                    Qch4 = CalcPartitionSum(6, 1, temp = 296.0)
-
-                    freqs = np.array([lin.Freq for lin in lin_ok_levup])
-                    ch4 = pickle.load(open('./ch4_iso1_LTE.pic','r'))
-
-                    isoab = coil['iso_ratio']
-
-                    for lev in ch4.iso_1.levels:
-                        levello = getattr(ch4.iso_1, lev)
-                        if levello.equiv(self.lev_string):
-                            E_vib = levello.energy
-                            pop = Boltz_ratio_nodeg(E_vib, Temp)/Qch4
-                            for lin,Gco in zip(lin_ok_levup, G_coeffs_tot):
-                                stren = isoab*Gco*pop
-                                stren_ab, stren_em = lin.CalcStrength_from_Einstein(Temp, Qch4, iso_ab = isoab, isomolec = ch4.iso_1)
-                                print(('{:12.3f}'+5*'{:12.3e}'+2*'{:12.3f}').format(lin.Freq, stren_ab, stren_em, stren, stren/stren_ab, stren_em/stren_ab, lin.g_lo, lin.g_up))
-
             elif self.ctype == 'absorption':
                 lin_ok_levlo = [lin for lin in lines_new if lin.Mol == self.mol and lin.Iso == self.iso and self.lev_string == lin.minimal_level_string_lo()]
                 shapes_tot = [lin.shape for lin in lin_ok_levlo]
                 G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lin_ok_levlo]
-                if debug:
-                    print(self.lev_string, self.mol, self.iso)
-                    print('NAUUiii------------- ABSS')
-                    print(self.ctype)
-
-                    coil = sbm.find_molec_metadata(6, 1)
-                    Qch4 = CalcPartitionSum(6, 1, temp = Temp)
-
-                    freqs = np.array([lin.Freq for lin in lin_ok_levlo])
-                    ch4 = pickle.load(open('./ch4_iso1_LTE.pic','r'))
-
-                    isoab = coil['iso_ratio']
-
-                    for lev in ch4.iso_1.levels:
-                        levello = getattr(ch4.iso_1, lev)
-                        if levello.equiv(self.lev_string):
-                            E_vib = levello.energy
-                            pop = Boltz_ratio_nodeg(E_vib, Temp)/Qch4
-                            for lin,Gco in zip(lin_ok_levlo, G_coeffs_tot):
-                                stren = isoab*Gco*pop
-                                stren_ab, stren_em = lin.CalcStrength_from_Einstein(Temp, Qch4, iso_ab = isoab, isomolec = ch4.iso_1)
-                                print(('{:12.3f}'+5*'{:12.3e}'+2*'{:12.3f}').format(lin.Freq, stren_ab, stren_em, stren, stren/stren_ab, stren_em/stren_ab, lin.g_lo, lin.g_up))
-            #     shapes_tot = [lin.shape for lin in lines_new if (self.lev_string == lin.minimal_level_string_up() and lin.Mol == self.mol and lin.Iso == self.iso)]
-            #     G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string == lin.minimal_level_string_up() and lin.Mol == self.mol and lin.Iso == self.iso)]
-            # elif self.ctype == 'absorption':
-            #     shapes_tot = [lin.shape for lin in lines_new if (self.lev_string == lin.minimal_level_string_lo() and lin.Mol == self.mol and lin.Iso == self.iso)]
-            #     G_coeffs_tot = [lin.G_coeffs[self.ctype] for lin in lines_new if (self.lev_string == lin.minimal_level_string_lo() and lin.Mol == self.mol and lin.Iso == self.iso)]
             else:
                 raise ValueError('ctype has to be one among {}, {} and {}. {} not recognized'.format(ctypes[0],ctypes[1],ctypes[2],self.ctype))
         else:
@@ -1438,13 +1385,16 @@ def calc_shapes_lines(wn_arr, lines, Temp, Pres, isomolec, n_threads = n_threads
     processi = []
     coda = []
     outputs = []
+    print(n_threads)
 
     for i in range(n_threads):
+        print(i)
         coda.append(Queue())
         processi.append(Process(target=do_for_th_calc,args=(wn_arr, lines, Temp, Pres, isomolec, i, coda[i]), kwargs = {'n_threads': n_threads}))
         processi[i].start()
 
     for i in range(n_threads):
+        print(i)
         outputs.append(coda[i].get())
 
     for i in range(n_threads):
@@ -1462,6 +1412,7 @@ def do_for_th_calc(wn_arr, linee_tot, Temp, Pres, isomolec, i, coda, n_threads =
     """
     Single process called by calc_shapes_lines.
     """
+    print(n_threads, i)
     time0 = time.time()
     step_nlin = len(linee_tot)/n_threads
     linee = linee_tot[step_nlin*i:step_nlin*(i+1)]
