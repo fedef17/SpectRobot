@@ -1412,13 +1412,13 @@ def do_for_th_calc(wn_arr, linee_tot, Temp, Pres, isomolec, i, coda, n_threads =
     """
     Single process called by calc_shapes_lines.
     """
-    print(n_threads, i)
     time0 = time.time()
     step_nlin = len(linee_tot)/n_threads
     linee = linee_tot[step_nlin*i:step_nlin*(i+1)]
     if i == n_threads-1:
         linee = linee_tot[step_nlin*i:]
 
+    print(n_threads, i, len(linee))
     #print('Hey! Questo è il ciclo {} con {} linee su {}!'.format(i,len(linee),len(linee_tot)))
 
     lines_new = PrepareCalcShapes(wn_arr, linee, Temp, Pres, isomolec)
