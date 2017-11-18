@@ -302,6 +302,15 @@ linee = spcl.read_line_database(db_file, freq_range = wn_range)
 # planet = pickle.load(open(inputs['cart_tvibs']+'planet.pic'))
 
 linee = smm.check_lines_mols(linee, planet3D.gases.values())
+
+nuca = '/work/localuser/fedef/SPECT_ROBOT_RUN/CH4_newband/'
+linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0020.dat')
+linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0012.dat')
+linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0111.dat')
+
+nuca2 = '/work/localuser/fedef/SPECT_ROBOT_RUN/HCN_newband/'
+linee += spcl.read_line_database(nuca2+'HCN_new_hitcomplete.dat')
+
 smm.keep_levels_wlines(planet3D, linee)
 smm.keep_levels_wlines(planet1D, linee)
 
