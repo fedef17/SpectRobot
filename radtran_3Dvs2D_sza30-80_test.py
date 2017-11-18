@@ -309,13 +309,13 @@ pickle.dump(planet1D, open(inputs['cart_tvibs']+'planet_1D.pic','w'))
 
 
 LUTopt = dict()
-LUTopt['max_pres'] = 2.0 # hPa circa 200 km
+LUTopt['max_pres'] = 0.1 # hPa circa 200 km
 LUTopt['temp_step'] = 5.
 LUTopt['pres_step_log'] = 1.0
 
 sp_gri = smm.prepare_spe_grid(wn_range).spectral_grid
 
-PTcoup_needed = smm.calc_PT_couples_atmosphere(linee, planet.gases.values(), planet.atmosphere, **LUTopt)
+PTcoup_needed = smm.calc_PT_couples_atmosphere(linee, planet3D.gases.values(), planet3D.atmosphere, **LUTopt)
 
 LUTS = smm.check_and_build_allluts(inputs, sp_gri, linee, planet.gases.values(), PTcouples = PTcoup_needed, LUTopt = LUTopt)
 
@@ -347,6 +347,11 @@ dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
+fillist = os.listdir('.')
+filli = [fi in fillist if 'line_history' in fi]
+os.mkdir('cart_'+teag)
+for fillo in filli:
+    shutil.copy2(fillo, 'cart_'+teag)
 
 for i in range(20):
     print('\n')
@@ -360,6 +365,12 @@ dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
+fillist = os.listdir('.')
+filli = [fi in fillist if 'line_history' in fi]
+os.mkdir('cart_'+teag)
+for fillo in filli:
+    shutil.copy2(fillo, 'cart_'+teag)
+
 for i in range(20):
     print('\n')
 
@@ -371,6 +382,12 @@ result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
+
+fillist = os.listdir('.')
+filli = [fi in fillist if 'line_history' in fi]
+os.mkdir('cart_'+teag)
+for fillo in filli:
+    shutil.copy2(fillo, 'cart_'+teag)
 
 
 fil = open(inputs['cart_inputs']+'pix7418_sza30.pic','r')
@@ -399,6 +416,12 @@ tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
 
+fillist = os.listdir('.')
+filli = [fi in fillist if 'line_history' in fi]
+os.mkdir('cart_'+teag)
+for fillo in filli:
+    shutil.copy2(fillo, 'cart_'+teag)
+
 for i in range(20):
     print('\n')
 
@@ -411,6 +434,12 @@ dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
+fillist = os.listdir('.')
+filli = [fi in fillist if 'line_history' in fi]
+os.mkdir('cart_'+teag)
+for fillo in filli:
+    shutil.copy2(fillo, 'cart_'+teag)
+
 for i in range(20):
     print('\n')
 
@@ -422,5 +451,11 @@ result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
+
+fillist = os.listdir('.')
+filli = [fi in fillist if 'line_history' in fi]
+os.mkdir('cart_'+teag)
+for fillo in filli:
+    shutil.copy2(fillo, 'cart_'+teag)
 
 print(time.ctime())

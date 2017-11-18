@@ -1143,8 +1143,8 @@ class SpectralObject(object):
 
         return
 
-    def plot(self, label = None):
-        pl.plot(self.spectral_grid.grid, self.spectrum, label = label)
+    def plot(self, label = None, color = None):
+        pl.plot(self.spectral_grid.grid, self.spectrum, label = label, color = color)
         return
 
     def norm_plot(self, label = None):
