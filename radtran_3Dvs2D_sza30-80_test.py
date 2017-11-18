@@ -20,6 +20,7 @@ import time
 import spect_main_module as smm
 from multiprocessing import Process, Queue
 from memory_profiler import profile
+import shutil
 
 time0 = time.time()
 print(time.ctime())
@@ -347,11 +348,11 @@ dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
-fillist = os.listdir('.')
-filli = [fi in fillist if 'line_history' in fi]
-os.mkdir('cart_'+teag)
-for fillo in filli:
-    shutil.copy2(fillo, 'cart_'+teag)
+# fillist = os.listdir('.')
+# filli = [fi in fillist if 'line_history' in fi]
+# os.mkdir('cart_'+teag)
+# for fillo in filli:
+#     shutil.copy2(fillo, 'cart_'+teag)
 
 for i in range(20):
     print('\n')
@@ -365,11 +366,11 @@ dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
-fillist = os.listdir('.')
-filli = [fi in fillist if 'line_history' in fi]
-os.mkdir('cart_'+teag)
-for fillo in filli:
-    shutil.copy2(fillo, 'cart_'+teag)
+# fillist = os.listdir('.')
+# filli = [fi in fillist if 'line_history' in fi]
+# os.mkdir('cart_'+teag)
+# for fillo in filli:
+#     shutil.copy2(fillo, 'cart_'+teag)
 
 for i in range(20):
     print('\n')
@@ -383,11 +384,11 @@ dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
-fillist = os.listdir('.')
-filli = [fi in fillist if 'line_history' in fi]
-os.mkdir('cart_'+teag)
-for fillo in filli:
-    shutil.copy2(fillo, 'cart_'+teag)
+# fillist = os.listdir('.')
+# filli = [fi in fillist if 'line_history' in fi]
+# os.mkdir('cart_'+teag)
+# for fillo in filli:
+#     shutil.copy2(fillo, 'cart_'+teag)
 
 
 fil = open(inputs['cart_inputs']+'pix7418_sza30.pic','r')
@@ -416,11 +417,11 @@ tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
 
-fillist = os.listdir('.')
-filli = [fi in fillist if 'line_history' in fi]
-os.mkdir('cart_'+teag)
-for fillo in filli:
-    shutil.copy2(fillo, 'cart_'+teag)
+# fillist = os.listdir('.')
+# filli = [fi in fillist if 'line_history' in fi]
+# os.mkdir('cart_'+teag)
+# for fillo in filli:
+#     shutil.copy2(fillo, 'cart_'+teag)
 
 for i in range(20):
     print('\n')
@@ -434,11 +435,11 @@ dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
-fillist = os.listdir('.')
-filli = [fi in fillist if 'line_history' in fi]
-os.mkdir('cart_'+teag)
-for fillo in filli:
-    shutil.copy2(fillo, 'cart_'+teag)
+# fillist = os.listdir('.')
+# filli = [fi in fillist if 'line_history' in fi]
+# os.mkdir('cart_'+teag)
+# for fillo in filli:
+#     shutil.copy2(fillo, 'cart_'+teag)
 
 for i in range(20):
     print('\n')
@@ -452,10 +453,10 @@ dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
-fillist = os.listdir('.')
-filli = [fi in fillist if 'line_history' in fi]
-os.mkdir('cart_'+teag)
-for fillo in filli:
-    shutil.copy2(fillo, 'cart_'+teag)
+# fillist = os.listdir('.')
+# filli = [fi in fillist if 'line_history' in fi]
+# os.mkdir('cart_'+teag)
+# for fillo in filli:
+#     shutil.copy2(fillo, 'cart_'+teag)
 
 print(time.ctime())
