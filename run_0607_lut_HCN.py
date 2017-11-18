@@ -62,6 +62,7 @@ wn_ranges['CH4'] = [2825.,3225.]
 wn_ranges['C2H6'] = [2825.,3225.]
 wn_ranges['C2H4'] = [2825.,3225.]
 
+# carico linee ch4
 ch4 = planet.gases['CH4']
 linee = spcl.read_line_database(db_file, freq_range = wn_ranges['CH4'])
 linee = smm.check_lines_mols(linee, [ch4])
@@ -72,8 +73,15 @@ nuca = '/work/localuser/fedef/SPECT_ROBOT_RUN/CH4_newband/'
 linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0020.dat', freq_range = wn_ranges['CH4'])
 linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0012.dat', freq_range = wn_ranges['CH4'])
 linee += spcl.read_line_database(nuca+'CH4_corrected_sel_0111.dat', freq_range = wn_ranges['CH4'])
+
+# carico linee HCN
 nuca2 = '/work/localuser/fedef/SPECT_ROBOT_RUN/HCN_newband/'
 linee += spcl.read_line_database(nuca2+'HCN_new_hitcomplete.dat', freq_range = wn_ranges['HCN'])
+
+# carico linee altri gas
+linee += spcl.read_line_database(db_file, freq_range = wn_ranges['C2H2'], mol = 26)
+linee += spcl.read_line_database(db_file, freq_range = wn_ranges['CH4'], mol = 38)
+linee += spcl.read_line_database(db_file, freq_range = wn_ranges['CH4'], mol = 27)
 
 linee = smm.check_lines_mols(linee, planet.gases.values())
 
