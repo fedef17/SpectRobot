@@ -2208,7 +2208,7 @@ def make_abscoeff_LUTS_fast(spectral_grid, isomolec, Temps, Press, LTE = True, t
                 timecalc += time.time()-time2
 
                 pop = spcl.Boltz_ratio_nodeg(levello.energy, vibt) / Q_part
-                print('{:4d} {:10s} {:10s} {:12.2f} {:15s} {:12.3f}'.format(num, lev, lev_lut, levello.energy, levello.lev_string, vibt))
+                #print('{:4d} {:10s} {:10s} {:12.2f} {:15s} {:12.3f}'.format(num, lev, lev_lut, levello.energy, levello.lev_string, vibt))
                 time2 = time.time()
                 if Gco['absorption'] is not None:
                     abs_coeff += Gco['absorption']*pop

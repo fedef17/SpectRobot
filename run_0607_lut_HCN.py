@@ -97,6 +97,9 @@ linee = smm.check_lines_mols(linee, planet.gases.values())
 # sp_grid = abs_coeff.spectral_grid
 #
 # LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee, [hcn], atmosphere = planet.atmosphere, LUTopt = LUTopt)
+PTcoup_missing_T = np.arange(135.,221.,5.)
+Pmiss = 7.5825604279119066e-10
+PTcoup_missing = [[Pmiss, tii] for tii in PTcoup_missing_T]
 
 print(planet.gases.keys())
 for gas in planet.gases:
@@ -107,7 +110,8 @@ for gas in planet.gases:
     abs_coeff = smm.prepare_spe_grid(wn_ranges[gas])
     sp_grid = abs_coeff.spectral_grid
 
-    LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee_ok, [planet.gases[gas]], atmosphere = planet.atmosphere, LUTopt = LUTopt)
+    #LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee_ok, [planet.gases[gas]], atmosphere = planet.atmosphere, LUTopt = LUTopt)
+    LUTS = smm.check_and_build_allluts(inputs, sp_grid, linee_ok, [planet.gases[gas]], PTcouples = PTcoup_missing, LUTopt = LUTopt)
 
 #PTtest = [[3.0, 170.], [4.0, 160.], [2.0, 110.]]
 # PTtest = [[3.0, 170.], [4.0, 160.]]
