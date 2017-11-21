@@ -347,57 +347,39 @@ for pix in pixels:
 
 for i in range(20):
     print('\n')
-
-bay1 = copy.deepcopy(baybau1D)
-time0 = time.time()
-teag = '2Dvs3D_sza80_szavar'
-dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = teag, group_observations = True)
-dampa.close()
-tot_time = time.time()-time0
-print('Tempo totale: {} min'.format(tot_time/60.))
-
-# fillist = os.listdir('.')
-# filli = [fi in fillist if 'line_history' in fi]
-# os.mkdir('cart_'+teag)
-# for fillo in filli:
-#     shutil.copy2(fillo, 'cart_'+teag)
-
-for i in range(20):
-    print('\n')
-
-bay2 = copy.deepcopy(baybau1D)
-time0 = time.time()
-teag = '2Dvs3D_sza80_noszavar'
-dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, group_observations = True)
-dampa.close()
-tot_time = time.time()-time0
-print('Tempo totale: {} min'.format(tot_time/60.))
-
-# fillist = os.listdir('.')
-# filli = [fi in fillist if 'line_history' in fi]
-# os.mkdir('cart_'+teag)
-# for fillo in filli:
-#     shutil.copy2(fillo, 'cart_'+teag)
-
-for i in range(20):
-    print('\n')
+#
+# bay1 = copy.deepcopy(baybau1D)
+# time0 = time.time()
+# teag = '2Dvs3D_sza80_szavar'
+# dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
+# result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = teag, group_observations = True)
+# dampa.close()
+# tot_time = time.time()-time0
+# print('Tempo totale: {} min'.format(tot_time/60.))
+#
+# for i in range(20):
+#     print('\n')
+#
+# bay2 = copy.deepcopy(baybau1D)
+# time0 = time.time()
+# teag = '2Dvs3D_sza80_noszavar'
+# dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
+# result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, group_observations = True)
+# dampa.close()
+# tot_time = time.time()-time0
+# print('Tempo totale: {} min'.format(tot_time/60.))
+#
+# for i in range(20):
+#     print('\n')
 
 bay2 = copy.deepcopy(baybau1D)
 time0 = time.time()
 teag = '2Dvs3D_sza80_inverseLOS'
 dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, invert_LOS_direction = True, group_observations = True)
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = False, nome_inv = teag, invert_LOS_direction = True, group_observations = True)
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
-
-# fillist = os.listdir('.')
-# filli = [fi in fillist if 'line_history' in fi]
-# os.mkdir('cart_'+teag)
-# for fillo in filli:
-#     shutil.copy2(fillo, 'cart_'+teag)
 
 
 fil = open(inputs['cart_inputs']+'pix7418_sza30.pic','r')
@@ -413,59 +395,42 @@ for pix in pixels:
     pix.observation.noise.spectrum = 2.e-8*np.ones(len(pix.observation.spectrum))
 
 
-for i in range(20):
-    print('\n')
-
-bay1 = copy.deepcopy(baybau1D)
-time0 = time.time()
-teag = '2Dvs3D_sza30_szavar'
-dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = teag, group_observations = True)
-dampa.close()
-tot_time = time.time()-time0
-print('Tempo totale: {} min'.format(tot_time/60.))
-
-
-# fillist = os.listdir('.')
-# filli = [fi in fillist if 'line_history' in fi]
-# os.mkdir('cart_'+teag)
-# for fillo in filli:
-#     shutil.copy2(fillo, 'cart_'+teag)
-
-for i in range(20):
-    print('\n')
-
-bay2 = copy.deepcopy(baybau1D)
-time0 = time.time()
-teag = '2Dvs3D_sza30_noszavar'
-dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, group_observations = True)
-dampa.close()
-tot_time = time.time()-time0
-print('Tempo totale: {} min'.format(tot_time/60.))
-
-# fillist = os.listdir('.')
-# filli = [fi in fillist if 'line_history' in fi]
-# os.mkdir('cart_'+teag)
-# for fillo in filli:
-#     shutil.copy2(fillo, 'cart_'+teag)
-
-for i in range(20):
-    print('\n')
+# for i in range(20):
+#     print('\n')
+#
+# bay1 = copy.deepcopy(baybau1D)
+# time0 = time.time()
+# teag = '2Dvs3D_sza30_szavar'
+# dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
+# result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = teag, group_observations = True)
+# dampa.close()
+# tot_time = time.time()-time0
+# print('Tempo totale: {} min'.format(tot_time/60.))
+#
+#
+# for i in range(20):
+#     print('\n')
+#
+# bay2 = copy.deepcopy(baybau1D)
+# time0 = time.time()
+# teag = '2Dvs3D_sza30_noszavar'
+# dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
+# result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, group_observations = True)
+# dampa.close()
+# tot_time = time.time()-time0
+# print('Tempo totale: {} min'.format(tot_time/60.))
+#
+#
+# for i in range(20):
+#     print('\n')
 
 bay2 = copy.deepcopy(baybau1D)
 time0 = time.time()
 teag = '2Dvs3D_sza30_inverseLOS'
 dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, invert_LOS_direction = True, group_observations = True)
+result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = False, nome_inv = teag, invert_LOS_direction = True, group_observations = True)
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
-
-# fillist = os.listdir('.')
-# filli = [fi in fillist if 'line_history' in fi]
-# os.mkdir('cart_'+teag)
-# for fillo in filli:
-#     shutil.copy2(fillo, 'cart_'+teag)
 
 print(time.ctime())

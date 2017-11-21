@@ -501,7 +501,7 @@ class LinearProfile_1D_new(RetSet):
 
         return involved
 
-    def plot_points(self, with_err = True, label = None, logplot = False, linewidth = 2.0):
+    def plot_points(self, with_err = True, plot_prof = False, label = None, logplot = False, linewidth = 2.0, color = None):
         if label is None:
             label = self.name
         alts = []
@@ -511,15 +511,43 @@ class LinearProfile_1D_new(RetSet):
             alts.append(par.key)
             parval.append(par.value)
             parerr.append(par.ret_error)
+
         if with_err:
-            pl.errorbar(parval, alts, xerr=parerr, linewidth=linewidth)
-        #pl.scatter(parval, alts, label = label, linewidth=linewidth)
+            pl.errorbar(parval, alts, xerr=parerr, linewidth=linewidth, label = label, color = color)
+        else:
+            if plot_prof:
+                pio = pl.plot(parval, alts, color = color)
+                color = pio[0].get_color()
+            pl.scatter(parval, alts, label = label, color = color)
 
         if logplot:
             pl.xscale('log')
 
         return
 
+    def plot_apriori_points(self, with_err = True, plot_prof = False, label = None, logplot = False, linewidth = 2.0, color = None):
+        if label is None:
+            label = self.name
+        alts = []
+        parval = []
+        parerr = []
+        for par in self.set:
+            alts.append(par.key)
+            parval.append(par.apriori)
+            parerr.append(par.apriori_err)
+
+        if with_err:
+            pl.errorbar(parval, alts, xerr=parerr, linewidth=linewidth, label = label, color = color)
+        else:
+            if plot_prof:
+                pio = pl.plot(parval, alts, color = color)
+                color = pio[0].get_color()
+            pl.scatter(parval, alts, label = label, color = color)
+
+        if logplot:
+            pl.xscale('log')
+
+        return
 
 class LinearProfile_1D(RetSet):
     """
