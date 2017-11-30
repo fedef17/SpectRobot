@@ -513,12 +513,15 @@ class LinearProfile_1D_new(RetSet):
             parerr.append(par.ret_error)
 
         if with_err:
-            pl.errorbar(parval, alts, xerr=parerr, linewidth=linewidth, label = label, color = color)
+            pl.errorbar(parval, alts, xerr=parerr, linewidth=linewidth, label = label)#, color = color)
         else:
             if plot_prof:
-                pio = pl.plot(parval, alts, color = color)
+                pio = pl.plot(parval, alts)#, color = color)
                 color = pio[0].get_color()
-            pl.scatter(parval, alts, label = label, color = color)
+            if color is not None:
+                pl.scatter(parval, alts, label = label, color = color)
+            else:
+                pl.scatter(parval, alts, label = label)
 
         if logplot:
             pl.xscale('log')

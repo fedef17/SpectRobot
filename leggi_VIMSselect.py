@@ -16,6 +16,7 @@ import scipy.stats as stats
 import time
 from matplotlib.ticker import FormatStrFormatter
 import spect_main_module as smm
+import matplotlib.gridspec as gridspec
 
 
 # def integr(wl,spe,Range,sol_lim):
@@ -48,12 +49,20 @@ import spect_main_module as smm
 ########################### MAIN #######################################################
 
 # cub = 'PIXs_HCN-CH4-C2H2_season_szaall_far.sav'
-cub = 'PIXs_HCN-CH4-C2H2_season_szaall_far_nu.sav'
 cart = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/DATA/'
+cub = 'PIXs_HCN-CH4-C2H2_season_szaall_all_nu2.sav'
 cubo = io.readsav(cart+cub)
 
 pixs = cubo.compPIX
 pixs = pixs[1:]
+
+# cub2 = 'PIXs_HCN-CH4-C2H2_season_szaall_far_nu.sav'
+# cubo2 = io.readsav(cart+cub2)
+#
+# pixs2 = cubo2.compPIX
+# pixs2 = pixs2[1:]
+#
+# print(len(pixs), len(pixs2))
 
 cubes = np.unique([pix.cubo for pix in pixs])
 pix_cubes = dict()
@@ -61,7 +70,7 @@ for cub in cubes:
     pix_cubes[cub] = [pix for pix in pixs if pix.cubo == cub]
     print(cub, len(pix_cubes[cub]), pix_cubes[cub][0].dist)
 
-fio = open(cart+'data_cubes_VIMS_far.sav', 'w')
+fio = open(cart+'data_cubes_VIMS_all.sav', 'w')
 pickle.dump(pix_cubes, fio)
 fio.close()
 
@@ -69,7 +78,87 @@ nomefilebands = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climato
 nomefilenoise = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/DATA/SAMPLE_DATA/error_2006-2008__lat_EQ_sza30_pha63.dat'
 cubo7418 = smm.comppix_to_pixels(pix_cubes['V1536397418'], nomefilebands, nomefilenoise)
 
+
+pl.ion()
+#fig = pl.figure(17)
+#gs = gridspec.GridSpec(3, 3)
+#gs.update(hspace=0.5,wspace=0.25)
+fig, axes = pl.subplots(nrows=3, ncols=3, sharex=True, sharey=True)
+#pl.title('LON-LAT')
+
+years = np.arange(2004,2013)
+for yea, i in zip(years, range(len(years))):
+    pixok = [pix for pix in pixs if int(pix.year) == yea]
+    lats = [pix.lat for pix in pixok]
+    lons = [pix.lon for pix in pixok]
+    szas = [pix.sza for pix in pixok]
+    phangs = [pix.phang for pix in pixok]
+    #ax = pl.subplot(gs[i])
+    ax = axes.flatten()[i]
+    #fig = pl.figure(yea*2)
+    ax.set_title('{}'.format(yea))
+    ax.set_xlim([0,360])
+    ax.set_ylim([-90,90])
+    ax.set_yticks([-90,-60,-30,0,30,60,90])
+    ax.set_xticks(np.arange(0,360,90))
+    ax.grid()
+#    pl.ylabel('Latitude')
+#    pl.xlabel('Longitude')
+    coso = ax.scatter(lons, lats, c=szas, s=1, cmap = 'jet_r', vmin = 0., vmax = 120.)
+    #pl.colorbar()
+    #pl.grid()
+
+#axes.flatten()[-1].axis('off')
+fig.tight_layout()
+fig.subplots_adjust(right=0.8)
+cbar_ax = fig.add_axes([0.83, 0.12, 0.05, 0.7])
+cb = fig.colorbar(coso, cax=cbar_ax)
+cb.set_label('SZA')
+
+cartfig = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/DATA/'
+fig.savefig(cartfig+'LON_LAT_sza.pdf', format='pdf', dpi=150)
+
+# fig2 = pl.figure(18)
+# gs2 = gridspec.GridSpec(3, 3)
+# gs2.update(hspace=0.5,wspace=0.25)
+fig2, axes = pl.subplots(nrows=3, ncols=3, sharex=True, sharey=True)
+for yea, i in zip(years, range(len(years))):
+    pixok = [pix for pix in pixs if int(pix.year) == yea]
+    lats = [pix.lat for pix in pixok]
+    lons = [pix.lon for pix in pixok]
+    szas = [pix.sza for pix in pixok]
+    phangs = [pix.phang for pix in pixok]
+
+    #ax2 = pl.subplot(gs2[i])
+    ax2 = axes.flatten()[i]
+    #fig = pl.figure(yea*2)
+    ax2.set_title('{}'.format(yea))
+    ax2.set_xlim([0,120])
+    ax2.set_ylim([-90,90])
+    ax2.set_yticks([-90,-60,-30,0,30,60,90])
+    ax2.set_xticks(np.arange(0,120,30))
+    ax2.grid()
+    # pl.title('{}'.format(yea))
+    # #fig = pl.figure(yea*2+1)
+    # pl.xlim(0,120)
+    # pl.ylim(-90,90)
+    #pl.title('YEAR {} - SZA-LAT (c = PHANG)')
+    coso2 = ax2.scatter(szas, lats, c=phangs, s=1, vmin = 0., vmax = 180.)
+    #pl.grid()
+    #pl.colorbar()
+
+#axes.flatten()[-1].axis('off')
+fig2.tight_layout()
+fig2.subplots_adjust(right=0.8)
+cbar_ax = fig2.add_axes([0.83, 0.12, 0.05, 0.7])
+cb = fig2.colorbar(coso2, cax=cbar_ax)
+cb.set_label('Phase angle')
+
+cartfig = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/DATA/'
+fig2.savefig(cartfig+'SZA_LAT_phang.pdf', format='pdf', dpi=150)
+
 print('ciao')
+sys.exit()
 
 
 alts = np.array([1045.12,   940.42,   885.04 ,  769.22,   660.85,   605.33,   501.11])
