@@ -122,6 +122,11 @@ for molec in nlte_molecs.values():
         print('ATTENZZZZIONEEE: gas {} not found in input vmr profiles'.format(molec.name))
         time.sleep(5)
 
+
+
+
+sys.exit()
+
 ##### SETTING THE BAYESSET:
 baybau = smm.BayesSet(tag = 'test_CH4_HCN_C2H2_3D')
 alt_nodes = np.arange(450., 1051., 100.)
