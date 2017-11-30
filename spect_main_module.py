@@ -2950,7 +2950,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
     return
 
 
-def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radtran_opt = dict(), save_hires = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1'):
+def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radtran_opt = dict(), save_hires = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, invert_LOS_direction = False, nome_inv = '1', track_levels = None):
     """
     Main routine for retrieval. Fast version.
     """
@@ -3091,7 +3091,10 @@ def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radt
         coda = []
         outputs = []
         for los, ssp, fsza, i in zip(losos, sspsos, fszasos, range(n_proc)):
-            los.calc_atm_intersections(planet)
+            if invert_LOS_direction:
+                los.calc_atm_intersections(planet, LOS_order = 'photon')
+            else:
+                los.calc_atm_intersections(planet)
             if use_tangent_sza:
                 los.szas = np.ones(len(los.intersections))*fsza
             else:
@@ -3162,7 +3165,7 @@ def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radt
             for los, i in zip(losos, range(n_proc)):
                 coda.append(Queue())
                 args = (sp_grid_split, planet)
-                kwargs = {'queue': coda[i], 'cartLUTs': inputs['cart_LUTS'], 'cartDROP' : inputs['out_dir'], 'calc_derivatives' : False, 'LUTS' : LUTS, 'radtran_opt' : radtran_opt, 'store_abscoeff': False}
+                kwargs = {'queue': coda[i], 'cartLUTs': inputs['cart_LUTS'], 'cartDROP' : inputs['out_dir'], 'calc_derivatives' : False, 'LUTS' : LUTS, 'radtran_opt' : radtran_opt, 'store_abscoeff': False, 'track_levels': track_levels}
                 processi.append(Process(target=los.radtran_fast, args=args, kwargs=kwargs))
                 processi[i].start()
 
