@@ -79,13 +79,14 @@ for i,band,minl,maxl in zip(range(len(lat_bands)),lat_bands,lat_ext[:-1],lat_ext
     press.append(P)
 
 #grid = np.meshgrid(lat_c,z2)
-grid = sbm.AtmGrid(['lat', 'alt'], [lat_c, z2])
+#grid = sbm.AtmGrid(['lat', 'alt'], [lat_c, z2])
+grid = sbm.AtmGrid(['lat', 'alt'], [lat_ext[:-1], z2])
 
 TT = np.vstack(temps)
 PP = np.vstack(press)
 
-Atm = sbm.AtmProfile(grid, TT, 'temp', ['lin','lin'])
-Atm.add_profile(PP, 'pres', ['lin','exp'])
+Atm = sbm.AtmProfile(grid, TT, 'temp', ['box','lin'])
+Atm.add_profile(PP, 'pres', ['box','exp'])
 
 planet.add_atmosphere(Atm)
 
@@ -97,18 +98,19 @@ n_alt_max = 151
 atm_gases_old = sbm.read_input_prof_gbb(inputs['cart_input_1D'] + 'in_vmr_prof.dat', 'vmr', n_alt_max = n_alt_max)
 
 zold = np.linspace(0.,10*(n_alt_max-1),n_alt_max)
-gridvmr = sbm.AtmGrid(['lat', 'alt'], [lat_c, zold])
+#gridvmr = sbm.AtmGrid(['lat', 'alt'], [lat_c, zold])
+gridvmr = sbm.AtmGrid(['lat', 'alt'], [lat_ext[:-1], zold])
 for gas in atm_gases_old:
     coso2d = np.array((len(lat_ext)-1)*[atm_gases_old[gas]])
-    atm_gases_old[gas] = sbm.AtmProfile(gridvmr, coso2d, profname='vmr', interp = ['lin','lin'])
+    atm_gases_old[gas] = sbm.AtmProfile(gridvmr, coso2d, profname='vmr', interp = ['box','lin'])
 
-nlte_molecs = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, inputs['cart_tvibs'], formato = 'Maya', lat_interp = 'lin')
+nlte_molecs = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, inputs['cart_tvibs'], formato = 'Maya', lat_interp = 'box')
 
-nlte_molecs2 = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, inputs['cart_tvibs2'], formato = 'Manuel', correct_levstring = True, lat_interp = 'lin')
+nlte_molecs2 = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, inputs['cart_tvibs2'], formato = 'Manuel', correct_levstring = True, lat_interp = 'box')
 for molec in nlte_molecs2.items():
     nlte_molecs[molec[0]] = copy.deepcopy(molec[1])
 
-nlte_molecs3 = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, inputs['cart_tvibs3'], formato = 'Manuel2', lat_interp = 'lin')
+nlte_molecs3 = sbm.add_nLTE_molecs_from_tvibmanuel_3D(planet, inputs['cart_tvibs3'], formato = 'Manuel2', lat_interp = 'box')
 for molec in nlte_molecs3.items():
     nlte_molecs[molec[0]] = copy.deepcopy(molec[1])
 
@@ -397,7 +399,7 @@ print('Faccio le inversions')
 
 bay1 = copy.deepcopy(baybau1D)
 time0 = time.time()
-teag = '2Dvs3D_sza65_szavar_lin'
+teag = '2Dvs3D_sza65_szavar'
 dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
 result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = teag, group_observations = True)
 dampa.close()
@@ -409,7 +411,7 @@ for i in range(20):
 
 bay2 = copy.deepcopy(baybau1D)
 time0 = time.time()
-teag = '2Dvs3D_sza65_noszavar_lin'
+teag = '2Dvs3D_sza65_noszavar'
 dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
 result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, group_observations = True)
 dampa.close()
@@ -421,7 +423,7 @@ for i in range(20):
 
 bay2 = copy.deepcopy(baybau1D)
 time0 = time.time()
-teag = '2Dvs3D_sza65_inverseLOS_lin'
+teag = '2Dvs3D_sza65_inverseLOS'
 dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
 result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = False, nome_inv = teag, invert_LOS_direction = True, group_observations = True)
 dampa.close()
@@ -470,41 +472,8 @@ dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
-for i in range(20):
-    print('\n')
 
-bay1 = copy.deepcopy(baybau1D)
-time0 = time.time()
-teag = '2Dvs3D_sza80_szavar_lin'
-dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = teag, group_observations = True)
-dampa.close()
-tot_time = time.time()-time0
-print('Tempo totale: {} min'.format(tot_time/60.))
 
-for i in range(20):
-    print('\n')
-
-bay2 = copy.deepcopy(baybau1D)
-time0 = time.time()
-teag = '2Dvs3D_sza80_noszavar_lin'
-dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, group_observations = True)
-dampa.close()
-tot_time = time.time()-time0
-print('Tempo totale: {} min'.format(tot_time/60.))
-
-for i in range(20):
-    print('\n')
-
-bay2 = copy.deepcopy(baybau1D)
-time0 = time.time()
-teag = '2Dvs3D_sza80_inverseLOS_lin'
-dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = False, nome_inv = teag, invert_LOS_direction = True, group_observations = True)
-dampa.close()
-tot_time = time.time()-time0
-print('Tempo totale: {} min'.format(tot_time/60.))
 
 
 fil = open(inputs['cart_inputs']+'pix7418_sza30.pic','r')
@@ -546,44 +515,3 @@ pickle.dump(result, dampa)
 dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
-
-
-for i in range(20):
-    print('\n')
-
-bay1 = copy.deepcopy(baybau1D)
-time0 = time.time()
-teag = '2Dvs3D_sza30_szavar_lin'
-dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = teag, group_observations = True)
-dampa.close()
-tot_time = time.time()-time0
-print('Tempo totale: {} min'.format(tot_time/60.))
-
-
-for i in range(20):
-    print('\n')
-
-bay2 = copy.deepcopy(baybau1D)
-time0 = time.time()
-teag = '2Dvs3D_sza30_noszavar_lin'
-dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, group_observations = True)
-dampa.close()
-tot_time = time.time()-time0
-print('Tempo totale: {} min'.format(tot_time/60.))
-
-
-for i in range(20):
-    print('\n')
-
-bay2 = copy.deepcopy(baybau1D)
-time0 = time.time()
-teag = '2Dvs3D_sza30_inverseLOS_lin'
-dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
-result = smm.inversion_fast_limb(inputs, planet3D, linee, bay2, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, use_tangent_sza = False, nome_inv = teag, invert_LOS_direction = True, group_observations = True)
-dampa.close()
-tot_time = time.time()-time0
-print('Tempo totale: {} min'.format(tot_time/60.))
-
-print(time.ctime())
