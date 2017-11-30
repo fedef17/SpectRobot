@@ -124,9 +124,6 @@ for molec in nlte_molecs.values():
 
 
 
-
-sys.exit()
-
 ##### SETTING THE BAYESSET:
 baybau = smm.BayesSet(tag = 'test_CH4_HCN_C2H2_3D')
 alt_nodes = np.arange(450., 1051., 100.)
