@@ -346,7 +346,7 @@ for pix in pixels:
     pix.observation.mask[cond] = 0
     pix.observation.noise = copy.deepcopy(pix.observation)
     pix.observation.noise.spectrum = 1.5e-8*np.ones(len(pix.observation.spectrum))
-    if len(pix.observation.observation.spectrum) != len(pix.observation.noise.spectrum) or len(pix.observation.observation.spectrum) != len(pix.observation.mask):
+    if len(pix.observation.spectrum) != len(pix.observation.noise.spectrum) or len(pix.observation.spectrum) != len(pix.observation.mask):
         raise ValueError('Inconsistent length of mask or noise')
     pix.pixel_rot = 0.0
     i+=1
