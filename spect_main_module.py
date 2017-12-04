@@ -2667,34 +2667,32 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
     if group_observations:
         print('Group observations')
-        #sim_LOSs = group_observations(pixels)
-        sim_LOSs = [pix.LOS() for pix in pixels]
-        first_los = pixels[0].low_LOS()
-        if first_los.get_tangent_altitude() > pixels[0].limb_tg_alt:
-            first_los = pixels[0].up_LOS()
-        sim_LOSs.insert(0, first_los)
-        last_los = pixels[-1].up_LOS()
-        if last_los.get_tangent_altitude() < pixels[-1].limb_tg_alt:
-            last_los = pixels[-1].low_LOS()
-        sim_LOSs.append(last_los)
-        #sim_LOSs = sim_LOSs[::-1]
-
-        fszas = [pix.limb_tg_sza for pix in pixels]
-        fszas.insert(0, pixels[0].limb_tg_sza)
-        fszas.append(pixels[-1].limb_tg_sza)
-
-        alts_sim = [los.get_tangent_altitude() for los in sim_LOSs]
-        print(alts_sim)
-
-        ssps = [pix.sub_solar_point() for pix in pixels]
-        ssps.insert(0, pixels[0].sub_solar_point())
-        ssps.append(pixels[-1].sub_solar_point())
-
-        # ordering
-        ordlos = np.argsort(np.array(alts_sim))
-        sim_LOSs = list(np.array(sim_LOSs)[ordlos])
-        ssps = list(np.array(ssps)[ordlos])
-        alts_sim = list(np.sort(np.array(alts_sim)))
+        sim_LOSs, alts_sim, ssps, fszas = group_observations(pixels, alt_step = 50.)
+        # sim_LOSs = [pix.LOS() for pix in pixels]
+        # first_los = pixels[0].low_LOS()
+        # if first_los.get_tangent_altitude() > pixels[0].limb_tg_alt:
+        #     first_los = pixels[0].up_LOS()
+        # sim_LOSs.insert(0, first_los)
+        # last_los = pixels[-1].up_LOS()
+        # if last_los.get_tangent_altitude() < pixels[-1].limb_tg_alt:
+        #     last_los = pixels[-1].low_LOS()
+        # sim_LOSs.append(last_los)
+        #
+        # fszas = [pix.limb_tg_sza for pix in pixels]
+        # fszas.insert(0, pixels[0].limb_tg_sza)
+        # fszas.append(pixels[-1].limb_tg_sza)
+        #
+        # alts_sim = [los.get_tangent_altitude() for los in sim_LOSs]
+        # print(alts_sim)
+        #
+        # ssps = [pix.sub_solar_point() for pix in pixels]
+        # ssps.insert(0, pixels[0].sub_solar_point())
+        # ssps.append(pixels[-1].sub_solar_point())
+        #
+        # ordlos = np.argsort(np.array(alts_sim))
+        # sim_LOSs = list(np.array(sim_LOSs)[ordlos])
+        # ssps = list(np.array(ssps)[ordlos])
+        # alts_sim = list(np.sort(np.array(alts_sim)))
     else:
         sim_LOSs = []
         ssps = []
