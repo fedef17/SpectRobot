@@ -2595,7 +2595,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     return
 
 
-def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, save_lowres = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1', solo_simulation = False, invert_LOS_direction = False):
+def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, save_lowres = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1', solo_simulation = False, invert_LOS_direction = False, alt_step_sims = 50., alt_first_los = None):
     """
     Main routine for retrieval. Fast version.
     """
@@ -2667,7 +2667,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
     if group_observations:
         print('Group observations')
-        sim_LOSs, alts_sim, ssps, fszas = group_observations(pixels, alt_step = 50.)
+        sim_LOSs, alts_sim, ssps, fszas = group_observations(pixels, alt_step = alt_step_sims, alt_first_los = alt_first_los)
         # sim_LOSs = [pix.LOS() for pix in pixels]
         # first_los = pixels[0].low_LOS()
         # if first_los.get_tangent_altitude() > pixels[0].limb_tg_alt:
@@ -2958,7 +2958,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
     return
 
 
-def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radtran_opt = dict(), save_hires = True, save_lowres = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, invert_LOS_direction = False, nome_inv = '1', track_levels = None):
+def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radtran_opt = dict(), save_hires = True, save_lowres = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, invert_LOS_direction = False, nome_inv = '1', track_levels = None, alt_step_sims = 50., alt_first_los = None):
     """
     Main routine for retrieval. Fast version.
     """
@@ -3026,33 +3026,35 @@ def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radt
 
     if group_observations:
         print('Group observations')
-        #sim_LOSs = group_observations(pixels)
-        sim_LOSs = [pix.LOS() for pix in pixels]
-        first_los = pixels[0].low_LOS()
-        if first_los.get_tangent_altitude() > pixels[0].limb_tg_alt:
-            first_los = pixels[0].up_LOS()
-        sim_LOSs.insert(0, first_los)
-        last_los = pixels[-1].up_LOS()
-        if last_los.get_tangent_altitude() < pixels[-1].limb_tg_alt:
-            last_los = pixels[-1].low_LOS()
-        sim_LOSs.append(last_los)
-
-        fszas = [pix.limb_tg_sza for pix in pixels]
-        fszas.insert(0, pixels[0].limb_tg_sza)
-        fszas.append(pixels[-1].limb_tg_sza)
-
-        alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
-        print(alts_sim)
-
-        ssps = [pix.sub_solar_point() for pix in pixels]
-        ssps.insert(0, pixels[0].sub_solar_point())
-        ssps.append(pixels[-1].sub_solar_point())
-
-        # ordering
-        ordlos = np.argsort(np.array(alts_sim))
-        sim_LOSs = list(np.array(sim_LOSs)[ordlos])
-        ssps = list(np.array(ssps)[ordlos])
-        alts_sim = list(np.sort(np.array(alts_sim)))
+        sim_LOSs, alts_sim, ssps, fszas = group_observations(pixels, alt_step = alt_step_sims, alt_first_los = alt_first_los)
+        # print('Group observations')
+        # #sim_LOSs = group_observations(pixels)
+        # sim_LOSs = [pix.LOS() for pix in pixels]
+        # first_los = pixels[0].low_LOS()
+        # if first_los.get_tangent_altitude() > pixels[0].limb_tg_alt:
+        #     first_los = pixels[0].up_LOS()
+        # sim_LOSs.insert(0, first_los)
+        # last_los = pixels[-1].up_LOS()
+        # if last_los.get_tangent_altitude() < pixels[-1].limb_tg_alt:
+        #     last_los = pixels[-1].low_LOS()
+        # sim_LOSs.append(last_los)
+        #
+        # fszas = [pix.limb_tg_sza for pix in pixels]
+        # fszas.insert(0, pixels[0].limb_tg_sza)
+        # fszas.append(pixels[-1].limb_tg_sza)
+        #
+        # alts_sim = [los.get_tangent_point().Spherical()[2] for los in sim_LOSs]
+        # print(alts_sim)
+        #
+        # ssps = [pix.sub_solar_point() for pix in pixels]
+        # ssps.insert(0, pixels[0].sub_solar_point())
+        # ssps.append(pixels[-1].sub_solar_point())
+        #
+        # # ordering
+        # ordlos = np.argsort(np.array(alts_sim))
+        # sim_LOSs = list(np.array(sim_LOSs)[ordlos])
+        # ssps = list(np.array(ssps)[ordlos])
+        # alts_sim = list(np.sort(np.array(alts_sim)))
     else:
         sim_LOSs = []
         ssps = []
@@ -3256,7 +3258,7 @@ def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radt
     return sims, radtrans, single_rads
 
 
-def group_observations(pixels, alt_step = 50.):
+def group_observations(pixels, alt_step = 50., alt_first_los = None):
     """
     Determines a set of LOSs to be used for the forward model with a required step in tangent_altitude.
     Pixels are assumed to have similar geometry:
@@ -3274,6 +3276,10 @@ def group_observations(pixels, alt_step = 50.):
         last_los = pixels[-1].low_LOS()
 
     alt_range = [first_los.get_tangent_altitude(), last_los.get_tangent_altitude()]
+    if alt_first_los is None:
+        alt_first_los = alt_range[0]
+    elif alt_first_los > alt_range[0]:
+        alt_first_los = alt_range[0]
 
     lats = [pi.limb_tg_lat for pi in pixels]
     lons = [pi.limb_tg_lon for pi in pixels]
@@ -3290,7 +3296,7 @@ def group_observations(pixels, alt_step = 50.):
 
     spacecraft = sim_LOSs[0].starting_point
 
-    alts = np.arange(alt_range[0], alt_range[1]+alt_step, alt_step)
+    alts = np.arange(alt_first_los, alt_range[1]+alt_step, alt_step)
     LOS_ok = []
     for alt in alts:
         tg_pu = sbm.Coords([mea_lat, mea_lon, alt], s_ref = 'Spherical')
