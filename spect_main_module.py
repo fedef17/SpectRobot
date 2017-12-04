@@ -2667,7 +2667,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
     if group_observations:
         print('Group observations')
-        sim_LOSs, alts_sim, ssps, fszas = group_observations(pixels, alt_step = alt_step_sims, alt_first_los = alt_first_los)
+        sim_LOSs, alts_sim, ssps, fszas = make_group_observations(pixels, alt_step = alt_step_sims, alt_first_los = alt_first_los)
         # sim_LOSs = [pix.LOS() for pix in pixels]
         # first_los = pixels[0].low_LOS()
         # if first_los.get_tangent_altitude() > pixels[0].limb_tg_alt:
@@ -3026,7 +3026,7 @@ def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radt
 
     if group_observations:
         print('Group observations')
-        sim_LOSs, alts_sim, ssps, fszas = group_observations(pixels, alt_step = alt_step_sims, alt_first_los = alt_first_los)
+        sim_LOSs, alts_sim, ssps, fszas = make_group_observations(pixels, alt_step = alt_step_sims, alt_first_los = alt_first_los)
         # print('Group observations')
         # #sim_LOSs = group_observations(pixels)
         # sim_LOSs = [pix.LOS() for pix in pixels]
@@ -3258,7 +3258,7 @@ def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radt
     return sims, radtrans, single_rads
 
 
-def group_observations(pixels, alt_step = 50., alt_first_los = None):
+def make_group_observations(pixels, alt_step = 50., alt_first_los = None):
     """
     Determines a set of LOSs to be used for the forward model with a required step in tangent_altitude.
     Pixels are assumed to have similar geometry:
