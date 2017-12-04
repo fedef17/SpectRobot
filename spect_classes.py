@@ -892,6 +892,9 @@ class SpectralObject(object):
         elif type(spectral_widths) is int or type(spectral_widths) is float:
             spectral_widths = [spectral_widths]*new_len
 
+        if len(spectral_widths) != new_len:
+            raise ValueError('{} spectral widths for {} grid points'.format(len(spectral_widths), new_len))
+
         spectrum = np.zeros(new_len, dtype = float)
 
         for num, freq, wid in zip(range(new_len), new_spectral_grid.grid, spectral_widths):

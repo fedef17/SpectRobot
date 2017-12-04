@@ -348,6 +348,8 @@ for pix in pixels:
     pix.observation.noise.spectrum = 1.5e-8*np.ones(len(pix.observation.spectrum))
     if len(pix.observation.spectrum) != len(pix.observation.noise.spectrum) or len(pix.observation.spectrum) != len(pix.observation.mask):
         raise ValueError('Inconsistent length of mask or noise')
+    pix.observations.bands = copy.deepcopy(pix.observations)
+    pix.observations.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
     pix.pixel_rot = 0.0
     i+=1
 
@@ -378,7 +380,7 @@ dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
-"""
+
 teag = 'sza65_tracklevels_szavar_short'
 dampa = open(inputs['out_dir']+'./radtran_'+teag+'.pic','wb')
 result = smm.radtrans(inputs, planet3D, linee, pixels, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, nome_inv = teag, save_hires = False, group_observations = True, track_levels = track_levels_short, alt_first_los = 300.)
@@ -443,6 +445,8 @@ print('Tempo totale: {} min'.format(tot_time/60.))
 for i in range(20):
     print('\n')
 
+"""
+
 fil = open(inputs['cart_inputs']+'pix7418_sza80.pic','r')
 pixels = pickle.load(fil)
 fil.close()
@@ -454,6 +458,8 @@ for pix in pixels:
     pix.observation.mask[cond] = 0
     pix.observation.noise = copy.deepcopy(pix.observation)
     pix.observation.noise.spectrum = 2.e-8*np.ones(len(pix.observation.spectrum))
+    pix.observations.bands = copy.deepcopy(pix.observations)
+    pix.observations.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
 
 pixels.sort(key = lambda x: x.limb_tg_alt)
 pix_rad = pixels[::3]
@@ -497,7 +503,8 @@ for pix in pixels:
     pix.observation.mask[cond] = 0
     pix.observation.noise = copy.deepcopy(pix.observation)
     pix.observation.noise.spectrum = 2.e-8*np.ones(len(pix.observation.spectrum))
-
+    pix.observations.bands = copy.deepcopy(pix.observations)
+    pix.observations.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
 
 pixels.sort(key = lambda x: x.limb_tg_alt)
 pix_rad = pixels[::3]
