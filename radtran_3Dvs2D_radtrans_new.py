@@ -340,15 +340,12 @@ i=0
 for pix in pixels:
     print('Masking CH4 R branch')
     gri = pix.observation.spectral_grid.grid
-    cond = (gri > 3295.)
-    pix.observation.spectral_grid.grid = pix.observation.spectral_grid.grid[cond]
-    pix.observation.spectrum = pix.observation.spectrum[cond]
-    #cond = (gri < 3295.)
-    #pix.observation.mask[cond] = 0
-    pix.observation.mask = np.ones(len(pix.observation.spectrum))
+    cond = (gri > 3190.) & (gri < 3295.)
+    pix.observation.mask[cond] = 0
     pix.observation.noise = copy.deepcopy(pix.observation)
     pix.observation.noise.spectrum = 1.5e-8*np.ones(len(pix.observation.spectrum))
-    pix.observation.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
+    if len(pix.observation.observation.spectrum) != len(pix.observation.noise.spectrum) or len(pix.observation.observation.spectrum) != len(pix.observation.mask):
+        raise ValueError('Inconsistent length of mask or noise')
     pix.pixel_rot = 0.0
     i+=1
 

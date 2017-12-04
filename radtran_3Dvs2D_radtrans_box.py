@@ -316,7 +316,7 @@ linee += spcl.read_line_database(nuca2+'HCN_new_hitcomplete.dat')
 smm.keep_levels_wlines(planet3D, linee)
 smm.keep_levels_wlines(planet1D, linee)
 
-pickle.dump(planet3D, open(inputs['cart_tvibs']+'planet_3D_latlin.pic','w'))
+pickle.dump(planet3D, open(inputs['cart_tvibs']+'planet_3D.pic','w'))
 pickle.dump(planet1D, open(inputs['cart_tvibs']+'planet_1D.pic','w'))
 
 
@@ -342,15 +342,12 @@ i=0
 for pix in pixels:
     print('Masking CH4 R branch')
     gri = pix.observation.spectral_grid.grid
-    cond = (gri > 3295.)
-    pix.observation.spectral_grid.grid = pix.observation.spectral_grid.grid[cond]
-    pix.observation.spectrum = pix.observation.spectrum[cond]
-    #cond = (gri < 3295.)
-    #pix.observation.mask[cond] = 0
-    pix.observation.mask = np.ones(len(pix.observation.spectrum))
+    cond = (gri > 3190.) & (gri < 3295.)
+    pix.observation.mask[cond] = 0
     pix.observation.noise = copy.deepcopy(pix.observation)
     pix.observation.noise.spectrum = 1.5e-8*np.ones(len(pix.observation.spectrum))
-    pix.observation.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
+    if len(pix.observation.observation.spectrum) != len(pix.observation.noise.spectrum) or len(pix.observation.observation.spectrum) != len(pix.observation.mask):
+        raise ValueError('Inconsistent length of mask or noise')
     pix.pixel_rot = 0.0
     i+=1
 
@@ -372,7 +369,7 @@ teag = 'sza65_tracklevels_szavar_all'
 # radtrans_kwa = {'wn_range': wn_range, 'radtran_opt': radtran_opt, 'LUTopt': LUTopt, 'use_tangent_sza': False, 'nome_inv': teag, 'save_hires': True, 'group_observations': True, 'track_levels': track_levels_all}
 # radtrans_arg = [inputs, planet3D, linee, pixels]
 dampa = open(inputs['out_dir']+'./radtran_'+teag+'.pic','wb')
-result = smm.radtrans(inputs, planet3D, linee, pixels, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, nome_inv = teag, save_hires = True, group_observations = True, track_levels = track_levels_all)
+result = smm.radtrans(inputs, planet3D, linee, pixels, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, nome_inv = teag, save_hires = False, group_observations = True, track_levels = track_levels_all)
 pickle.dump(result, dampa)
 dampa.close()
 tot_time = time.time()-time0
@@ -380,7 +377,7 @@ print('Tempo totale: {} min'.format(tot_time/60.))
 
 teag = 'sza65_tracklevels_noszavar_short'
 dampa = open(inputs['out_dir']+'./radtran_'+teag+'.pic','wb')
-result = smm.radtrans(inputs, planet3D, linee, pixels, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, save_hires = True, group_observations = True, track_levels = track_levels_short)
+result = smm.radtrans(inputs, planet3D, linee, pixels, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, save_hires = False, group_observations = True, track_levels = track_levels_short)
 pickle.dump(result, dampa)
 dampa.close()
 tot_time = time.time()-time0
@@ -388,7 +385,7 @@ print('Tempo totale: {} min'.format(tot_time/60.))
 
 teag = 'sza65_3D_tracklevels_inverseLOS_short'
 dampa = open(inputs['out_dir']+'./radtran_'+teag+'.pic','wb')
-result = smm.radtrans(inputs, planet3D, linee, pixels, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, invert_LOS_direction = True, nome_inv = teag, save_hires = True, group_observations = True, track_levels = track_levels_short)
+result = smm.radtrans(inputs, planet3D, linee, pixels, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, invert_LOS_direction = True, nome_inv = teag, save_hires = False, group_observations = True, track_levels = track_levels_short)
 pickle.dump(result, dampa)
 dampa.close()
 tot_time = time.time()-time0
@@ -450,7 +447,7 @@ pix_rad = pixels[::3]
 
 teag = 'sza80_tracklevels_szavar'
 dampa = open(inputs['out_dir']+'./radtran_'+teag+'.pic','wb')
-result = smm.radtrans(inputs, planet3D, linee, pix_rad, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, nome_inv = teag, save_hires = True, group_observations = True, track_levels = track_levels_short)
+result = smm.radtrans(inputs, planet3D, linee, pix_rad, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, nome_inv = teag, save_hires = False, group_observations = True, track_levels = track_levels_short)
 pickle.dump(result, dampa)
 dampa.close()
 tot_time = time.time()-time0
@@ -458,7 +455,7 @@ print('Tempo totale: {} min'.format(tot_time/60.))
 
 teag = 'sza80_tracklevels_noszavar'
 dampa = open(inputs['out_dir']+'./radtran_'+teag+'.pic','wb')
-result = smm.radtrans(inputs, planet3D, linee, pix_rad, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, save_hires = True, group_observations = True, track_levels = track_levels_short)
+result = smm.radtrans(inputs, planet3D, linee, pix_rad, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, save_hires = False, group_observations = True, track_levels = track_levels_short)
 pickle.dump(result, dampa)
 dampa.close()
 tot_time = time.time()-time0
@@ -466,7 +463,7 @@ print('Tempo totale: {} min'.format(tot_time/60.))
 
 teag = 'sza80_3D_tracklevels_inverseLOS'
 dampa = open(inputs['out_dir']+'./radtran_'+teag+'.pic','wb')
-result = smm.radtrans(inputs, planet3D, linee, pix_rad, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, invert_LOS_direction = True, nome_inv = teag, save_hires = True, group_observations = True, track_levels = track_levels_short)
+result = smm.radtrans(inputs, planet3D, linee, pix_rad, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, invert_LOS_direction = True, nome_inv = teag, save_hires = False, group_observations = True, track_levels = track_levels_short)
 pickle.dump(result, dampa)
 dampa.close()
 tot_time = time.time()-time0
@@ -494,7 +491,7 @@ pix_rad = pixels[::3]
 
 teag = 'sza30_tracklevels_szavar'
 dampa = open(inputs['out_dir']+'./radtran_'+teag+'.pic','wb')
-result = smm.radtrans(inputs, planet3D, linee, pix_rad, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, nome_inv = teag, save_hires = True, group_observations = True, track_levels = track_levels_short)
+result = smm.radtrans(inputs, planet3D, linee, pix_rad, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, nome_inv = teag, save_hires = False, group_observations = True, track_levels = track_levels_short)
 pickle.dump(result, dampa)
 dampa.close()
 tot_time = time.time()-time0
@@ -502,7 +499,7 @@ print('Tempo totale: {} min'.format(tot_time/60.))
 
 teag = 'sza30_tracklevels_noszavar'
 dampa = open(inputs['out_dir']+'./radtran_'+teag+'.pic','wb')
-result = smm.radtrans(inputs, planet3D, linee, pix_rad, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, save_hires = True, group_observations = True, track_levels = track_levels_short)
+result = smm.radtrans(inputs, planet3D, linee, pix_rad, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = True, nome_inv = teag, save_hires = False, group_observations = True, track_levels = track_levels_short)
 pickle.dump(result, dampa)
 dampa.close()
 tot_time = time.time()-time0
@@ -510,7 +507,7 @@ print('Tempo totale: {} min'.format(tot_time/60.))
 
 teag = 'sza30_3D_tracklevels_inverseLOS'
 dampa = open(inputs['out_dir']+'./radtran_'+teag+'.pic','wb')
-result = smm.radtrans(inputs, planet3D, linee, pix_rad, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, invert_LOS_direction = True, nome_inv = teag, save_hires = True, group_observations = True, track_levels = track_levels_short)
+result = smm.radtrans(inputs, planet3D, linee, pix_rad, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, invert_LOS_direction = True, nome_inv = teag, save_hires = False, group_observations = True, track_levels = track_levels_short)
 pickle.dump(result, dampa)
 dampa.close()
 tot_time = time.time()-time0

@@ -63,21 +63,24 @@ pixs = pixs[1:]
 # pixs2 = pixs2[1:]
 #
 # print(len(pixs), len(pixs2))
+nomefilebands = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/DATA/SAMPLE_DATA/band_titano_2006-2008__lat_EQ_sza30_pha63.dat'
+nomefilenoise = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/DATA/SAMPLE_DATA/error_2006-2008__lat_EQ_sza30_pha63.dat'
 
 cubes = np.unique([pix.cubo for pix in pixs])
 pix_cubes = dict()
+cubetti = dict()
 for cub in cubes:
     pix_cubes[cub] = [pix for pix in pixs if pix.cubo == cub]
     print(cub, len(pix_cubes[cub]), pix_cubes[cub][0].dist)
+    cubetti[cub] = smm.comppix_to_pixels(pix_cubes[cub], nomefilebands, nomefilenoise)
 
-fio = open(cart+'data_cubes_VIMS_all.sav', 'w')
-pickle.dump(pix_cubes, fio)
+# cubo7418 = smm.comppix_to_pixels(pix_cubes['V1536397418'], nomefilebands, nomefilenoise)
+
+fio = open(cart+'data_cubes_VIMS_all.pic', 'w')
+pickle.dump(cubetti, fio)
 fio.close()
 
-nomefilebands = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/DATA/SAMPLE_DATA/band_titano_2006-2008__lat_EQ_sza30_pha63.dat'
-nomefilenoise = '/home/fedefab/Scrivania/Research/Dotto/AbstrArt/CH4_HCN_climatology/DATA/SAMPLE_DATA/error_2006-2008__lat_EQ_sza30_pha63.dat'
-cubo7418 = smm.comppix_to_pixels(pix_cubes['V1536397418'], nomefilebands, nomefilenoise)
-
+sys.exit()
 
 pl.ion()
 #fig = pl.figure(17)

@@ -1728,19 +1728,19 @@ def split_and_compress_LUTS(spectral_grid, allLUTs, cartLUTs, n_threads, n_split
     return allLUTs, n_split, sp_grids
 
 
-def group_observations(pixels, ret_set):
-    """
-    Defines a set of LOSs suitable for calculating all required radtrans.
-    """
-    tg_points = [pix.get_tangent_point() for pix in pixels]
-    spacecraft = [pix.Spacecraft() for pix in pixels]
-    alt_tg = [po.Spherical()[2] for po in tg_points]
-    lat_tg = [po.Spherical()[0] for po in tg_points]
-
-
-    # potrei trovare punto di ingresso e uscita da atm anche
-
-    pass
+# def group_observations(pixels, ret_set):
+#     """
+#     Defines a set of LOSs suitable for calculating all required radtrans.
+#     """
+#     tg_points = [pix.get_tangent_point() for pix in pixels]
+#     spacecraft = [pix.Spacecraft() for pix in pixels]
+#     alt_tg = [po.Spherical()[2] for po in tg_points]
+#     lat_tg = [po.Spherical()[0] for po in tg_points]
+#
+#
+#     # potrei trovare punto di ingresso e uscita da atm anche
+#
+#     pass
 
 
 def calc_PT_couples_atmosphere(lines, molecs, atmosphere, pres_step_log = 0.4, temp_step = 5.0, max_pres = None, thres = 0.01, add_lowpres = True):
@@ -2355,15 +2355,19 @@ def comppix_to_pixels(comppix, nomefilebands, nomefilenoise):
     bands = sbm.read_bands(nomefilebands, wn_range = wn_range)
     noise = sbm.read_noise(nomefilenoise, wn_range = wn_range)
 
-    nameconv = ['CUBO', 'YEAR', 'DIST', 'LAT', 'LON', 'SZA', 'PHANG', 'ALT', 'SSLAT', 'SSLON', 'OBSLAT', 'OBSLON', 'PIXELROT']
-    nomiok = ['cube','year','dist','limb_tg_lat','limb_tg_lon','limb_tg_sza','phase_ang','limb_tg_alt','sub_solar_lat','sub_solar_lon','sub_obs_lat','sub_obs_lon','pixel_rot']
+    nameconv = ['CUBO', 'YEAR', 'DIST', 'LAT', 'LON', 'SZA', 'PHANG', 'ALT', 'SSLAT', 'SSLON', 'OBSLAT', 'OBSLON', 'PIXELROT','LOCTIME']
+    nomiok = ['cube','year','dist','limb_tg_lat','limb_tg_lon','limb_tg_sza','phase_ang','limb_tg_alt','sub_solar_lat','sub_solar_lon','sub_obs_lat','sub_obs_lon','pixel_rot','limb_tg_loctime']
     dict_name = dict(zip(nameconv,nomiok))
     pix_set = []
     for pix in comppix:
         vals = dict()
         for nam,nunam in zip(nameconv, nomiok):
-            coso = pix[nam]
-            vals[nunam] = coso[0]
+            try:
+                coso = pix[nam]
+                vals[nunam] = coso[0]
+            except KeyError:
+                vals[nunam] = None
+                print('Key {} not found, skipping'.format(nam))
 
         gri = spcl.SpectralGrid(pix['wl'], units = 'nm')
         spet = spcl.SpectralIntensity(pix['spet'], gri, units = 'Wm2')
@@ -2415,7 +2419,7 @@ def read_input_observed(observed_cart, wn_range = None):
     return set_pixels
 
 
-def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), useLUTs = True, debugfile = None, save_hires = False, LUTopt = dict(), test = False, g3D = False):
+def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), useLUTs = True, debugfile = None, save_hires = False, save_lowres = True, LUTopt = dict(), test = False, g3D = False):
     """
     Main routine for retrieval.
     """
@@ -2591,7 +2595,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     return
 
 
-def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1', solo_simulation = False, invert_LOS_direction = False):
+def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, save_lowres = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1', solo_simulation = False, invert_LOS_direction = False):
     """
     Main routine for retrieval. Fast version.
     """
@@ -2721,6 +2725,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         print('we are at iteration: {}'.format(num_it))
         if save_hires:
             hiresfile = open(cartOUT+'hires_radtran_{}.pic'.format(nome_inv), 'wb')
+        if save_lowres:
             lowresfile = open(cartOUT+'lowres_radtran_{}.pic'.format(nome_inv), 'wb')
 
         ntot = 0
@@ -2919,6 +2924,10 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
         print('FOV interp done in {:5.1f} min'.format((time.time()-time0)/60.))
 
+        if save_lowres:
+            pickle.dump([pixels, sims, sim_LOSs, radtrans, single_rads], lowresfile)
+            lowresfile.close()
+
         #INVERSIONE
         chi = chicalc(obs, sims, noise, masks, bayes_set.n_used_par())
 
@@ -2939,6 +2948,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
                 print('mmm chi has raised', chi)
                 return
         chi_old = chi
+
         print('old', [par.value for par in bayes_set.params()])
         inversion_algebra(obs, sims, noise, bayes_set, lambda_LM = lambda_LM, L1_reg = L1_reg, masks = masks)
         print('new', [par.value for par in bayes_set.params()])
@@ -2950,7 +2960,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
     return
 
 
-def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radtran_opt = dict(), save_hires = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, invert_LOS_direction = False, nome_inv = '1', track_levels = None):
+def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radtran_opt = dict(), save_hires = True, save_lowres = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, invert_LOS_direction = False, nome_inv = '1', track_levels = None):
     """
     Main routine for retrieval. Fast version.
     """
@@ -3074,6 +3084,7 @@ def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radt
     print('simulation of the spectra')
     if save_hires:
         hiresfile = open(cartOUT+'hires_radtran_{}.pic'.format(nome_inv), 'wb')
+    if save_lowres:
         lowresfile = open(cartOUT+'lowres_radtran_{}.pic'.format(nome_inv), 'wb')
 
     ntot = 0
@@ -3140,6 +3151,11 @@ def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radt
     for gas in planet.gases:
         for iso in planet.gases[gas].all_iso:
             single_rads[(gas, iso)] = dict()
+            if track_levels is not None:
+                if track_levels.has_key((gas, iso)):
+                    trklev = track_levels[(gas,iso)]
+                    for lev in trklev:
+                        single_rads[(gas, iso, lev)] = dict()
 
     time00 = time.time()
     for nsp, sp_grid_split in zip(range(n_split), sp_grids):
@@ -3233,7 +3249,7 @@ def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radt
             sim_FOV_ok = FOV_integr_1D(intens_FOV, pix.pixel_rot)
             sims.append(sim_FOV_ok)
 
-    if save_hires:
+    if save_lowres:
         pickle.dump([pixels, sims, sim_LOSs, radtrans, single_rads], lowresfile)
         lowresfile.close()
 
@@ -3242,13 +3258,52 @@ def radtrans(inputs, planet, lines, pixels, wn_range = None, sp_gri = None, radt
     return sims, radtrans, single_rads
 
 
-def group_observations(pixels, lat_limits = None, alt_grid = None):
+def group_observations(pixels, alt_step = 50.):
     """
-    Builds a set of LOS for the forward model. pixels are grouped depending on observation cube and lat_band. For each group, a set of LOSs to calculate the radtran in that cube is given.
+    Determines a set of LOSs to be used for the forward model with a required step in tangent_altitude.
+    Pixels are assumed to have similar geometry:
+    - same cube
+    - close tg_sza and tg_lat and tg_lon
     """
-    cubes = np.unique([pix])
+    pixels.sort(key = lambda x: x.limb_tg_alt)
 
-    pass
+    sim_LOSs = [pix.LOS() for pix in pixels]
+    first_los = pixels[0].low_LOS()
+    if first_los.get_tangent_altitude() > pixels[0].limb_tg_alt:
+        first_los = pixels[0].up_LOS()
+    last_los = pixels[-1].up_LOS()
+    if last_los.get_tangent_altitude() < pixels[-1].limb_tg_alt:
+        last_los = pixels[-1].low_LOS()
+
+    alt_range = [first_los.get_tangent_altitude(), last_los.get_tangent_altitude()]
+
+    lats = [pi.limb_tg_lat for pi in pixels]
+    lons = [pi.limb_tg_lon for pi in pixels]
+
+    fszas = [pix.limb_tg_sza for pix in pixels]
+    ssps = [pix.sub_solar_point() for pix in pixels]
+
+    alts_sim = [los.get_tangent_altitude() for los in sim_LOSs]
+
+    mea_lat = np.mean(lats)
+    mea_lon = np.mean(lons)
+    mea_sza = np.mean(fszas)
+    ssp = ssps[0]
+
+    spacecraft = sim_LOSs[0].starting_point
+
+    alts = np.arange(alt_range[0], alt_range[1]+alt_step, alt_step)
+    LOS_ok = []
+    for alt in alts:
+        tg_pu = sbm.Coords([mea_lat, mea_lon, alt], s_ref = 'Spherical')
+        los = sbm.LineOfSight(spacecraft, tg_pu)
+        LOS_ok.append(los)
+
+    ssps = [ssp]*len(alts)
+    fszas = [mea_sza]*len(alts)
+
+    return LOS_ok, alts, ssps, fszas
+
 
 
 def FOV_integr_1D(radtrans, pixel_rot = 0.0):
