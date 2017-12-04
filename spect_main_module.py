@@ -2595,7 +2595,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     return
 
 
-def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = True, save_lowres = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1', solo_simulation = False, invert_LOS_direction = False, alt_step_sims = 50., alt_first_los = None):
+def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = False, save_lowres = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1', solo_simulation = False, invert_LOS_direction = False, alt_step_sims = 50., alt_first_los = None):
     """
     Main routine for retrieval. Fast version.
     """
@@ -2668,6 +2668,9 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
     if group_observations:
         print('Group observations')
         sim_LOSs, alts_sim, ssps, fszas = make_group_observations(pixels, alt_step = alt_step_sims, alt_first_los = alt_first_los)
+        print(alts_sim[:])
+        print(ssps[:])
+        print(fszas[:])
         # sim_LOSs = [pix.LOS() for pix in pixels]
         # first_los = pixels[0].low_LOS()
         # if first_los.get_tangent_altitude() > pixels[0].limb_tg_alt:
@@ -2797,6 +2800,15 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
         radtrans = dict()
         derivs = dict()
+        single_rads = dict()
+        for gas in planet.gases:
+            for iso in planet.gases[gas].all_iso:
+                single_rads[(gas, iso)] = dict()
+                if track_levels is not None:
+                    if track_levels.has_key((gas, iso)):
+                        trklev = track_levels[(gas,iso)]
+                        for lev in trklev:
+                            single_rads[(gas, iso, lev)] = dict()
 
         time00 = time.time()
         for nsp, sp_grid_split in zip(range(n_split), sp_grids):
@@ -2837,6 +2849,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
 
                 for los, out in zip(losos,outputs):
                     radtran = out[0]
+                    single_rad = out[1]
                     retsetmod = out[2]
                     hi_res[los.tag] = out[0]
 
@@ -2866,6 +2879,12 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
                             derivs[kiave] += derivva
                         else:
                             derivs[kiave] = derivva
+
+                    for gasiso in single_rads:
+                        if los.tag in single_rads[gasiso]:
+                            single_rads[gasiso][los.tag] += single_rad[gasiso].hires_to_lowres(observ_sample, spectral_widths = spectral_widths)
+                        else:
+                            single_rads[gasiso][los.tag] = single_rad[gasiso].hires_to_lowres(observ_sample, spectral_widths = spectral_widths)
 
                 ntot += n_proc
                 print('tempo tot: {:5.1f} min'.format((time.time()-time01)/60.))
