@@ -360,18 +360,28 @@ for molnam in ['CH4', 'HCN', 'C2H2']:
         isomol = getattr(mol, iso)
         track_levels_all[(molnam, iso)] = isomol.levels
 
+track_levels_more = dict()
+track_levels_more[('CH4', 'iso_1')] = ['lev_06', 'lev_09', 'lev_10', 'lev_11', 'lev_13', 'lev_14', 'lev_17']
+track_levels_more[('HCN', 'iso_1')] = ['lev_13', 'lev_17', 'lev_20', 'lev_22', 'lev_28']
+track_levels_more[('C2H2', 'iso_1')] = ['lev_01', 'lev_02']
+
 track_levels_short = dict()
-track_levels_short[('CH4', 'iso_1')] = ['lev_06', 'lev_09', 'lev_10']
+track_levels_short[('CH4', 'iso_1')] = ['lev_06', 'lev_09', 'lev_10', 'lev_11']
 track_levels_short[('HCN', 'iso_1')] = ['lev_13', 'lev_28']
 track_levels_short[('C2H2', 'iso_1')] = ['lev_01', 'lev_02']
 
-"""
-
-teag = 'sza65_tracklevels_szavar_short'
-# radtrans_kwa = {'wn_range': wn_range, 'radtran_opt': radtran_opt, 'LUTopt': LUTopt, 'use_tangent_sza': False, 'nome_inv': teag, 'save_hires': True, 'group_observations': True, 'track_levels': track_levels_all}
-# radtrans_arg = [inputs, planet3D, linee, pixels]
+teag = 'sza65_tracklevels_szavar_more'
 dampa = open(inputs['out_dir']+'./radtran_'+teag+'.pic','wb')
-result = smm.radtrans(inputs, planet3D, linee, pixels, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, nome_inv = teag, save_hires = False, group_observations = True, track_levels = track_levels_all, alt_first_los = 300.)
+result = smm.radtrans(inputs, planet3D, linee, pixels, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, nome_inv = teag, save_hires = False, group_observations = True, track_levels = track_levels_more, alt_first_los = 300.)
+pickle.dump(result, dampa)
+dampa.close()
+tot_time = time.time()-time0
+print('Tempo totale: {} min'.format(tot_time/60.))
+
+"""
+teag = 'sza65_tracklevels_szavar_short'
+dampa = open(inputs['out_dir']+'./radtran_'+teag+'.pic','wb')
+result = smm.radtrans(inputs, planet3D, linee, pixels, wn_range = wn_range, radtran_opt = radtran_opt, LUTopt = LUTopt, use_tangent_sza = False, nome_inv = teag, save_hires = False, group_observations = True, track_levels = track_levels_short, alt_first_los = 300.)
 pickle.dump(result, dampa)
 dampa.close()
 tot_time = time.time()-time0

@@ -2595,7 +2595,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     return
 
 
-def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = False, save_lowres = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1', solo_simulation = False, invert_LOS_direction = False, alt_step_sims = 50., alt_first_los = None):
+def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = False, save_lowres = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1', solo_simulation = False, invert_LOS_direction = False, alt_step_sims = 50., alt_first_los = None, track_levels = None):
     """
     Main routine for retrieval. Fast version.
     """
