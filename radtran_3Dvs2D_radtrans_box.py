@@ -348,7 +348,7 @@ for pix in pixels:
     pix.observation.noise.spectrum = 1.5e-8*np.ones(len(pix.observation.spectrum))
     if len(pix.observation.spectrum) != len(pix.observation.noise.spectrum) or len(pix.observation.spectrum) != len(pix.observation.mask):
         raise ValueError('Inconsistent length of mask or noise')
-    pix.observation.bands = copy.deepcopy(pix.observations)
+    pix.observation.bands = copy.deepcopy(pix.observation)
     pix.observation.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
     pix.pixel_rot = 0.0
     i+=1
@@ -459,8 +459,8 @@ for pix in pixels:
     pix.observation.mask[cond] = 0
     pix.observation.noise = copy.deepcopy(pix.observation)
     pix.observation.noise.spectrum = 2.e-8*np.ones(len(pix.observation.spectrum))
-    pix.observations.bands = copy.deepcopy(pix.observations)
-    pix.observations.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
+    pix.observation.bands = copy.deepcopy(pix.observation)
+    pix.observation.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
 
 pixels.sort(key = lambda x: x.limb_tg_alt)
 pix_rad = pixels[::3]
@@ -504,8 +504,8 @@ for pix in pixels:
     pix.observation.mask[cond] = 0
     pix.observation.noise = copy.deepcopy(pix.observation)
     pix.observation.noise.spectrum = 2.e-8*np.ones(len(pix.observation.spectrum))
-    pix.observations.bands = copy.deepcopy(pix.observations)
-    pix.observations.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
+    pix.observation.bands = copy.deepcopy(pix.observation)
+    pix.observation.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
 
 pixels.sort(key = lambda x: x.limb_tg_alt)
 pix_rad = pixels[::3]
