@@ -348,8 +348,8 @@ for pix in pixels:
     pix.observation.noise.spectrum = 1.5e-8*np.ones(len(pix.observation.spectrum))
     if len(pix.observation.spectrum) != len(pix.observation.noise.spectrum) or len(pix.observation.spectrum) != len(pix.observation.mask):
         raise ValueError('Inconsistent length of mask or noise')
-    pix.observations.bands = copy.deepcopy(pix.observations)
-    pix.observations.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
+    pix.observation.bands = copy.deepcopy(pix.observations)
+    pix.observation.bands.spectrum = 8.*np.ones(len(pix.observation.spectrum))
     pix.pixel_rot = 0.0
     i+=1
 
@@ -380,6 +380,7 @@ dampa.close()
 tot_time = time.time()-time0
 print('Tempo totale: {} min'.format(tot_time/60.))
 
+sys.exit()
 
 teag = 'sza65_tracklevels_szavar_short'
 dampa = open(inputs['out_dir']+'./radtran_'+teag+'.pic','wb')
