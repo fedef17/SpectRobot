@@ -379,7 +379,7 @@ print(time.ctime())
 
 for yea in [2006,2007]:
     print('YEAR ',yea)
-    all_seqs = pickle.load(open(cart+'sequences_year_{}.pic'.format(yea),'r'))
+    all_seqs = pickle.load(open(inputs['cart_inputs']+'sequences_year_{}.pic'.format(yea),'r'))
     for lat1,lat2 in zip(lats[:-1], lats[1:]):
         latsss = (lat1,lat2)
         if all_seqs.has_key(latsss):
