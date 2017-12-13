@@ -1146,9 +1146,13 @@ class SpectralObject(object):
 
         return
 
-    def plot(self, label = None, color = None, linewidth = None):
-        pl.plot(self.spectral_grid.grid, self.spectrum, label = label, color = color, linewidth = linewidth)
-        return
+    def plot(self, label = None, color = None, linewidth = None, ax = None):
+        if ax is None:
+            ppp = pl.plot(self.spectral_grid.grid, self.spectrum, label = label, color = color, linewidth = linewidth)
+        else:
+            ppp = ax.plot(self.spectral_grid.grid, self.spectrum, label = label, color = color, linewidth = linewidth)
+
+        return ppp
 
     def norm_plot(self, label = None):
         pl.plot(self.spectral_grid.grid, self.spectrum/np.max(self.spectrum), label = label)

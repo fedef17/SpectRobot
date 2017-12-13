@@ -467,7 +467,7 @@ class LinearProfile_1D_new(RetSet):
         self.set.append(copy.deepcopy(par))
 
         # Points in the middle
-        for alo, alt, aup, ap, fi, er in zip(alt_nodes[:-2], alt_nodes[1:-1], alt_nodes[2:], apriori_prof, first_guess_prof, apriori_prof_err):
+        for alo, alt, aup, ap, fi, er in zip(alt_nodes[:-2], alt_nodes[1:-1], alt_nodes[2:], apriori_prof[1:-1], first_guess_prof[1:-1], apriori_prof_err[1:-1]):
             maskgrid = alt_triangle(alt_grid.grid[0], alt, node_up = aup, node_lo = alo)
             par = RetParam(name, alt, maskgrid, ap, er, first_guess = fi)
             self.set.append(copy.deepcopy(par))

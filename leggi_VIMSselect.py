@@ -271,8 +271,8 @@ pl.title('Coverage of measurements')
 fig.savefig(nome, format='pdf', dpi=150)
 pl.close(fig)
 
-sza_maxs = [0.,40.,60.,80.,120.,180.]
-
+#sza_maxs = [0.,40.,60.,80.,120.,180.]
+sza_maxs = [0.,40.,60.,80.,90.,100.,110.,120.,150.,180.]
 mean_spets = dict()
 
 for sza_min, sza_max in zip(sza_maxs[:-1], sza_maxs[1:]):

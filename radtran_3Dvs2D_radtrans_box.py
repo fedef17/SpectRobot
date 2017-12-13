@@ -239,6 +239,7 @@ cososo = atm_gases_old['CH4']
 prf = []
 for alt in alt_nodes:
     prf.append(cososo.calc(alt))
+print(prf)
 apriori_prof = np.array(prf)
 apriori_prof_err = apriori_prof+0.015
 set_ = smm.LinearProfile_1D_new('CH4', alt_gri, alt_nodes, apriori_prof, apriori_prof_err)
@@ -250,6 +251,7 @@ cososo = atm_gases_old['HCN']
 prf = []
 for alt in alt_nodes:
     prf.append(cososo.calc(alt))
+print(prf)
 apriori_prof = np.array(prf)
 apriori_prof_err = apriori_prof+3.e-4
 set_ = smm.LinearProfile_1D_new('HCN', alt_gri, alt_nodes, apriori_prof, apriori_prof_err)
@@ -259,6 +261,7 @@ cososo = atm_gases_old['C2H2']
 prf = []
 for alt in alt_nodes:
     prf.append(cososo.calc(alt))
+print(prf)
 apriori_prof = np.array(prf)
 apriori_prof_err = apriori_prof+1.e-4
 set_ = smm.LinearProfile_1D_new('C2H2', alt_gri, alt_nodes, apriori_prof, apriori_prof_err)
@@ -266,7 +269,8 @@ baybau1D.add_set(set_)
 
 ### updating the profile of gases in bayesset
 for gas in baybau.sets.keys():
-    planet1D.gases[gas].add_clim(baybau.sets[gas].profile())
+    planet1D.gases[gas].add_clim(baybau1D.sets[gas].profile())
+
 
 ###############################################################
 
