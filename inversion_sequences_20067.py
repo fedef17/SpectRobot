@@ -369,7 +369,7 @@ LUTS = smm.check_and_build_allluts(inputs, sp_gri, linee, planet.gases.values(),
 ###################################################################
 
 sequences = []
-results = []
+results_tot = []
 
 # for yea in [2006,2007]:
 #     sequence += pickle.load(cart_inputs+'sequences_year_{}.pic'.format(yea),'r')
@@ -410,8 +410,6 @@ for yea in [2006,2007]:
             bay1 = copy.deepcopy(baybau1D)
             time0 = time.time()
 
-            sys.exit()
-
             dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
             result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = teag, group_observations = True, alt_first_los = 300.)
             dampa.close()
@@ -419,6 +417,10 @@ for yea in [2006,2007]:
 
             tot_time = time.time()-time0
             print('Tempo totale: {} min'.format(tot_time/60.))
+
+dampa = open(inputs['out_dir']+'results_inversion_0607.pic','w')
+pickle.dump(results_tot,dampa)
+dampa.close()
 
 print(time.ctime())
 print('Fine!')
