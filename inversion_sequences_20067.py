@@ -405,6 +405,7 @@ for yea in [2006,2007]:
             pixels = sequ1['pixels']
 
             pixels = mask_and_check_pixels(pixels)
+            sequ1['pixels'] = pixels
             teag = 'inversion_0607_seq_{:03d}'.format(num)
 
             bay1 = copy.deepcopy(baybau1D)
@@ -414,12 +415,13 @@ for yea in [2006,2007]:
             result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = teag, group_observations = True, alt_first_los = 300.)
             dampa.close()
             results_tot.append(result[3])
+            sequences.append(sequ1)
 
             tot_time = time.time()-time0
             print('Tempo totale: {} min'.format(tot_time/60.))
 
 dampa = open(inputs['out_dir']+'results_inversion_0607.pic','w')
-pickle.dump(results_tot,dampa)
+pickle.dump([num,sequences,results_tot],dampa)
 dampa.close()
 
 print(time.ctime())
