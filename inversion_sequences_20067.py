@@ -375,15 +375,21 @@ results_tot = []
 #     sequence += pickle.load(cart_inputs+'sequences_year_{}.pic'.format(yea),'r')
 lats = np.arange(-90,91,10)
 num = 0
+check_log = open(inputs['out_dir']+'check_log_allinv.dat','w')
 print(time.ctime())
+check_log.write(time.ctime())
 
 for yea in [2006,2007]:
     print('YEAR ',yea)
+    check_log.write('----------  YEAR {} ---------\n'.format(yea))
+    check_log.write('\n')
     all_seqs = pickle.load(open(inputs['cart_inputs']+'sequences_year_{}.pic'.format(yea),'r'))
     for lat1,lat2 in zip(lats[:-1], lats[1:]):
         latsss = (lat1,lat2)
         if all_seqs.has_key(latsss):
             print('LATITUDE ---> ', latsss, len(all_seqs[latsss]))
+            check_log.write('\n')
+            check_log.write('----------  LATITUDE {} - {} ---------\n'.format(lat1, lat2))
             pass
         else:
             continue
@@ -402,6 +408,8 @@ for yea in [2006,2007]:
             num += 1
             print('n_pixels ', sequ1['n_pixels'])
             print('szas ', sequ1['szas'])
+            check_log.write('\n')
+            check_log.write('SEQ: n_pix {}, sza {:6.1f} \n'.format(sequ1['n_pixels'], np.mean(sequ1['szas'])))
             pixels = sequ1['pixels']
 
             pixels = mask_and_check_pixels(pixels)
@@ -412,13 +420,14 @@ for yea in [2006,2007]:
             time0 = time.time()
 
             dampa = open(inputs['out_dir']+'./out_'+teag+'.pic','wb')
-            result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = teag, group_observations = True, alt_first_los = 300.)
+            result = smm.inversion_fast_limb(inputs, planet3D, linee, bay1, pixels, wn_range = wn_range, radtran_opt = radtran_opt, debugfile = dampa, LUTopt = LUTopt, nome_inv = teag, group_observations = True, alt_first_los = 300., check_log = check_log)
             dampa.close()
             results_tot.append(result[3])
             sequences.append(sequ1)
 
             tot_time = time.time()-time0
             print('Tempo totale: {} min'.format(tot_time/60.))
+            check_log.write('Tempo inversione: {6.0f} min\n'.format(tot_time/60.))
 
 dampa = open(inputs['out_dir']+'results_inversion_0607.pic','w')
 pickle.dump([num,sequences,results_tot],dampa)
@@ -426,3 +435,7 @@ dampa.close()
 
 print(time.ctime())
 print('Fine!')
+check_log.write('\n')
+check_log.write(time.ctime())
+check_log.write('Fine!\n')
+check_log.close()

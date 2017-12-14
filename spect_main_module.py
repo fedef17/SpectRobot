@@ -2595,7 +2595,7 @@ def inversion(inputs, planet, lines, bayes_set, pixels, wn_range = None, chi_thr
     return
 
 
-def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = False, save_lowres = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1', solo_simulation = False, invert_LOS_direction = False, alt_step_sims = 50., alt_first_los = None, track_levels = None):
+def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = None, sp_gri = None, chi_threshold = 0.01, max_it = 10, lambda_LM = 0.1, L1_reg = False, radtran_opt = dict(), debugfile = None, save_hires = False, save_lowres = True, LUTopt = dict(), test = False, use_tangent_sza = False, group_observations = False, nome_inv = '1', solo_simulation = False, invert_LOS_direction = False, alt_step_sims = 50., alt_first_los = None, track_levels = None, check_log = None):
     """
     Main routine for retrieval. Fast version.
     """
@@ -2953,22 +2953,32 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         if debugfile is not None:
             if num_it == 0:
                 pickle.dump([pixels, sim_LOSs], debugfile)
-            pickle.dump([num_it, obs, sims, bayes_set, radtrans, derivs], debugfile)
+            pickle.dump([num_it, chi, obs, sims, bayes_set, radtrans, derivs], debugfile)
 
         print('chi is: {}'.format(chi))
+        if check_log is not None:
+            stringa = 'Iteration {:2d}: chi is {:8.3f}\n'.format(num_it, chi)
+            check_log.write(stringa)
 
         if num_it > 0:
             if abs(chi-chi_old)/chi_old < chi_threshold:
                 print('FINISHEDDDD!! :D', chi)
+                if check_log is not None:
+                    check_log.write('Finished!\n')
                 return
             elif chi > chi_old:
                 print('mmm chi has raised', chi)
+                if check_log is not None:
+                    check_log.write('Chi has raised.. Finished!\n')
                 return
         chi_old = chi
 
         print('old', [par.value for par in bayes_set.params()])
         inversion_algebra(obs, sims, noise, bayes_set, lambda_LM = lambda_LM, L1_reg = L1_reg, masks = masks)
         print('new', [par.value for par in bayes_set.params()])
+        if check_log is not None:
+            stringa = 'Params: '+len(bayes_set.params())*'{:9.2e} '+'\n'
+            check_log.write(stringa.format(*(bayes_set.params())))
 
         # Update the VMRs of the retrieved gases with the new values
         for gas in bayes_set.sets.keys():
