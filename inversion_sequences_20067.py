@@ -375,7 +375,7 @@ results_tot = []
 #     sequence += pickle.load(cart_inputs+'sequences_year_{}.pic'.format(yea),'r')
 lats = np.arange(-90,91,10)
 num = 0
-check_log = open(inputs['out_dir']+'check_log_allinv.dat','w')
+check_log = open(inputs['out_dir']+'check_log_allinv.dat','a',0)
 print(time.ctime())
 check_log.write(time.ctime())
 
@@ -428,6 +428,7 @@ for yea in [2006,2007]:
             tot_time = time.time()-time0
             print('Tempo totale: {} min'.format(tot_time/60.))
             check_log.write('Tempo inversione: {6.0f} min\n'.format(tot_time/60.))
+            #check_log.flush()
 
 dampa = open(inputs['out_dir']+'results_inversion_0607.pic','w')
 pickle.dump([num,sequences,results_tot],dampa)
