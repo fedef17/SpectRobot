@@ -2978,7 +2978,7 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
         print('new', [par.value for par in bayes_set.params()])
         if check_log is not None:
             stringa = 'Params: '+len(bayes_set.params())*'{:9.2e} '+'\n'
-            check_log.write(stringa.format(*(bayes_set.params())))
+            check_log.write(stringa.format(*[par.value for par in bayes_set.params()]))
 
         # Update the VMRs of the retrieved gases with the new values
         for gas in bayes_set.sets.keys():
