@@ -2965,12 +2965,12 @@ def inversion_fast_limb(inputs, planet, lines, bayes_set, pixels, wn_range = Non
                 print('FINISHEDDDD!! :D', chi)
                 if check_log is not None:
                     check_log.write('Finished!\n')
-                return
+                return chi, obs, sims, bayes_set
             elif chi > chi_old:
                 print('mmm chi has raised', chi)
                 if check_log is not None:
                     check_log.write('Chi has raised.. Finished!\n')
-                return
+                return chi, obs, sims, bayes_set
         chi_old = chi
 
         print('old', [par.value for par in bayes_set.params()])
