@@ -427,7 +427,7 @@ for yea in [2006,2007]:
 
             tot_time = time.time()-time0
             print('Tempo totale: {} min'.format(tot_time/60.))
-            check_log.write('Tempo inversione: {6.0f} min\n'.format(tot_time/60.))
+            check_log.write('Tempo inversione: {:6.0f} min\n'.format(tot_time/60.))
             #check_log.flush()
 
 dampa = open(inputs['out_dir']+'results_inversion_0607.pic','w')
