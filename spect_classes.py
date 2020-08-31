@@ -1892,6 +1892,17 @@ def Calc_BB(spectral_grid, T, units = 'ergscm2'):
     return BBfu
 
 
+def Calc_BB_single(nu, T):
+    """
+    Returns a the planck function at freq nu and temp T.
+    units = 'ergscm2'
+    """
+
+    spectrum = 2*h_cgs*c_cgs**2 * nu**3 / (np.exp(c2*nu/T)-1)
+
+    return spectrum
+
+
 def Lorentz_shape(wn,wn_0,lw):
     """
     Returns a lorentzian shape on the np.array of wavenumbers wn, with central wavenumber wn_0 and width lw.
